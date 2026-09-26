@@ -98,7 +98,9 @@ def weighted_score(values: dict[str, int], weights: dict[str, float]) -> float |
     return num / den
 
 
-def normalize(reviews: list[Review], scale_min: float, scale_max: float, shrink_k: float = SHRINK_K) -> NormalizationResult:
+def normalize(
+    reviews: list[Review], scale_min: float, scale_max: float, shrink_k: float = SHRINK_K
+) -> NormalizationResult:
     by_judge: dict[str, list[Review]] = defaultdict(list)
     by_project: dict[str, list[Review]] = defaultdict(list)
     for r in reviews:

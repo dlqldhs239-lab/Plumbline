@@ -35,7 +35,13 @@ class VotingTestCase(TestCase):
             team = Team.objects.create(event=self.event, name=f"Team {i}")
             TeamMembership.objects.create(team=team, user=owner)
             self.projects.append(
-                Project.objects.create(event=self.event, team=team, title=f"Project {i}", status=Project.Status.SUBMITTED, submitted_at=now - timedelta(days=1, hours=i))
+                Project.objects.create(
+                    event=self.event,
+                    team=team,
+                    title=f"Project {i}",
+                    status=Project.Status.SUBMITTED,
+                    submitted_at=now - timedelta(days=1, hours=i),
+                )
             )
         _, self.org_token = ApiToken.issue(self.org)
 
@@ -108,7 +114,9 @@ class OpenVotingTests(VotingTestCase):
         self.assertEqual(c.get("/api/events/vote-hack/votes/summary").status_code, 401)
         u = User.objects.create_user("x", "x@example.org", "pw")
         _, t = ApiToken.issue(u)
-        self.assertEqual(c.get("/api/events/vote-hack/votes/summary", HTTP_AUTHORIZATION=f"Bearer {t}").status_code, 403)
+        self.assertEqual(
+            c.get("/api/events/vote-hack/votes/summary", HTTP_AUTHORIZATION=f"Bearer {t}").status_code, 403
+        )
         r = c.get("/api/events/vote-hack/votes/summary", HTTP_AUTHORIZATION=f"Bearer {self.org_token}")
         self.assertEqual(r.status_code, 200)
         page = c.get("/events/vote-hack/ballot/").content.decode()
@@ -137,13 +145,33 @@ class QuadraticVotingTests(VotingTestCase):
 
     def test_budget_is_enforced_quadratically(self):
         p0, p1 = self.projects[0], self.projects[1]
-        r = self.client.post(f"/api/events/vote-hack/projects/{p0.pk}/vote", data={"weight": 2}, content_type="application/json", **self.auth())
+        r = self.client.post(
+            f"/api/events/vote-hack/projects/{p0.pk}/vote",
+            data={"weight": 2},
+            content_type="application/json",
+            **self.auth(),
+        )
         self.assertEqual(r.status_code, 200, r.content)  # cost 4
-        r = self.client.post(f"/api/events/vote-hack/projects/{p1.pk}/vote", data={"weight": 2}, content_type="application/json", **self.auth())
+        r = self.client.post(
+            f"/api/events/vote-hack/projects/{p1.pk}/vote",
+            data={"weight": 2},
+            content_type="application/json",
+            **self.auth(),
+        )
         self.assertEqual(r.status_code, 200)  # cost 8 total
-        r = self.client.post(f"/api/events/vote-hack/projects/{self.projects[2].pk}/vote", data={"weight": 2}, content_type="application/json", **self.auth())
+        r = self.client.post(
+            f"/api/events/vote-hack/projects/{self.projects[2].pk}/vote",
+            data={"weight": 2},
+            content_type="application/json",
+            **self.auth(),
+        )
         self.assertEqual(r.status_code, 400)  # would be 12 > 9
-        r = self.client.post(f"/api/events/vote-hack/projects/{self.projects[2].pk}/vote", data={"weight": 1}, content_type="application/json", **self.auth())
+        r = self.client.post(
+            f"/api/events/vote-hack/projects/{self.projects[2].pk}/vote",
+            data={"weight": 1},
+            content_type="application/json",
+            **self.auth(),
+        )
         self.assertEqual(r.status_code, 200)  # exactly 9
         r = self.client.get("/api/events/vote-hack/ballot", **self.auth())
         self.assertEqual(r.json()["credits_used"], 9)
@@ -165,7 +193,10 @@ class EmailVotingTests(VotingTestCase):
 
     def test_ballot_links(self):
         self.client.force_login(self.org)
-        r = self.client.post("/events/vote-hack/organize/voting/", {"action": "issue", "emails": "a@example.org\nb@example.org\nnot-an-email\na@example.org"})
+        r = self.client.post(
+            "/events/vote-hack/organize/voting/",
+            {"action": "issue", "emails": "a@example.org\nb@example.org\nnot-an-email\na@example.org"},
+        )
         self.assertEqual(r.status_code, 302)
         self.assertEqual(Voter.objects.filter(kind="email").count(), 2)
         r = self.client.get("/events/vote-hack/organize/voting/ballot-links.csv")
@@ -193,7 +224,9 @@ class CommentTests(VotingTestCase):
         u = User.objects.create_user("c", "c@example.org", "pw")
         self.client.force_login(u)
         self.client.post(f"/events/vote-hack/projects/{p.pk}/comments/", {"body": "Nice work"})
-        self.client.post(f"/events/vote-hack/projects/{p.pk}/comments/", {"body": "Nice work"})  # exact duplicate ignored
+        self.client.post(
+            f"/events/vote-hack/projects/{p.pk}/comments/", {"body": "Nice work"}
+        )  # exact duplicate ignored
         self.assertEqual(Comment.objects.count(), 1)
         self.assertContains(self.client.get(p.get_absolute_url()), "Nice work")
         c = Comment.objects.get()
@@ -213,7 +246,12 @@ class CommentTests(VotingTestCase):
         p = self.projects[0]
         codes = []
         for i in range(12):
-            r = self.client.post(f"/api/events/vote-hack/projects/{p.pk}/comments", data={"body": f"msg {i}"}, content_type="application/json", HTTP_AUTHORIZATION=f"Bearer {t}")
+            r = self.client.post(
+                f"/api/events/vote-hack/projects/{p.pk}/comments",
+                data={"body": f"msg {i}"},
+                content_type="application/json",
+                HTTP_AUTHORIZATION=f"Bearer {t}",
+            )
             codes.append(r.status_code)
         self.assertEqual(codes[:10], [201] * 10)
         self.assertEqual(codes[10:], [403, 403])

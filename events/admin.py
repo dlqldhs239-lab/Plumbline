@@ -1,6 +1,17 @@
 from django.contrib import admin
 
-from .models import CustomAnswer, CustomQuestion, Event, EventRole, Prize, Project, Team, TeamInvite, TeamMembership, Track
+from .models import (
+    CustomAnswer,
+    CustomQuestion,
+    Event,
+    EventRole,
+    Prize,
+    Project,
+    Team,
+    TeamInvite,
+    TeamMembership,
+    Track,
+)
 
 
 class TrackInline(admin.TabularInline):

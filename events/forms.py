@@ -1,5 +1,4 @@
 from django import forms
-from django.utils import timezone
 from django.utils.text import slugify
 
 from .models import CustomQuestion, Event, Project, Team, Track
@@ -24,10 +23,21 @@ class EventForm(forms.ModelForm):
     class Meta:
         model = Event
         fields = [
-            "name", "slug", "tagline", "description",
-            "submissions_open_at", "submissions_close_at", "judging_open_at", "judging_close_at",
-            "reviews_per_project", "voting_access", "voting_open_at", "voting_close_at", "voting_credits",
-            "comments_enabled", "is_listed",
+            "name",
+            "slug",
+            "tagline",
+            "description",
+            "submissions_open_at",
+            "submissions_close_at",
+            "judging_open_at",
+            "judging_close_at",
+            "reviews_per_project",
+            "voting_access",
+            "voting_open_at",
+            "voting_close_at",
+            "voting_credits",
+            "comments_enabled",
+            "is_listed",
         ]
         widgets = {
             "submissions_open_at": DateTimeLocalInput(),
@@ -46,7 +56,14 @@ class EventForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["slug"].required = False
-        for name in ("submissions_open_at", "submissions_close_at", "judging_open_at", "judging_close_at", "voting_open_at", "voting_close_at"):
+        for name in (
+            "submissions_open_at",
+            "submissions_close_at",
+            "judging_open_at",
+            "judging_close_at",
+            "voting_open_at",
+            "voting_close_at",
+        ):
             self.fields[name].input_formats = ["%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M", "%Y-%m-%dT%H:%M:%S"]
         if self.instance.pk:
             self.fields["tracks_text"].initial = "\n".join(self.instance.tracks.values_list("name", flat=True))
@@ -84,9 +101,13 @@ class TeamForm(forms.ModelForm):
 
 class ProjectForm(forms.ModelForm):
     image_urls_text = forms.CharField(
-        label="Image gallery URLs", required=False, widget=forms.Textarea(attrs={"rows": 3, "placeholder": "One URL per line"})
+        label="Image gallery URLs",
+        required=False,
+        widget=forms.Textarea(attrs={"rows": 3, "placeholder": "One URL per line"}),
     )
-    tech_tags_text = forms.CharField(label="Tech tags", required=False, help_text="Comma separated, e.g. django, postgres, htmx")
+    tech_tags_text = forms.CharField(
+        label="Tech tags", required=False, help_text="Comma separated, e.g. django, postgres, htmx"
+    )
 
     class Meta:
         model = Project
@@ -122,7 +143,19 @@ class ProjectForm(forms.ModelForm):
         return forms.CharField(**common)
 
     def data_dict(self) -> dict:
-        d = {k: self.cleaned_data[k] for k in ("title", "tagline", "description", "track", "thumbnail_url", "demo_video_url", "repo_url", "live_url")}
+        d = {
+            k: self.cleaned_data[k]
+            for k in (
+                "title",
+                "tagline",
+                "description",
+                "track",
+                "thumbnail_url",
+                "demo_video_url",
+                "repo_url",
+                "live_url",
+            )
+        }
         d["image_urls"] = self.cleaned_data.get("image_urls_text", "")
         d["tech_tags"] = self.cleaned_data.get("tech_tags_text", "")
         return d
@@ -132,9 +165,13 @@ class ProjectForm(forms.ModelForm):
 
 
 class JudgeInviteForm(forms.Form):
-    email = forms.EmailField(help_text="An account is created if none exists; the judge sets a password via the login page.")
+    email = forms.EmailField(
+        help_text="An account is created if none exists; the judge sets a password via the login page."
+    )
     name = forms.CharField(required=False)
-    tracks = forms.ModelMultipleChoiceField(queryset=Track.objects.none(), required=False, help_text="Leave empty to allow every track.")
+    tracks = forms.ModelMultipleChoiceField(
+        queryset=Track.objects.none(), required=False, help_text="Leave empty to allow every track."
+    )
 
     def __init__(self, *args, event: Event, **kwargs):
         super().__init__(*args, **kwargs)

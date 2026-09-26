@@ -29,7 +29,13 @@ class SeededTestCase(TestCase):
         cls.judge_b = judge_roles[1].user  # jdg_02
         cls.participant = User.objects.get(email="priya1@example.org")
         cls.tokens = {}
-        for name, user in {"organizer": cls.organizer, "judge_a": cls.judge_a, "judge_b": cls.judge_b, "participant": cls.participant, "admin": cls.admin}.items():
+        for name, user in {
+            "organizer": cls.organizer,
+            "judge_a": cls.judge_a,
+            "judge_b": cls.judge_b,
+            "participant": cls.participant,
+            "admin": cls.admin,
+        }.items():
             _, raw = ApiToken.issue(user, label=f"test:{name}")
             cls.tokens[name] = raw
 

@@ -26,7 +26,7 @@ class Command(BaseCommand):
         try:
             event = Event.objects.get(slug=options["slug"])
         except Event.DoesNotExist:
-            raise CommandError("no such event")
+            raise CommandError("no such event") from None
         reviews, weights, rubric = collect_reviews(event)
         result = normalize(reviews, rubric.scale_min, rubric.scale_max)
         titles = {str(p.id): p for p in Project.objects.filter(event=event).select_related("track")}
@@ -37,22 +37,35 @@ class Command(BaseCommand):
         out = self.stdout.write
         out(f"# Normalization proof — {event.name}")
         out("")
-        out(f"Method `{result.method}`; rubric scale {rubric.scale_min}–{rubric.scale_max}; weights "
-            + ", ".join(f"{k}={v:g}" for k, v in weights.items()) + ".")
-        out(f"{len(reviews)} submitted reviews over {len(result.projects)} eligible projects by {len(result.judges)} judges. "
-            f"Panel mean {result.panel_mean:.3f}, panel spread {result.panel_stdev:.3f}.")
+        out(
+            f"Method `{result.method}`; rubric scale {rubric.scale_min}–{rubric.scale_max}; weights "
+            + ", ".join(f"{k}={v:g}" for k, v in weights.items())
+            + "."
+        )
+        out(
+            f"{len(reviews)} submitted reviews over {len(result.projects)} eligible projects by {len(result.judges)} judges. "
+            f"Panel mean {result.panel_mean:.3f}, panel spread {result.panel_stdev:.3f}."
+        )
         out("")
         out("## Judges")
         out("")
         out("| judge | reviews | mean | spread | shrink weight | shrunk mean | shrunk spread | note |")
         out("|---|---:|---:|---:|---:|---:|---:|---|")
         for jid, js in sorted(result.judges.items(), key=lambda kv: judge_label.get(kv[0], kv[0])):
-            note = "flat: every score identical, rank-neutral" if js.flat else ("few reviews: pulled toward panel" if js.n < 3 else "")
-            out(f"| {judge_label.get(jid, jid)} | {js.n} | {js.mean:.3f} | {js.stdev:.3f} | {js.shrink_weight:.2f} | {js.shrunk_mean:.3f} | {js.shrunk_stdev:.3f} | {note} |")
+            note = (
+                "flat: every score identical, rank-neutral"
+                if js.flat
+                else ("few reviews: pulled toward panel" if js.n < 3 else "")
+            )
+            out(
+                f"| {judge_label.get(jid, jid)} | {js.n} | {js.mean:.3f} | {js.stdev:.3f} | {js.shrink_weight:.2f} | {js.shrunk_mean:.3f} | {js.shrunk_stdev:.3f} | {note} |"
+            )
         out("")
         out("## Projects")
         out("")
-        out("Sorted by normalized rank. Δ is raw rank minus normalized rank: positive means the project moved up once judge bias was removed.")
+        out(
+            "Sorted by normalized rank. Δ is raw rank minus normalized rank: positive means the project moved up once judge bias was removed."
+        )
         out("")
         out("| norm. rank | raw rank | Δ | project | track | reviews | raw mean | normalized | judges |")
         out("|---:|---:|---:|---|---|---:|---:|---:|---|")
@@ -63,10 +76,14 @@ class Command(BaseCommand):
             p = titles.get(pid)
             delta = (s.rank_raw or 0) - (s.rank_normalized or 0)
             sign = f"+{delta}" if delta > 0 else str(delta)
-            out(f"| {s.rank_normalized} | {s.rank_raw} | {sign} | {p.title if p else pid} | {p.track.name if p and p.track else ''} | {s.n} | {s.raw_mean:.3f} | {s.normalized:.3f} | {', '.join(sorted(by_project_judges.get(pid, [])))} |")
+            out(
+                f"| {s.rank_normalized} | {s.rank_raw} | {sign} | {p.title if p else pid} | {p.track.name if p and p.track else ''} | {s.n} | {s.raw_mean:.3f} | {s.normalized:.3f} | {', '.join(sorted(by_project_judges.get(pid, [])))} |"
+            )
         moved = sum(1 for s in result.projects.values() if s.rank_raw != s.rank_normalized)
         biggest = max(result.projects.values(), key=lambda s: abs((s.rank_raw or 0) - (s.rank_normalized or 0)))
         out("")
-        out(f"{moved} of {len(result.projects)} projects changed rank. Largest move: "
+        out(
+            f"{moved} of {len(result.projects)} projects changed rank. Largest move: "
             f"{titles[biggest.project_id].title if biggest.project_id in titles else biggest.project_id} "
-            f"from raw #{biggest.rank_raw} to normalized #{biggest.rank_normalized}.")
+            f"from raw #{biggest.rank_raw} to normalized #{biggest.rank_normalized}."
+        )

@@ -32,7 +32,9 @@ class Voter(models.Model):
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="voters")
     kind = models.CharField(max_length=6, choices=Kind.choices)
     key = models.CharField(max_length=64, unique=True, editable=False)
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.CASCADE, related_name="voter_identities")
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.CASCADE, related_name="voter_identities"
+    )
     email = models.EmailField(blank=True)
     ballot_token = models.CharField(max_length=64, blank=True, db_index=True)
     ip_hash = models.CharField(max_length=64, blank=True, db_index=True)
@@ -45,7 +47,9 @@ class Voter(models.Model):
 
     class Meta:
         constraints = [
-            models.UniqueConstraint(fields=["event", "user"], name="uniq_voter_user", condition=models.Q(user__isnull=False)),
+            models.UniqueConstraint(
+                fields=["event", "user"], name="uniq_voter_user", condition=models.Q(user__isnull=False)
+            ),
             models.UniqueConstraint(fields=["event", "email"], name="uniq_voter_email", condition=~models.Q(email="")),
         ]
 
@@ -91,7 +95,9 @@ class Comment(models.Model):
     body = models.TextField(max_length=2000)
     created_at = models.DateTimeField(auto_now_add=True)
     hidden_at = models.DateTimeField(null=True, blank=True)
-    hidden_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    hidden_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
 
     class Meta:
         ordering = ["created_at"]

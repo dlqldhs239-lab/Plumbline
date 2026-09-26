@@ -27,7 +27,9 @@ def _csrf_ok(request: HttpRequest) -> bool:
 
 class BearerOrSession(APIKeyHeader):
     param_name = "Authorization"
-    openapi_description = "Bearer token from /accounts/tokens/. A logged-in browser session (with CSRF token) also works."
+    openapi_description = (
+        "Bearer token from /accounts/tokens/. A logged-in browser session (with CSRF token) also works."
+    )
 
     def __call__(self, request: HttpRequest):
         header = request.headers.get(self.param_name, "")

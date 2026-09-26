@@ -9,7 +9,16 @@ from .base import SeededTestCase
 class PublicPagesTests(SeededTestCase):
     def test_public_pages(self):
         s = self.event.slug
-        for url in ["/", f"/events/{s}/", f"/events/{s}/gallery/", f"/events/{s}/gallery/?q=glass", f"/accounts/login/", "/accounts/signup/", "/api/docs", "/api/openapi.json"]:
+        for url in [
+            "/",
+            f"/events/{s}/",
+            f"/events/{s}/gallery/",
+            f"/events/{s}/gallery/?q=glass",
+            "/accounts/login/",
+            "/accounts/signup/",
+            "/api/docs",
+            "/api/openapi.json",
+        ]:
             r = self.client.get(url)
             self.assertEqual(r.status_code, 200, url)
         project = self.event.projects.filter(status="submitted").first()
@@ -31,7 +40,17 @@ class OrganizerPagesTests(SeededTestCase):
     def test_organizer_console(self):
         self.client.force_login(self.organizer)
         s = self.event.slug
-        for tail in ["", "settings/", "projects/", "judges/", "rubric/", "assignments/", "results/", "audit/", "audit/?action=seed"]:
+        for tail in [
+            "",
+            "settings/",
+            "projects/",
+            "judges/",
+            "rubric/",
+            "assignments/",
+            "results/",
+            "audit/",
+            "audit/?action=seed",
+        ]:
             r = self.client.get(f"/events/{s}/organize/{tail}")
             self.assertEqual(r.status_code, 200, tail)
         for kind in ["projects", "assignments", "scores", "results", "calibration", "audit"]:
@@ -83,7 +102,9 @@ class ParticipantPagesTests(SeededTestCase):
     def test_edit_refused_after_deadline_in_ui(self):
         self.client.force_login(self.participant)
         project = self.participant.team_memberships.first().team.projects.first()
-        r = self.client.post(f"/events/{self.event.slug}/projects/{project.pk}/edit/", {"title": "changed", "track": project.track_id})
+        r = self.client.post(
+            f"/events/{self.event.slug}/projects/{project.pk}/edit/", {"title": "changed", "track": project.track_id}
+        )
         self.assertEqual(r.status_code, 200)  # form re-rendered with the error
         self.assertContains(r, "closed")
         project.refresh_from_db()

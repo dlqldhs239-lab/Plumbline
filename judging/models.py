@@ -30,7 +30,9 @@ class Criterion(models.Model):
     key = models.SlugField(max_length=40)
     name = models.CharField(max_length=120)
     description = models.TextField(blank=True)
-    weight = models.DecimalField(max_digits=6, decimal_places=2, default=Decimal("1.00"), validators=[MinValueValidator(Decimal("0"))])
+    weight = models.DecimalField(
+        max_digits=6, decimal_places=2, default=Decimal("1.00"), validators=[MinValueValidator(Decimal("0"))]
+    )
     order = models.PositiveSmallIntegerField(default=0)
 
     class Meta:

@@ -60,8 +60,13 @@ class RoleIsolationTests(SeededTestCase):
         self.assertEqual(r.status_code, 403)
 
     def test_judge_cannot_export_or_see_progress(self):
-        self.assertEqual(self.client.get(f"/api/events/{self.event.slug}/export/scores.csv", **self.bearer("judge_a")).status_code, 403)
-        self.assertEqual(self.client.get(f"/api/events/{self.event.slug}/progress", **self.bearer("judge_a")).status_code, 403)
+        self.assertEqual(
+            self.client.get(f"/api/events/{self.event.slug}/export/scores.csv", **self.bearer("judge_a")).status_code,
+            403,
+        )
+        self.assertEqual(
+            self.client.get(f"/api/events/{self.event.slug}/progress", **self.bearer("judge_a")).status_code, 403
+        )
 
     def test_organizer_can_read_a_judge_within_their_event(self):
         r = self.client.get(f"/api/judges/jdg_01/scores?event={self.event.slug}", **self.bearer("organizer"))
@@ -73,7 +78,10 @@ class RoleIsolationTests(SeededTestCase):
         from events.models import Event
 
         ev = Event.objects.create(
-            slug="other", name="Other", submissions_open_at=self.event.submissions_open_at, submissions_close_at=self.event.submissions_close_at
+            slug="other",
+            name="Other",
+            submissions_open_at=self.event.submissions_open_at,
+            submissions_close_at=self.event.submissions_close_at,
         )
         EventRole.objects.create(event=ev, user=other, role=Role.ORGANIZER)
         from accounts.models import ApiToken
@@ -89,7 +97,9 @@ class RoleIsolationTests(SeededTestCase):
         from judging.models import JudgeAssignment
 
         a = JudgeAssignment.objects.filter(judge=self.judge_a).first()
-        self.assertEqual(self.client.get(f"/api/judges/me/assignments/{a.pk}", **self.bearer("judge_b")).status_code, 403)
+        self.assertEqual(
+            self.client.get(f"/api/judges/me/assignments/{a.pk}", **self.bearer("judge_b")).status_code, 403
+        )
         r = self.client.post(
             f"/api/judges/me/assignments/{a.pk}/scores",
             data={"scores": {"functionality": 5}},
@@ -111,9 +121,13 @@ class RoleIsolationTests(SeededTestCase):
 
     def test_results_hidden_until_published(self):
         self.assertEqual(self.client.get(f"/api/events/{self.event.slug}/results").status_code, 403)
-        self.assertEqual(self.client.get(f"/api/events/{self.event.slug}/results", **self.bearer("judge_a")).status_code, 403)
+        self.assertEqual(
+            self.client.get(f"/api/events/{self.event.slug}/results", **self.bearer("judge_a")).status_code, 403
+        )
         self.assertEqual(self.client.get(f"/events/{self.event.slug}/results/").status_code, 403)
-        self.assertEqual(self.client.get(f"/api/events/{self.event.slug}/results", **self.bearer("organizer")).status_code, 200)
+        self.assertEqual(
+            self.client.get(f"/api/events/{self.event.slug}/results", **self.bearer("organizer")).status_code, 200
+        )
 
     def test_session_api_write_requires_csrf(self):
         from django.test import Client

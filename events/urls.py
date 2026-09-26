@@ -22,11 +22,17 @@ urlpatterns = [
     path("events/<slug:slug>/organize/", views.organize_dashboard, name="organize_dashboard"),
     path("events/<slug:slug>/organize/settings/", views.organize_settings, name="organize_settings"),
     path("events/<slug:slug>/organize/projects/", views.organize_projects, name="organize_projects"),
-    path("events/<slug:slug>/organize/projects/<int:pk>/hide/", views.organize_project_hide, name="organize_project_hide"),
+    path(
+        "events/<slug:slug>/organize/projects/<int:pk>/hide/", views.organize_project_hide, name="organize_project_hide"
+    ),
     path("events/<slug:slug>/organize/judges/", views.organize_judges, name="organize_judges"),
     path("events/<slug:slug>/organize/rubric/", views.organize_rubric, name="organize_rubric"),
     path("events/<slug:slug>/organize/assignments/", views.organize_assignments, name="organize_assignments"),
-    path("events/<slug:slug>/organize/assignments/<int:pk>/remove/", views.organize_assignment_remove, name="organize_assignment_remove"),
+    path(
+        "events/<slug:slug>/organize/assignments/<int:pk>/remove/",
+        views.organize_assignment_remove,
+        name="organize_assignment_remove",
+    ),
     path("events/<slug:slug>/organize/results/", views.organize_results, name="organize_results"),
     path("events/<slug:slug>/organize/audit/", views.organize_audit, name="organize_audit"),
     path("events/<slug:slug>/organize/export/<str:kind>.csv", views.organize_export, name="organize_export"),

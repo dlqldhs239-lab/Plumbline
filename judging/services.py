@@ -19,8 +19,8 @@ from events.permissions import is_organizer, judge_track_ids
 from .models import Criterion, JudgeAssignment, JudgeCalibration, ProjectResult, Rubric, Score
 from .normalization import Review, normalize, weighted_score
 
-
 # --- rubric ---------------------------------------------------------------
+
 
 def ensure_rubric(event: Event) -> Rubric:
     rubric, created = Rubric.objects.get_or_create(event=event)
@@ -55,8 +55,11 @@ def replace_criteria(rubric: Rubric, user, rows: list[dict]):
 
 # --- assignment ------------------------------------------------------------
 
+
 def eligible_projects(event: Event):
-    return Project.objects.filter(event=event, status=Project.Status.SUBMITTED, is_hidden=False, duplicate_of__isnull=True)
+    return Project.objects.filter(
+        event=event, status=Project.Status.SUBMITTED, is_hidden=False, duplicate_of__isnull=True
+    )
 
 
 def judges_for(event: Event):
@@ -68,7 +71,9 @@ def conflicted(judge_user, project: Project) -> bool:
 
 
 @transaction.atomic
-def assign_balanced(event: Event, user, reviews_per_project: int | None = None, batch: str | None = None, seed: int | None = None) -> dict:
+def assign_balanced(
+    event: Event, user, reviews_per_project: int | None = None, batch: str | None = None, seed: int | None = None
+) -> dict:
     """Spread projects over judges so every project gets k reviews, judges get
     an even load, track restrictions are respected and nobody reviews their
     own team. Existing assignments are kept and counted toward k.
@@ -157,6 +162,7 @@ def unassign(assignment: JudgeAssignment, user):
 
 # --- scoring ----------------------------------------------------------------
 
+
 def assignments_for_judge(judge_user, event: Event | None = None):
     """Only this judge's own assignments, further limited to their tracks."""
     qs = JudgeAssignment.objects.filter(judge=judge_user).select_related("project", "project__track", "event")
@@ -174,11 +180,13 @@ def get_own_assignment(judge_user, assignment_id: int) -> JudgeAssignment:
     try:
         return assignments_for_judge(judge_user).get(pk=assignment_id)
     except JudgeAssignment.DoesNotExist:
-        raise PermissionDenied("That review is not yours.")
+        raise PermissionDenied("That review is not yours.") from None
 
 
 @transaction.atomic
-def save_scores(assignment: JudgeAssignment, user, values: dict[str, int], comment: str = "", submit: bool = False) -> JudgeAssignment:
+def save_scores(
+    assignment: JudgeAssignment, user, values: dict[str, int], comment: str = "", submit: bool = False
+) -> JudgeAssignment:
     if assignment.judge_id != user.id:
         raise PermissionDenied("You can only score your own assignments.")
     event = assignment.event
@@ -219,14 +227,14 @@ def save_scores(assignment: JudgeAssignment, user, values: dict[str, int], comme
 
 # --- normalization and results ----------------------------------------------
 
+
 def collect_reviews(event: Event) -> tuple[list[Review], dict[str, float], Rubric]:
     rubric = ensure_rubric(event)
     weights = {c.key: float(c.weight) for c in rubric.criteria.all()}
     reviews = []
-    qs = (
-        JudgeAssignment.objects.filter(event=event, status=JudgeAssignment.Status.SUBMITTED, project__in=eligible_projects(event))
-        .prefetch_related("scores__criterion")
-    )
+    qs = JudgeAssignment.objects.filter(
+        event=event, status=JudgeAssignment.Status.SUBMITTED, project__in=eligible_projects(event)
+    ).prefetch_related("scores__criterion")
     for a in qs:
         values = {s.criterion.key: s.value for s in a.scores.all()}
         score = weighted_score(values, weights)

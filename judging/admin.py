@@ -29,7 +29,16 @@ class JudgeAssignmentAdmin(admin.ModelAdmin):
 
 @admin.register(ProjectResult)
 class ProjectResultAdmin(admin.ModelAdmin):
-    list_display = ("project", "event", "review_count", "raw_mean", "normalized_mean", "rank_raw", "rank_normalized", "method")
+    list_display = (
+        "project",
+        "event",
+        "review_count",
+        "raw_mean",
+        "normalized_mean",
+        "rank_raw",
+        "rank_normalized",
+        "method",
+    )
     list_filter = ("event",)
 
 

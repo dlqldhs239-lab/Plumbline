@@ -33,8 +33,18 @@ def _organizer_or_403(request, event):
 
 # --- public ------------------------------------------------------------------
 
+
 def home(request):
-    qs = Event.objects.annotate(project_count=Count("projects", filter=Q(projects__status=Project.Status.SUBMITTED, projects__is_hidden=False)))
+    qs = Event.objects.annotate(
+        project_count=Count(
+            "projects",
+            filter=Q(
+                projects__status=Project.Status.SUBMITTED,
+                projects__is_hidden=False,
+                projects__duplicate_of__isnull=True,
+            ),
+        )
+    )
     if not is_admin(request.user):
         visible = Q(is_listed=True)
         if request.user.is_authenticated:
@@ -49,7 +59,9 @@ def event_detail(request, slug):
     membership = None
     if request.user.is_authenticated:
         membership = TeamMembership.objects.filter(team__event=event, user=request.user).select_related("team").first()
-    project_count = event.projects.filter(status=Project.Status.SUBMITTED, is_hidden=False).count()
+    project_count = event.projects.filter(
+        status=Project.Status.SUBMITTED, is_hidden=False, duplicate_of__isnull=True
+    ).count()
     return render(
         request,
         "events/event_detail.html",
@@ -70,9 +82,13 @@ def gallery(request, slug):
     event = _event(slug)
     q = (request.GET.get("q") or "").strip()
     track = request.GET.get("track") or ""
-    qs = Project.objects.filter(event=event, status=Project.Status.SUBMITTED, is_hidden=False).select_related("team", "track")
+    qs = Project.objects.filter(
+        event=event, status=Project.Status.SUBMITTED, is_hidden=False, duplicate_of__isnull=True
+    ).select_related("team", "track")
     if q:
-        qs = qs.filter(Q(title__icontains=q) | Q(tagline__icontains=q) | Q(team__name__icontains=q) | Q(tech_tags__icontains=q))
+        qs = qs.filter(
+            Q(title__icontains=q) | Q(tagline__icontains=q) | Q(team__name__icontains=q) | Q(tech_tags__icontains=q)
+        )
     if track.isdigit():
         qs = qs.filter(track_id=int(track))
     qs = qs.order_by("-submitted_at", "id")
@@ -116,10 +132,13 @@ def results(request, slug):
     if not event.results_published and not is_organizer(request.user, event):
         return render(request, "events/results_hidden.html", {"event": event}, status=403)
     rows = ProjectResult.objects.filter(event=event).select_related("project", "project__track", "project__team")
-    return render(request, "events/results.html", {"event": event, "rows": rows, "preview": not event.results_published})
+    return render(
+        request, "events/results.html", {"event": event, "rows": rows, "preview": not event.results_published}
+    )
 
 
 # --- participant -------------------------------------------------------------
+
 
 @login_required
 def dashboard(request):
@@ -130,7 +149,9 @@ def dashboard(request):
     judge_stats = []
     for ev in judge_events:
         qs = judging_services.assignments_for_judge(user, ev)
-        judge_stats.append({"event": ev, "total": qs.count(), "done": qs.filter(status=JudgeAssignment.Status.SUBMITTED).count()})
+        judge_stats.append(
+            {"event": ev, "total": qs.count(), "done": qs.filter(status=JudgeAssignment.Status.SUBMITTED).count()}
+        )
     organized = Event.objects.filter(roles__user=user, roles__role=Role.ORGANIZER).distinct()
     if is_admin(user):
         organized = Event.objects.all()
@@ -183,7 +204,13 @@ def team_detail(request, slug, pk):
     return render(
         request,
         "events/team_detail.html",
-        {"event": event, "team": team, "members": team.memberships.select_related("user"), "invites": invites, "projects": team.projects.all()},
+        {
+            "event": event,
+            "team": team,
+            "members": team.memberships.select_related("user"),
+            "invites": invites,
+            "projects": team.projects.all(),
+        },
     )
 
 
@@ -209,7 +236,11 @@ def team_join(request, token):
             return redirect("event_detail", slug=team.event.slug)
         messages.success(request, f"You joined {team.name}.")
         return redirect("team_detail", slug=team.event.slug, pk=team.pk)
-    return render(request, "events/team_join.html", {"invite": invite, "team": team, "event": team.event, "valid": invite.is_valid()})
+    return render(
+        request,
+        "events/team_join.html",
+        {"invite": invite, "team": team, "event": team.event, "valid": invite.is_valid()},
+    )
 
 
 @login_required
@@ -235,7 +266,17 @@ def project_create(request, slug):
             return redirect(project)
         except (ValidationError, PermissionDenied) as e:
             form.add_error(None, getattr(e, "messages", [str(e)]))
-    return render(request, "events/project_form.html", {"event": event, "form": form, "team": team, "project": None, "teams": event.teams.all() if team is None else None})
+    return render(
+        request,
+        "events/project_form.html",
+        {
+            "event": event,
+            "form": form,
+            "team": team,
+            "project": None,
+            "teams": event.teams.all() if team is None else None,
+        },
+    )
 
 
 @login_required
@@ -257,7 +298,9 @@ def project_edit(request, slug, pk):
             return redirect(project)
         except (ValidationError, PermissionDenied) as e:
             form.add_error(None, getattr(e, "messages", [str(e)]))
-    return render(request, "events/project_form.html", {"event": event, "form": form, "team": project.team, "project": project})
+    return render(
+        request, "events/project_form.html", {"event": event, "form": form, "team": project.team, "project": project}
+    )
 
 
 def _save_answers(project, form):
@@ -293,12 +336,15 @@ def project_withdraw(request, slug, pk):
 
 # --- organizer ---------------------------------------------------------------
 
+
 @login_required
 def organize_dashboard(request, slug):
     event = _event(slug)
     _organizer_or_403(request, event)
     counts = {
-        "submitted": event.projects.filter(status=Project.Status.SUBMITTED, is_hidden=False).count(),
+        "submitted": event.projects.filter(
+            status=Project.Status.SUBMITTED, is_hidden=False, duplicate_of__isnull=True
+        ).count(),
         "drafts": event.projects.filter(status=Project.Status.DRAFT).count(),
         "hidden": event.projects.filter(is_hidden=True).count(),
         "duplicates": event.projects.filter(duplicate_of__isnull=False).count(),
@@ -309,13 +355,22 @@ def organize_dashboard(request, slug):
     }
     per_project = (
         judging_services.eligible_projects(event)
-        .annotate(n_assigned=Count("assignments"), n_done=Count("assignments", filter=Q(assignments__status=JudgeAssignment.Status.SUBMITTED)))
+        .annotate(
+            n_assigned=Count("assignments"),
+            n_done=Count("assignments", filter=Q(assignments__status=JudgeAssignment.Status.SUBMITTED)),
+        )
         .order_by("n_done", "n_assigned", "title")
     )
     return render(
         request,
         "events/organize/dashboard.html",
-        {"event": event, "counts": counts, "progress": judging_services.progress(event), "per_project": per_project, "now": timezone.now()},
+        {
+            "event": event,
+            "counts": counts,
+            "progress": judging_services.progress(event),
+            "per_project": per_project,
+            "now": timezone.now(),
+        },
     )
 
 
@@ -327,7 +382,12 @@ def organize_settings(request, slug):
     if request.method == "POST" and form.is_valid():
         before = {"submissions_close_at": event.submissions_close_at.isoformat()}
         form.save()
-        record("event.update", event=event, target=event, detail={"before": before, "after": {"submissions_close_at": event.submissions_close_at.isoformat()}})
+        record(
+            "event.update",
+            event=event,
+            target=event,
+            detail={"before": before, "after": {"submissions_close_at": event.submissions_close_at.isoformat()}},
+        )
         messages.success(request, "Event settings saved.")
         return redirect("organize_dashboard", slug=event.slug)
     return render(request, "events/event_form.html", {"form": form, "event": event, "creating": False})
@@ -371,10 +431,17 @@ def organize_judges(request, slug):
             user.save()
         role, created = EventRole.objects.get_or_create(event=event, user=user, role=Role.JUDGE)
         role.tracks.set(form.cleaned_data["tracks"])
-        record("judge.invite", event=event, target=role, detail={"email": email, "tracks": [t.name for t in form.cleaned_data["tracks"]]})
+        record(
+            "judge.invite",
+            event=event,
+            target=role,
+            detail={"email": email, "tracks": [t.name for t in form.cleaned_data["tracks"]]},
+        )
         messages.success(request, f"{email} is a judge" + ("." if created else " (updated tracks)."))
         return redirect("organize_judges", slug=slug)
-    judges = event.roles.filter(role=Role.JUDGE).select_related("user").prefetch_related("tracks").order_by("user__username")
+    judges = (
+        event.roles.filter(role=Role.JUDGE).select_related("user").prefetch_related("tracks").order_by("user__username")
+    )
     return render(request, "events/organize/judges.html", {"event": event, "form": form, "judges": judges})
 
 
@@ -384,17 +451,25 @@ def organize_rubric(request, slug):
     _organizer_or_403(request, event)
     rubric = judging_services.ensure_rubric(event)
     locked = rubric.criteria.filter(scores__isnull=False).exists()
-    initial = [{"key": c.key, "name": c.name, "weight": c.weight, "description": c.description} for c in rubric.criteria.all()]
+    initial = [
+        {"key": c.key, "name": c.name, "weight": c.weight, "description": c.description} for c in rubric.criteria.all()
+    ]
     formset = CriterionFormSet(request.POST or None, initial=initial, prefix="c")
     if request.method == "POST" and not locked and formset.is_valid():
-        rows = [f.cleaned_data for f in formset if f.cleaned_data and not f.cleaned_data.get("DELETE") and f.cleaned_data.get("key")]
+        rows = [
+            f.cleaned_data
+            for f in formset
+            if f.cleaned_data and not f.cleaned_data.get("DELETE") and f.cleaned_data.get("key")
+        ]
         try:
             judging_services.replace_criteria(rubric, request.user, rows)
             messages.success(request, "Rubric saved.")
             return redirect("organize_rubric", slug=slug)
         except ValidationError as e:
             messages.error(request, "; ".join(e.messages))
-    return render(request, "events/organize/rubric.html", {"event": event, "rubric": rubric, "formset": formset, "locked": locked})
+    return render(
+        request, "events/organize/rubric.html", {"event": event, "rubric": rubric, "formset": formset, "locked": locked}
+    )
 
 
 @login_required
@@ -405,14 +480,30 @@ def organize_assignments(request, slug):
     if request.method == "POST" and form.is_valid():
         try:
             out = judging_services.assign_balanced(
-                event, request.user, form.cleaned_data["reviews_per_project"], form.cleaned_data.get("batch") or None, form.cleaned_data.get("seed")
+                event,
+                request.user,
+                form.cleaned_data["reviews_per_project"],
+                form.cleaned_data.get("batch") or None,
+                form.cleaned_data.get("seed"),
             )
-            messages.success(request, f"Created {out['created']} assignments in {out['batch']}." + (f" {len(out['short_projects'])} projects could not be fully covered." if out["short_projects"] else ""))
+            messages.success(
+                request,
+                f"Created {out['created']} assignments in {out['batch']}."
+                + (
+                    f" {len(out['short_projects'])} projects could not be fully covered."
+                    if out["short_projects"]
+                    else ""
+                ),
+            )
         except ValidationError as e:
             messages.error(request, "; ".join(e.messages))
         return redirect("organize_assignments", slug=slug)
-    assignments = event.assignments.select_related("judge", "project", "project__track").order_by("batch", "judge__username", "project__title")
-    return render(request, "events/organize/assignments.html", {"event": event, "form": form, "assignments": assignments})
+    assignments = event.assignments.select_related("judge", "project", "project__track").order_by(
+        "batch", "judge__username", "project__title"
+    )
+    return render(
+        request, "events/organize/assignments.html", {"event": event, "form": form, "assignments": assignments}
+    )
 
 
 @login_required
@@ -436,7 +527,10 @@ def organize_results(request, slug):
         action = request.POST.get("action")
         if action == "recompute":
             out = judging_services.recompute_results(event, request.user)
-            messages.success(request, f"Recomputed from {out['reviews']} reviews across {out['projects']} projects ({out['method']}).")
+            messages.success(
+                request,
+                f"Recomputed from {out['reviews']} reviews across {out['projects']} projects ({out['method']}).",
+            )
         elif action == "publish":
             judging_services.publish_results(event, request.user, True)
             messages.success(request, "Results published.")
@@ -445,7 +539,9 @@ def organize_results(request, slug):
             messages.info(request, "Results hidden again.")
         return redirect("organize_results", slug=slug)
     rows = ProjectResult.objects.filter(event=event).select_related("project", "project__track", "project__team")
-    calibration = JudgeCalibration.objects.filter(event=event).select_related("judge").order_by("-flat", "judge__username")
+    calibration = (
+        JudgeCalibration.objects.filter(event=event).select_related("judge").order_by("-flat", "judge__username")
+    )
     movers = []
     for r in rows:
         if r.rank_raw and r.rank_normalized:
@@ -453,7 +549,11 @@ def organize_results(request, slug):
             r.delta_abs = abs(r.delta)
             movers.append(r)
     movers = sorted(movers, key=lambda r: r.delta_abs, reverse=True)[:8]
-    return render(request, "events/organize/results.html", {"event": event, "rows": rows, "calibration": calibration, "movers": movers})
+    return render(
+        request,
+        "events/organize/results.html",
+        {"event": event, "rows": rows, "calibration": calibration, "movers": movers},
+    )
 
 
 @login_required
@@ -466,7 +566,9 @@ def organize_audit(request, slug):
         qs = qs.filter(action__startswith=action)
     page = Paginator(qs, 100).get_page(request.GET.get("page"))
     actions = event.audit_entries.values_list("action", flat=True).distinct().order_by("action")
-    return render(request, "events/organize/audit.html", {"event": event, "page": page, "action": action, "actions": actions})
+    return render(
+        request, "events/organize/audit.html", {"event": event, "page": page, "action": action, "actions": actions}
+    )
 
 
 @login_required

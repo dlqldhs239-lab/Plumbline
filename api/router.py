@@ -20,7 +20,7 @@ from ninja.errors import HttpError
 from audit.services import record
 from events import services as event_services
 from events.models import Event, EventRole, Project, Role, Team, TeamMembership, Track
-from events.permissions import can_view_project, is_admin, is_organizer, is_team_member, roles_for
+from events.permissions import can_view_project, is_admin, is_organizer, roles_for
 from judging import export as export_services
 from judging import services as judging_services
 from judging.models import JudgeAssignment, ProjectResult
@@ -67,6 +67,7 @@ def _bad_request(request, exc):
 
 
 # --- serializers -------------------------------------------------------------
+
 
 def event_out(event: Event) -> dict:
     return {
@@ -130,6 +131,7 @@ def _require_organizer(request, event: Event):
 
 # --- events ------------------------------------------------------------------
 
+
 @api.get("/events", response=list[EventOut], auth=auth_optional, tags=["events"])
 def list_events(request):
     qs = Event.objects.prefetch_related("tracks")
@@ -175,6 +177,7 @@ def get_event(request, slug: str):
 
 # --- teams -------------------------------------------------------------------
 
+
 @api.get("/events/{slug}/teams/mine", response={200: TeamOut, 404: ErrorOut}, auth=auth_required, tags=["teams"])
 def my_team(request, slug: str):
     event = _event(slug)
@@ -197,7 +200,11 @@ def create_invite(request, slug: str, team_id: int, max_uses: int = 10, ttl_hour
     event = _event(slug)
     team = get_object_or_404(Team, pk=team_id, event=event)
     invite = event_services.create_invite(team, request.user, max_uses=max_uses, ttl_hours=ttl_hours)
-    return {"token": invite.token, "url": request.build_absolute_uri(invite.get_absolute_url()), "expires_at": invite.expires_at}
+    return {
+        "token": invite.token,
+        "url": request.build_absolute_uri(invite.get_absolute_url()),
+        "expires_at": invite.expires_at,
+    }
 
 
 @api.post("/teams/join/{token}", response=TeamOut, auth=auth_required, tags=["teams"])
@@ -212,6 +219,7 @@ def join_team(request, token: str):
 
 # --- projects ----------------------------------------------------------------
 
+
 @api.get("/events/{slug}/projects", response=list[ProjectOut], auth=auth_optional, tags=["projects"])
 def list_projects(request, slug: str, q: str = "", track: int | None = None, mine: bool = False):
     """The public gallery as JSON. `mine=true` returns the caller's own
@@ -221,15 +229,22 @@ def list_projects(request, slug: str, q: str = "", track: int | None = None, min
     if mine and request.user.is_authenticated:
         qs = qs.filter(team__memberships__user=request.user)
     elif not is_organizer(request.user, event):
-        qs = qs.filter(status=Project.Status.SUBMITTED, is_hidden=False)
+        qs = qs.filter(status=Project.Status.SUBMITTED, is_hidden=False, duplicate_of__isnull=True)
     if q:
-        qs = qs.filter(Q(title__icontains=q) | Q(tagline__icontains=q) | Q(team__name__icontains=q) | Q(tech_tags__icontains=q))
+        qs = qs.filter(
+            Q(title__icontains=q) | Q(tagline__icontains=q) | Q(team__name__icontains=q) | Q(tech_tags__icontains=q)
+        )
     if track:
         qs = qs.filter(track_id=track)
     return [project_out(p) for p in qs.distinct()]
 
 
-@api.post("/events/{slug}/projects", response={201: ProjectOut, 400: ErrorOut, 403: ErrorOut}, auth=auth_required, tags=["projects"])
+@api.post(
+    "/events/{slug}/projects",
+    response={201: ProjectOut, 400: ErrorOut, 403: ErrorOut},
+    auth=auth_required,
+    tags=["projects"],
+)
 def create_project(request, slug: str, payload: ProjectIn):
     """Create a draft (or submit directly with submit=true). Refused with 403
     once the event's submission deadline has passed."""
@@ -296,9 +311,18 @@ def withdraw_project(request, slug: str, project_id: int):
 
 # --- judging -----------------------------------------------------------------
 
+
 def _judge_scores_payload(judge: User, event: Event | None) -> dict:
-    qs = judging_services.assignments_for_judge(judge, event).prefetch_related("scores__criterion").order_by("event_id", "id")
-    return {"judge": judge.username, "event": event.slug if event else None, "assignments": [assignment_out(a) for a in qs]}
+    qs = (
+        judging_services.assignments_for_judge(judge, event)
+        .prefetch_related("scores__criterion")
+        .order_by("event_id", "id")
+    )
+    return {
+        "judge": judge.username,
+        "event": event.slug if event else None,
+        "assignments": [assignment_out(a) for a in qs],
+    }
 
 
 @api.get("/judges/me/scores", response={200: JudgeScoresOut, 403: ErrorOut}, auth=auth_required, tags=["judging"])
@@ -310,7 +334,12 @@ def my_scores(request, event: str | None = Query(None, description="Event slug")
     return _judge_scores_payload(request.user, ev)
 
 
-@api.get("/judges/{judge_ref}/scores", response={200: JudgeScoresOut, 403: ErrorOut, 404: ErrorOut}, auth=auth_required, tags=["judging"])
+@api.get(
+    "/judges/{judge_ref}/scores",
+    response={200: JudgeScoresOut, 403: ErrorOut, 404: ErrorOut},
+    auth=auth_required,
+    tags=["judging"],
+)
 def judge_scores(request, judge_ref: str, event: str | None = Query(None, description="Event slug")):
     """A specific judge's scores. Allowed only for that judge themself, or for
     an organizer/admin of the event in question. Everyone else gets 403 here,
@@ -346,7 +375,12 @@ def my_assignment(request, assignment_id: int):
     return assignment_out(a)
 
 
-@api.post("/judges/me/assignments/{assignment_id}/scores", response={200: AssignmentOut, 400: ErrorOut, 403: ErrorOut}, auth=auth_required, tags=["judging"])
+@api.post(
+    "/judges/me/assignments/{assignment_id}/scores",
+    response={200: AssignmentOut, 400: ErrorOut, 403: ErrorOut},
+    auth=auth_required,
+    tags=["judging"],
+)
 def score_assignment(request, assignment_id: int, payload: ScoreValues):
     a = judging_services.get_own_assignment(request.user, assignment_id)
     a = judging_services.save_scores(a, request.user, payload.scores, payload.comment, submit=payload.submit)
@@ -365,13 +399,18 @@ def list_assignments(request, slug: str, batch: str | None = None):
         raise PermissionDenied("Judge or organizer role required.")
     if batch:
         qs = qs.filter(batch=batch)
-    return [assignment_out(a) for a in qs.select_related("project", "project__track", "event").prefetch_related("scores__criterion")]
+    return [
+        assignment_out(a)
+        for a in qs.select_related("project", "project__track", "event").prefetch_related("scores__criterion")
+    ]
 
 
 @api.post("/events/{slug}/assignments/auto", auth=auth_required, tags=["judging"])
 def auto_assign(request, slug: str, payload: AssignRequest):
     event = _event(slug)
-    return judging_services.assign_balanced(event, request.user, payload.reviews_per_project, payload.batch, payload.seed)
+    return judging_services.assign_balanced(
+        event, request.user, payload.reviews_per_project, payload.batch, payload.seed
+    )
 
 
 @api.get("/events/{slug}/progress", response=list[ProgressRow], auth=auth_required, tags=["judging"])
@@ -382,6 +421,7 @@ def judging_progress(request, slug: str):
 
 
 # --- results -----------------------------------------------------------------
+
 
 @api.post("/events/{slug}/results/recompute", auth=auth_required, tags=["results"])
 def recompute(request, slug: str):
@@ -426,6 +466,7 @@ def results(request, slug: str):
 # API voting is for signed-in voters (bearer token = an account), so it is
 # available in the "auth" mode and, for account holders, the "open" mode.
 
+
 @api.get("/events/{slug}/ballot", response={200: BallotOut, 403: ErrorOut}, auth=auth_required, tags=["community"])
 def ballot(request, slug: str):
     """The caller's ballot: eligible projects in their personal random order
@@ -436,14 +477,32 @@ def ballot(request, slug: str):
     voter = community_services.admit_voter(request, event)
     weights = community_services.voter_weights(voter)
     items = [
-        {"project_id": p.id, "title": p.title, "tagline": p.tagline, "track": p.track.name if p.track else None, "team": p.team.name, "my_weight": weights.get(p.id, 0)}
+        {
+            "project_id": p.id,
+            "title": p.title,
+            "tagline": p.tagline,
+            "track": p.track.name if p.track else None,
+            "team": p.team.name,
+            "my_weight": weights.get(p.id, 0),
+        }
         for p in community_services.ballot_projects(event, voter.key)
     ]
     used = sum(w * w for w in weights.values())
-    return {"event": event.slug, "quadratic": bool(event.voting_credits), "credits": event.voting_credits, "credits_used": used, "items": items}
+    return {
+        "event": event.slug,
+        "quadratic": bool(event.voting_credits),
+        "credits": event.voting_credits,
+        "credits_used": used,
+        "items": items,
+    }
 
 
-@api.post("/events/{slug}/projects/{project_id}/vote", response={200: BallotItem, 400: ErrorOut, 403: ErrorOut}, auth=auth_required, tags=["community"])
+@api.post(
+    "/events/{slug}/projects/{project_id}/vote",
+    response={200: BallotItem, 400: ErrorOut, 403: ErrorOut},
+    auth=auth_required,
+    tags=["community"],
+)
 def vote(request, slug: str, project_id: int, payload: VoteIn):
     """Set the caller's weight on a project (0 removes the vote)."""
     from community import services as community_services
@@ -452,10 +511,19 @@ def vote(request, slug: str, project_id: int, payload: VoteIn):
     project = get_object_or_404(Project.objects.select_related("team", "track"), pk=project_id, event=event)
     voter = community_services.admit_voter(request, event)
     community_services.cast_vote(request, event, voter, project, payload.weight)
-    return {"project_id": project.id, "title": project.title, "tagline": project.tagline, "track": project.track.name if project.track else None, "team": project.team.name, "my_weight": payload.weight}
+    return {
+        "project_id": project.id,
+        "title": project.title,
+        "tagline": project.tagline,
+        "track": project.track.name if project.track else None,
+        "team": project.team.name,
+        "my_weight": payload.weight,
+    }
 
 
-@api.get("/events/{slug}/projects/{project_id}/comments", response=list[CommentOut], auth=auth_optional, tags=["community"])
+@api.get(
+    "/events/{slug}/projects/{project_id}/comments", response=list[CommentOut], auth=auth_optional, tags=["community"]
+)
 def list_comments(request, slug: str, project_id: int):
     event = _event(slug)
     project = get_object_or_404(Project, pk=project_id, event=event)
@@ -464,10 +532,18 @@ def list_comments(request, slug: str, project_id: int):
     qs = project.comments.select_related("author")
     if not is_organizer(request.user, event):
         qs = qs.filter(hidden_at__isnull=True)
-    return [{"id": c.id, "author": c.author.username, "body": c.body, "created_at": c.created_at, "hidden": c.is_hidden} for c in qs]
+    return [
+        {"id": c.id, "author": c.author.username, "body": c.body, "created_at": c.created_at, "hidden": c.is_hidden}
+        for c in qs
+    ]
 
 
-@api.post("/events/{slug}/projects/{project_id}/comments", response={201: CommentOut, 400: ErrorOut, 403: ErrorOut}, auth=auth_required, tags=["community"])
+@api.post(
+    "/events/{slug}/projects/{project_id}/comments",
+    response={201: CommentOut, 400: ErrorOut, 403: ErrorOut},
+    auth=auth_required,
+    tags=["community"],
+)
 def add_comment(request, slug: str, project_id: int, payload: CommentIn):
     from community import services as community_services
 
@@ -497,6 +573,7 @@ def votes_summary(request, slug: str):
 
 
 # --- export ------------------------------------------------------------------
+
 
 @api.get("/events/{slug}/export/{kind}.csv", auth=auth_required, tags=["export"])
 def export_csv(request, slug: str, kind: str):

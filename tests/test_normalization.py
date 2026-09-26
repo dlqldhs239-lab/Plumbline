@@ -43,7 +43,10 @@ class NormalizeTests(SimpleTestCase):
         order = sorted(res.projects.values(), key=lambda s: s.rank_normalized)
         self.assertEqual([s.project_id for s in order], ["p0", "p1", "p2", "p3"])
         for s in res.projects.values():
-            self.assertTrue(all(z == 0.0 for z, r in zip(s.z_values, [r for r in reviews if r.project_id == s.project_id]) if r.judge_id == "F"))
+            project_reviews = [r for r in reviews if r.project_id == s.project_id]
+            self.assertTrue(
+                all(z == 0.0 for z, r in zip(s.z_values, project_reviews, strict=True) if r.judge_id == "F")
+            )
 
     def test_single_review_judge_is_shrunk_toward_panel(self):
         reviews = [Review("A", "p1", 1.0), Review("A", "p2", 5.0), Review("A", "p3", 3.0), Review("B", "p3", 5.0)]

@@ -1,0 +1,18 @@
+[project]
+name = "plumbline"
+version = "0.1.0"
+description = "Self-hostable hackathon submission and judging portal"
+requires-python = ">=3.12"
+license = "MIT"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = ["checker", "*/migrations/*"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["accounts", "api", "audit", "community", "events", "judging", "plumbline"]

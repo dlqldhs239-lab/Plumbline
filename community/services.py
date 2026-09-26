@@ -58,6 +58,7 @@ def throttle(request, bucket: str, limit: int | None = None, window: int = 60):
 
 # --- voters -------------------------------------------------------------------
 
+
 def voter_from_request(request, event: Event) -> Voter | None:
     """The voter this request belongs to, or None. Never creates one."""
     if event.voting_access == Event.VotingAccess.AUTHENTICATED:
@@ -86,7 +87,9 @@ def admit_voter(request, event: Event, ballot_token: str | None = None) -> Voter
     if mode == Event.VotingAccess.AUTHENTICATED:
         if not request.user.is_authenticated:
             raise PermissionDenied("Sign in to vote in this event.")
-        voter, created = Voter.objects.get_or_create(event=event, user=request.user, defaults={"kind": Voter.Kind.AUTH, "ip_hash": ip_hash, "ua_hash": ua_hash})
+        voter, created = Voter.objects.get_or_create(
+            event=event, user=request.user, defaults={"kind": Voter.Kind.AUTH, "ip_hash": ip_hash, "ua_hash": ua_hash}
+        )
     elif mode == Event.VotingAccess.EMAIL:
         if not ballot_token:
             existing = voter_from_request(request, event)
@@ -112,7 +115,13 @@ def admit_voter(request, event: Event, ballot_token: str | None = None) -> Voter
     voter.last_seen_at = timezone.now()
     voter.save()
     if created:
-        record("voter.admit", event=event, target=voter, detail={"kind": voter.kind, "flags": voter.flags}, actor=request.user if request.user.is_authenticated else None)
+        record(
+            "voter.admit",
+            event=event,
+            target=voter,
+            detail={"kind": voter.kind, "flags": voter.flags},
+            actor=request.user if request.user.is_authenticated else None,
+        )
     return voter
 
 
@@ -129,7 +138,9 @@ def _flag_duplicates(voter: Voter):
 
 def attach_cookie(response, event: Event, voter: Voter):
     if voter.kind != Voter.Kind.AUTH:
-        response.set_cookie(cookie_name(event), signer.sign(voter.key), max_age=COOKIE_MAX_AGE, httponly=True, samesite="Lax")
+        response.set_cookie(
+            cookie_name(event), signer.sign(voter.key), max_age=COOKIE_MAX_AGE, httponly=True, samesite="Lax"
+        )
     return response
 
 
@@ -142,7 +153,9 @@ def create_email_voters(event: Event, user, emails: list[str]) -> list[Voter]:
         email = raw.strip().lower()
         if not email or "@" not in email:
             continue
-        voter, was_created = Voter.objects.get_or_create(event=event, email=email, defaults={"kind": Voter.Kind.EMAIL, "ballot_token": secrets.token_urlsafe(24)})
+        voter, was_created = Voter.objects.get_or_create(
+            event=event, email=email, defaults={"kind": Voter.Kind.EMAIL, "ballot_token": secrets.token_urlsafe(24)}
+        )
         if was_created:
             created.append(voter)
     record("voter.issue_links", actor=user, event=event, detail={"requested": len(emails), "created": len(created)})
@@ -156,11 +169,18 @@ def void_voter(voter: Voter, user, reason: str = "") -> Voter:
     voter.voided_at = timezone.now()
     voter.void_reason = reason[:200]
     voter.save(update_fields=["voided_at", "void_reason"])
-    record("voter.void", actor=user, event=voter.event, target=voter, detail={"reason": reason, "votes": voter.votes.count()})
+    record(
+        "voter.void",
+        actor=user,
+        event=voter.event,
+        target=voter,
+        detail={"reason": reason, "votes": voter.votes.count()},
+    )
     return voter
 
 
 # --- ballot ---------------------------------------------------------------------
+
 
 def ballot_projects(event: Event, voter_key: str) -> list[Project]:
     """Eligible projects in an order that is random per voter but stable
@@ -191,19 +211,35 @@ def cast_vote(request, event: Event, voter: Voter, project: Project, weight: int
     if weight < 0:
         raise ValidationError("Weight cannot be negative.")
     if event.voting_credits:
-        others = sum(v.weight ** 2 for v in voter.votes.exclude(project=project))
+        others = sum(v.weight**2 for v in voter.votes.exclude(project=project))
         if others + weight * weight > event.voting_credits:
-            raise ValidationError(f"Not enough credits: {weight} votes cost {weight * weight}, you have {event.voting_credits - others} left.")
+            raise ValidationError(
+                f"Not enough credits: {weight} votes cost {weight * weight}, you have {event.voting_credits - others} left."
+            )
     elif weight > 1:
         raise ValidationError("This event allows one vote per project.")
     existing = Vote.objects.filter(voter=voter, project=project).first()
     if weight == 0:
         if existing:
             existing.delete()
-            record("vote.remove", event=event, target=project, detail={"voter": voter.key[:8]}, actor=request.user if request.user.is_authenticated else None)
+            record(
+                "vote.remove",
+                event=event,
+                target=project,
+                detail={"voter": voter.key[:8]},
+                actor=request.user if request.user.is_authenticated else None,
+            )
         return None
-    vote, created = Vote.objects.update_or_create(voter=voter, project=project, defaults={"event": event, "weight": weight})
-    record("vote.cast" if created else "vote.change", event=event, target=project, detail={"voter": voter.key[:8], "weight": weight}, actor=request.user if request.user.is_authenticated else None)
+    vote, created = Vote.objects.update_or_create(
+        voter=voter, project=project, defaults={"event": event, "weight": weight}
+    )
+    record(
+        "vote.cast" if created else "vote.change",
+        event=event,
+        target=project,
+        detail={"voter": voter.key[:8], "weight": weight},
+        actor=request.user if request.user.is_authenticated else None,
+    )
     Voter.objects.filter(pk=voter.pk).update(last_seen_at=timezone.now())
     return vote
 
@@ -241,6 +277,7 @@ def integrity_report(event: Event) -> dict:
 
 # --- comments -------------------------------------------------------------------
 
+
 @transaction.atomic
 def add_comment(request, project: Project, body: str) -> Comment:
     if not request.user.is_authenticated:
@@ -272,5 +309,11 @@ def hide_comment(comment: Comment, user, hidden: bool = True) -> Comment:
     else:
         comment.hidden_at, comment.hidden_by = None, None
     comment.save(update_fields=["hidden_at", "hidden_by"])
-    record("comment.hide" if hidden else "comment.unhide", actor=user, event=comment.project.event, target=comment.project, detail={"comment": comment.pk})
+    record(
+        "comment.hide" if hidden else "comment.unhide",
+        actor=user,
+        event=comment.project.event,
+        target=comment.project,
+        detail={"comment": comment.pk},
+    )
     return comment

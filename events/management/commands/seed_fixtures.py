@@ -89,7 +89,7 @@ class Command(BaseCommand):
             self.stdout.write("[plumbline] seed complete. Auth headers for .dogfood.toml:")
             for slot, header in headers.items():
                 if not slot.startswith("_"):
-                    self.stdout.write(f"  {slot:<12} = \"{header}\"")
+                    self.stdout.write(f'  {slot:<12} = "{header}"')
             self.stdout.write("")
             self.stdout.write(f"[plumbline] UI logins (email or username, password: {SEED_PASSWORD}):")
             self.stdout.write(f"  admin        {ADMIN_EMAIL}")
@@ -107,7 +107,7 @@ class Command(BaseCommand):
         if timezone.is_naive(close):
             close = timezone.make_aware(close, timezone.utc)
 
-        admin = _user_for(ADMIN_EMAIL, "Portal Admin", is_staff=True, is_superuser=True)
+        _user_for(ADMIN_EMAIL, "Portal Admin", is_staff=True, is_superuser=True)
         organizer = _user_for(ORGANIZER_EMAIL, "Sample Organizer", is_staff=True)
 
         event, created = Event.objects.get_or_create(
@@ -127,7 +127,9 @@ class Command(BaseCommand):
 
         tracks = {}
         for i, t in enumerate(data.get("tracks", [])):
-            track, _ = Track.objects.get_or_create(event=event, external_id=t["id"], defaults={"name": t["name"], "order": i})
+            track, _ = Track.objects.get_or_create(
+                event=event, external_id=t["id"], defaults={"name": t["name"], "order": i}
+            )
             tracks[t["id"]] = track
 
         rubric, _ = Rubric.objects.get_or_create(event=event, defaults={"scale_min": 1, "scale_max": 5})
@@ -146,7 +148,9 @@ class Command(BaseCommand):
         judges = {}
         for j in data.get("judges", []):
             user = _user_for(j["email"], j.get("name", ""))
-            role, _ = EventRole.objects.get_or_create(event=event, user=user, role=Role.JUDGE, defaults={"external_id": j["id"]})
+            role, _ = EventRole.objects.get_or_create(
+                event=event, user=user, role=Role.JUDGE, defaults={"external_id": j["id"]}
+            )
             if not role.external_id:
                 role.external_id = j["id"]
                 role.save(update_fields=["external_id"])
@@ -161,7 +165,8 @@ class Command(BaseCommand):
             for n, email in enumerate(t.get("members", [])):
                 user = _user_for(email)
                 TeamMembership.objects.get_or_create(
-                    team=team, user=user,
+                    team=team,
+                    user=user,
                     defaults={"role": TeamMembership.MemberRole.OWNER if n == 0 else TeamMembership.MemberRole.MEMBER},
                 )
                 EventRole.objects.get_or_create(event=event, user=user, role=Role.PARTICIPANT)
@@ -207,7 +212,9 @@ class Command(BaseCommand):
             values = s.get("criteria") or {}
             for key, value in values.items():
                 if key in criteria and value is not None:
-                    Score.objects.update_or_create(assignment=assignment, criterion=criteria[key], defaults={"value": int(value)})
+                    Score.objects.update_or_create(
+                        assignment=assignment, criterion=criteria[key], defaults={"value": int(value)}
+                    )
             assignment.comment = s.get("comment") or ""
             if values:
                 assignment.status = JudgeAssignment.Status.SUBMITTED

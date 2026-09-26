@@ -24,9 +24,7 @@ DEBUG = env_bool("DJANGO_DEBUG", False)
 ALLOWED_HOSTS = [h.strip() for h in os.environ.get("ALLOWED_HOSTS", "*").split(",") if h.strip()]
 CSRF_TRUSTED_ORIGINS = [
     o.strip()
-    for o in os.environ.get(
-        "CSRF_TRUSTED_ORIGINS", "http://localhost:8080,http://127.0.0.1:8080"
-    ).split(",")
+    for o in os.environ.get("CSRF_TRUSTED_ORIGINS", "http://localhost:8080,http://127.0.0.1:8080").split(",")
     if o.strip()
 ]
 

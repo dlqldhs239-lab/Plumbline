@@ -11,7 +11,7 @@ from django.utils import timezone
 
 from accounts.models import ApiToken
 from events.models import Event, EventRole, Project, Role, Team, TeamInvite, TeamMembership
-from judging.models import JudgeAssignment, ProjectResult
+from judging.models import JudgeAssignment
 
 from .base import FIXTURES, SeededTestCase
 
@@ -75,9 +75,14 @@ class LifecycleTests(TestCase):
         self.assertEqual(r.json()["status"], "draft")
         self.assertEqual(self.client.get(f"/events/{slug}/gallery/").status_code, 200)
         self.assertNotContains(self.client.get(f"/events/{slug}/gallery/"), "Quiet Hours")  # drafts are private
-        self.assertEqual(self.client.get(f"/api/events/{slug}/projects/{pid}").status_code, 403)  # anonymous cannot see a draft
+        self.assertEqual(
+            self.client.get(f"/api/events/{slug}/projects/{pid}").status_code, 403
+        )  # anonymous cannot see a draft
         r = self.client.patch(
-            f"/api/events/{slug}/projects/{pid}", data={"title": "Quiet Hours v2", "submit": True}, content_type="application/json", **self.auth(self.alice_token)
+            f"/api/events/{slug}/projects/{pid}",
+            data={"title": "Quiet Hours v2", "submit": True},
+            content_type="application/json",
+            **self.auth(self.alice_token),
         )
         self.assertEqual(r.status_code, 200, r.content)
         self.assertEqual(r.json()["status"], "submitted")
@@ -86,10 +91,20 @@ class LifecycleTests(TestCase):
         # Deadline passes: edits and joins are refused, by the server.
         event.submissions_close_at = now - timedelta(minutes=1)
         event.save()
-        r = self.client.patch(f"/api/events/{slug}/projects/{pid}", data={"title": "too late"}, content_type="application/json", **self.auth(self.alice_token))
+        r = self.client.patch(
+            f"/api/events/{slug}/projects/{pid}",
+            data={"title": "too late"},
+            content_type="application/json",
+            **self.auth(self.alice_token),
+        )
         self.assertEqual(r.status_code, 403)
         self.assertEqual(Project.objects.get(pk=pid).title, "Quiet Hours v2")
-        r = self.client.post(f"/api/events/{slug}/projects", data={"title": "late"}, content_type="application/json", **self.auth(self.alice_token))
+        r = self.client.post(
+            f"/api/events/{slug}/projects",
+            data={"title": "late"},
+            content_type="application/json",
+            **self.auth(self.alice_token),
+        )
         self.assertEqual(r.status_code, 403)
         self.client.force_login(User.objects.create_user("carol", "carol@example.org", "pw"))
         self.client.post(f"/teams/join/{token}/")
@@ -98,7 +113,12 @@ class LifecycleTests(TestCase):
 
         # Organizer adds a judge and assigns; the judge scores; results are computed and published.
         EventRole.objects.create(event=event, user=self.judge, role=Role.JUDGE)
-        r = self.client.post(f"/api/events/{slug}/assignments/auto", data={"reviews_per_project": 1}, content_type="application/json", **self.auth(self.org_token))
+        r = self.client.post(
+            f"/api/events/{slug}/assignments/auto",
+            data={"reviews_per_project": 1},
+            content_type="application/json",
+            **self.auth(self.org_token),
+        )
         self.assertEqual(r.status_code, 200, r.content)
         self.assertEqual(r.json()["created"], 1)
         a = JudgeAssignment.objects.get(event=event)
@@ -133,7 +153,19 @@ class LifecycleTests(TestCase):
 
         # Everything above is in the audit log.
         actions = set(event.audit_entries.values_list("action", flat=True))
-        for expected in {"event.create", "team.create", "team.invite.create", "team.join", "project.create", "project.update", "project.submit", "assignment.balanced", "score.submit", "results.recompute", "results.publish"}:
+        for expected in {
+            "event.create",
+            "team.create",
+            "team.invite.create",
+            "team.join",
+            "project.create",
+            "project.update",
+            "project.submit",
+            "assignment.balanced",
+            "score.submit",
+            "results.recompute",
+            "results.publish",
+        }:
             self.assertIn(expected, actions)
 
 

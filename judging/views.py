@@ -18,7 +18,9 @@ def index(request):
     rows = []
     for ev in events:
         qs = services.assignments_for_judge(request.user, ev)
-        rows.append({"event": ev, "total": qs.count(), "done": qs.filter(status=JudgeAssignment.Status.SUBMITTED).count()})
+        rows.append(
+            {"event": ev, "total": qs.count(), "done": qs.filter(status=JudgeAssignment.Status.SUBMITTED).count()}
+        )
     return render(request, "judging/index.html", {"rows": rows})
 
 
@@ -27,7 +29,9 @@ def event_queue(request, slug):
     event = get_object_or_404(Event, slug=slug)
     if not event.roles.filter(user=request.user, role=Role.JUDGE).exists():
         raise PermissionDenied("You are not a judge in this event.")
-    qs = services.assignments_for_judge(request.user, event).prefetch_related("scores").order_by("status", "batch", "id")
+    qs = (
+        services.assignments_for_judge(request.user, event).prefetch_related("scores").order_by("status", "batch", "id")
+    )
     rubric = services.ensure_rubric(event)
     n_criteria = rubric.criteria.count()
     items = []
@@ -38,7 +42,14 @@ def event_queue(request, slug):
     return render(
         request,
         "judging/queue.html",
-        {"event": event, "items": items, "done": done, "total": len(items), "next_item": next_item, "judging_open": event.judging_open()},
+        {
+            "event": event,
+            "items": items,
+            "done": done,
+            "total": len(items),
+            "next_item": next_item,
+            "judging_open": event.judging_open(),
+        },
     )
 
 
