@@ -1,6 +1,7 @@
 from django.contrib import admin
 from django.urls import include, path
 
+import api.organizer  # noqa: F401  (registers the organizer endpoints on the API)
 from api.router import api
 
 urlpatterns = [

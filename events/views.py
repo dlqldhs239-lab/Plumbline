@@ -1,6 +1,5 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.models import User
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
 from django.db.models import Count, Q
@@ -416,28 +415,25 @@ def organize_judges(request, slug):
     _organizer_or_403(request, event)
     form = JudgeInviteForm(request.POST or None, event=event)
     if request.method == "POST" and form.is_valid():
-        email = form.cleaned_data["email"].lower()
-        user = User.objects.filter(email__iexact=email).first()
-        if user is None:
-            username = email.split("@")[0][:150]
-            base, i = username, 2
-            while User.objects.filter(username=username).exists():
-                username, i = f"{base}{i}", i + 1
-            user = User.objects.create_user(username=username, email=email)
-            user.set_unusable_password()
-            name = form.cleaned_data.get("name") or ""
-            if name:
-                user.first_name, _, user.last_name = name.partition(" ")
-            user.save()
-        role, created = EventRole.objects.get_or_create(event=event, user=user, role=Role.JUDGE)
-        role.tracks.set(form.cleaned_data["tracks"])
-        record(
-            "judge.invite",
-            event=event,
-            target=role,
-            detail={"email": email, "tracks": [t.name for t in form.cleaned_data["tracks"]]},
-        )
-        messages.success(request, f"{email} is a judge" + ("." if created else " (updated tracks)."))
+        try:
+            services.add_judge(
+                event,
+                request.user,
+                form.cleaned_data["email"],
+                form.cleaned_data.get("name") or "",
+                list(form.cleaned_data["tracks"]),
+            )
+            messages.success(request, f"{form.cleaned_data['email'].lower()} is a judge.")
+        except ValidationError as e:
+            messages.error(request, "; ".join(e.messages))
+        return redirect("organize_judges", slug=slug)
+    if request.method == "POST" and request.POST.get("remove"):
+        role = get_object_or_404(EventRole, pk=request.POST["remove"], event=event, role=Role.JUDGE)
+        try:
+            services.remove_judge(role, request.user)
+            messages.info(request, "Judge removed.")
+        except ValidationError as e:
+            messages.error(request, "; ".join(e.messages))
         return redirect("organize_judges", slug=slug)
     judges = (
         event.roles.filter(role=Role.JUDGE).select_related("user").prefetch_related("tracks").order_by("user__username")

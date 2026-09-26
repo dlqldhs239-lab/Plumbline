@@ -13,8 +13,8 @@
     <h3>{{ judges|length }} judge{{ judges|length|pluralize }}</h3>
     <div class="table-wrap" style="max-height:32rem;overflow:auto">
     <table>
-      <thead><tr><th>Judge</th><th>Tracks</th></tr></thead>
-      <tbody>{% for r in judges %}<tr><td>{{ r.user.get_full_name|default:r.user.username }}<br><small class="muted">{{ r.user.email }}{% if r.external_id %} · {{ r.external_id }}{% endif %}</small></td><td>{% for t in r.tracks.all %}<span class="badge neutral">{{ t.name }}</span> {% empty %}<small class="muted">all tracks</small>{% endfor %}</td></tr>{% empty %}<tr><td colspan="2" class="muted">No judges yet.</td></tr>{% endfor %}</tbody>
+      <thead><tr><th>Judge</th><th>Tracks</th><th></th></tr></thead>
+      <tbody>{% for r in judges %}<tr><td>{{ r.user.get_full_name|default:r.user.username }}<br><small class="muted">{{ r.user.email }}{% if r.external_id %} · {{ r.external_id }}{% endif %}</small></td><td>{% for t in r.tracks.all %}<span class="badge neutral">{{ t.name }}</span> {% empty %}<small class="muted">all tracks</small>{% endfor %}</td><td><form method="post" class="inline">{% csrf_token %}<input type="hidden" name="remove" value="{{ r.pk }}"><button class="btn small danger" type="submit" title="Refused if the judge has submitted reviews">Remove</button></form></td></tr>{% empty %}<tr><td colspan="3" class="muted">No judges yet.</td></tr>{% endfor %}</tbody>
     </table>
     </div>
   </div>

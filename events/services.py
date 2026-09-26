@@ -197,3 +197,106 @@ def _as_list(value) -> list[str]:
     else:
         parts = [str(p).strip() for p in value]
     return [p for p in parts if p]
+
+
+# --- organizer administration ---------------------------------------------------
+
+EVENT_FIELDS = (
+    "name",
+    "tagline",
+    "description",
+    "submissions_open_at",
+    "submissions_close_at",
+    "judging_open_at",
+    "judging_close_at",
+    "reviews_per_project",
+    "voting_access",
+    "voting_open_at",
+    "voting_close_at",
+    "voting_credits",
+    "comments_enabled",
+    "is_listed",
+)
+
+
+@transaction.atomic
+def update_event(event: Event, user, data: dict) -> Event:
+    """Change event settings. Every changed field is written to the audit
+    log with its old and new value, so a moved deadline is never silent."""
+    if not is_organizer(user, event):
+        raise PermissionDenied("Only organizers can change event settings.")
+    changed = {}
+    for field in EVENT_FIELDS:
+        if field not in data:
+            continue
+        before = getattr(event, field)
+        after = data[field]
+        if before != after:
+            setattr(event, field, after)
+            changed[field] = [_plain(before), _plain(after)]
+    if event.submissions_close_at <= event.submissions_open_at:
+        raise ValidationError("submissions_close_at must be after submissions_open_at.")
+    event.full_clean()
+    event.save()
+    if changed:
+        record("event.update", actor=user, event=event, target=event, detail={"changed": changed})
+    return event
+
+
+def _plain(value):
+    return value.isoformat() if hasattr(value, "isoformat") else value
+
+
+@transaction.atomic
+def add_judge(event: Event, user, email: str, name: str = "", tracks=None) -> EventRole:
+    """Create the judge's account if needed and give them the judge role.
+    Passing tracks (a list of Track objects or ids) restricts what they see;
+    an empty list means every track."""
+    from django.contrib.auth.models import User
+
+    from .models import Track
+
+    if not is_organizer(user, event):
+        raise PermissionDenied("Only organizers can add judges.")
+    email = (email or "").strip().lower()
+    if "@" not in email:
+        raise ValidationError("A valid email is required.")
+    judge = User.objects.filter(email__iexact=email).first()
+    if judge is None:
+        username = email.split("@")[0][:150]
+        base, i = username, 2
+        while User.objects.filter(username=username).exists():
+            username, i = f"{base}{i}", i + 1
+        judge = User.objects.create_user(username=username, email=email)
+        judge.set_unusable_password()
+        if name:
+            judge.first_name, _, judge.last_name = name.partition(" ")
+        judge.save()
+    role, created = EventRole.objects.get_or_create(event=event, user=judge, role=Role.JUDGE)
+    track_objs = []
+    for t in tracks or []:
+        track_objs.append(t if hasattr(t, "pk") else Track.objects.get(pk=t, event=event))
+    if any(t.event_id != event.id for t in track_objs):
+        raise ValidationError("Tracks must belong to this event.")
+    role.tracks.set(track_objs)
+    record(
+        "judge.invite" if created else "judge.update",
+        actor=user,
+        event=event,
+        target=role,
+        detail={"email": email, "tracks": [t.name for t in track_objs]},
+    )
+    return role
+
+
+@transaction.atomic
+def remove_judge(role: EventRole, user):
+    if not is_organizer(user, role.event):
+        raise PermissionDenied("Only organizers can remove judges.")
+    from judging.models import JudgeAssignment
+
+    if JudgeAssignment.objects.filter(event=role.event, judge=role.user, status="submitted").exists():
+        raise ValidationError("This judge has submitted reviews; keep them for the record and reassign instead.")
+    JudgeAssignment.objects.filter(event=role.event, judge=role.user).delete()
+    record("judge.remove", actor=user, event=role.event, target=role, detail={"email": role.user.email})
+    role.delete()
