@@ -1,0 +1,35 @@
+name: plumbline
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: plumbline
+      POSTGRES_USER: plumbline
+      POSTGRES_PASSWORD: plumbline
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U plumbline -d plumbline"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  web:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      DATABASE_URL: postgres://plumbline:plumbline@db:5432/plumbline
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-dev-only-change-me-in-production}
+      PLUMBLINE_SEED_SECRET: ${PLUMBLINE_SEED_SECRET:-dev-seed-secret}
+      PLUMBLINE_SEED: ${PLUMBLINE_SEED:-1}
+      PLUMBLINE_FIXTURES: /app/fixtures.json
+      DJANGO_DEBUG: ${DJANGO_DEBUG:-0}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-*}
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:

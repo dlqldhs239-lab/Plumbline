@@ -1,0 +1,25 @@
+# Plumbline — DOGFOOD 2026 checker configuration.
+# Run:  python3 run.py .dogfood.toml > acceptance-report.txt
+
+[portal]
+base_url = "http://localhost:8080"
+
+[tiers]
+claimed = []
+pitch = "A self-hosted submission and judging portal whose role isolation is enforced at the API and whose judge normalization is documented and proven on the fixtures."
+
+[auth]
+# Bearer tokens for the seeded fixture users. The seed step prints these
+# same values at boot (docker compose up). They are derived from
+# PLUMBLINE_SEED_SECRET so a restart keeps this file valid.
+organizer   = "Authorization: Bearer pl_org_PLACEHOLDER"
+judge_a     = "Authorization: Bearer pl_jdg_a_PLACEHOLDER"
+judge_b     = "Authorization: Bearer pl_jdg_b_PLACEHOLDER"
+participant = "Authorization: Bearer pl_prt_PLACEHOLDER"
+
+[routes]
+gallery      = "/events/sample-hack-2026/gallery"
+submit       = "/api/events/sample-hack-2026/projects"
+judge_scores = "/api/judges/me/scores"
+peer_scores  = "/api/judges/jdg_01/scores"
+csv_export   = "/api/events/sample-hack-2026/export/scores.csv"
