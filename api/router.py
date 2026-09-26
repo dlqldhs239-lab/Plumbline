@@ -29,6 +29,10 @@ from .auth import auth_optional, auth_required
 from .schemas import (
     AssignmentOut,
     AssignRequest,
+    BallotItem,
+    BallotOut,
+    CommentIn,
+    CommentOut,
     ErrorOut,
     EventIn,
     EventOut,
@@ -39,6 +43,7 @@ from .schemas import (
     ResultOut,
     ScoreValues,
     TeamOut,
+    VoteIn,
 )
 
 api = NinjaAPI(
@@ -410,10 +415,85 @@ def results(request, slug: str):
                 "normalized_mean": r.normalized_mean,
                 "rank_raw": r.rank_raw,
                 "rank_normalized": r.rank_normalized,
+                "community_score": r.community_score,
                 "method": r.method,
             }
         )
     return out
+
+
+# --- community voting and comments ------------------------------------------
+# API voting is for signed-in voters (bearer token = an account), so it is
+# available in the "auth" mode and, for account holders, the "open" mode.
+
+@api.get("/events/{slug}/ballot", response={200: BallotOut, 403: ErrorOut}, auth=auth_required, tags=["community"])
+def ballot(request, slug: str):
+    """The caller's ballot: eligible projects in their personal random order
+    and their current weights. Totals are never returned here."""
+    from community import services as community_services
+
+    event = _event(slug)
+    voter = community_services.admit_voter(request, event)
+    weights = community_services.voter_weights(voter)
+    items = [
+        {"project_id": p.id, "title": p.title, "tagline": p.tagline, "track": p.track.name if p.track else None, "team": p.team.name, "my_weight": weights.get(p.id, 0)}
+        for p in community_services.ballot_projects(event, voter.key)
+    ]
+    used = sum(w * w for w in weights.values())
+    return {"event": event.slug, "quadratic": bool(event.voting_credits), "credits": event.voting_credits, "credits_used": used, "items": items}
+
+
+@api.post("/events/{slug}/projects/{project_id}/vote", response={200: BallotItem, 400: ErrorOut, 403: ErrorOut}, auth=auth_required, tags=["community"])
+def vote(request, slug: str, project_id: int, payload: VoteIn):
+    """Set the caller's weight on a project (0 removes the vote)."""
+    from community import services as community_services
+
+    event = _event(slug)
+    project = get_object_or_404(Project.objects.select_related("team", "track"), pk=project_id, event=event)
+    voter = community_services.admit_voter(request, event)
+    community_services.cast_vote(request, event, voter, project, payload.weight)
+    return {"project_id": project.id, "title": project.title, "tagline": project.tagline, "track": project.track.name if project.track else None, "team": project.team.name, "my_weight": payload.weight}
+
+
+@api.get("/events/{slug}/projects/{project_id}/comments", response=list[CommentOut], auth=auth_optional, tags=["community"])
+def list_comments(request, slug: str, project_id: int):
+    event = _event(slug)
+    project = get_object_or_404(Project, pk=project_id, event=event)
+    if not can_view_project(request.user, project):
+        raise PermissionDenied("This project is not public.")
+    qs = project.comments.select_related("author")
+    if not is_organizer(request.user, event):
+        qs = qs.filter(hidden_at__isnull=True)
+    return [{"id": c.id, "author": c.author.username, "body": c.body, "created_at": c.created_at, "hidden": c.is_hidden} for c in qs]
+
+
+@api.post("/events/{slug}/projects/{project_id}/comments", response={201: CommentOut, 400: ErrorOut, 403: ErrorOut}, auth=auth_required, tags=["community"])
+def add_comment(request, slug: str, project_id: int, payload: CommentIn):
+    from community import services as community_services
+
+    event = _event(slug)
+    project = get_object_or_404(Project, pk=project_id, event=event)
+    c = community_services.add_comment(request, project, payload.body)
+    return 201, {"id": c.id, "author": c.author.username, "body": c.body, "created_at": c.created_at, "hidden": False}
+
+
+@api.get("/events/{slug}/votes/summary", auth=auth_required, tags=["community"])
+def votes_summary(request, slug: str):
+    """Organizer view of the tally and integrity flags. Hidden from everyone
+    else while voting is open, and after it too unless results are published."""
+    from community import services as community_services
+
+    event = _event(slug)
+    _require_organizer(request, event)
+    report = community_services.integrity_report(event)
+    return {
+        "tally": {str(k): v for k, v in community_services.tally(event).items()},
+        "ballots": report["total"],
+        "voided": report["voided"],
+        "flagged": report["flagged"],
+        "by_kind": report["by_kind"],
+        "shared_ips": report["shared_ips"],
+    }
 
 
 # --- export ------------------------------------------------------------------

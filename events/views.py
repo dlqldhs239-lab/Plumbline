@@ -90,6 +90,10 @@ def project_detail(request, slug, pk):
     result = None
     if event.results_published:
         result = ProjectResult.objects.filter(project=project).first()
+    organizer = is_organizer(request.user, event)
+    comments = project.comments.select_related("author")
+    if not organizer:
+        comments = comments.filter(hidden_at__isnull=True)
     return render(
         request,
         "events/project_detail.html",
@@ -99,8 +103,10 @@ def project_detail(request, slug, pk):
             "answers": answers,
             "members": members,
             "can_edit": can_edit_project(request.user, project),
-            "editing_open": event.submissions_open() or is_organizer(request.user, event),
+            "editing_open": event.submissions_open() or organizer,
+            "is_organizer": organizer,
             "result": result,
+            "comments": comments,
         },
     )
 

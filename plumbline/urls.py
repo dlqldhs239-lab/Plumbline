@@ -8,5 +8,6 @@ urlpatterns = [
     path("api/", api.urls),
     path("accounts/", include("accounts.urls", namespace="accounts")),
     path("judge/", include("judging.urls", namespace="judging")),
+    path("", include("community.urls")),
     path("", include("events.urls")),
 ]

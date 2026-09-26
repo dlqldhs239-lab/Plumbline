@@ -243,6 +243,9 @@ def recompute_results(event: Event, user) -> dict:
     reviews, _, rubric = collect_reviews(event)
     result = normalize(reviews, rubric.scale_min, rubric.scale_max)
 
+    from community.services import tally
+
+    community = tally(event) if event.voting_access != Event.VotingAccess.CLOSED else {}
     ProjectResult.objects.filter(event=event).delete()
     JudgeCalibration.objects.filter(event=event).delete()
     for project in eligible_projects(event):
@@ -255,6 +258,7 @@ def recompute_results(event: Event, user) -> dict:
             normalized_mean=standing.normalized if standing else None,
             rank_raw=standing.rank_raw if standing else None,
             rank_normalized=standing.rank_normalized if standing else None,
+            community_score=float(community[project.id]["votes"]) if project.id in community else None,
             method=result.method,
         )
     for judge_id, js in result.judges.items():

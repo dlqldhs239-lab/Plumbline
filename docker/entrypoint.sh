@@ -6,6 +6,7 @@ cd /app
 
 echo "[plumbline] applying migrations"
 python manage.py migrate --noinput
+python manage.py createcachetable
 
 if [ "${PLUMBLINE_SEED:-1}" = "1" ]; then
   echo "[plumbline] seeding ${PLUMBLINE_FIXTURES:-fixtures.json}"

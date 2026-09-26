@@ -69,7 +69,7 @@
       {% endif %}
     </div>
     {% if event.voting_access != 'closed' %}
-    <div class="card"><h3>Community vote</h3><p class="muted">{{ event.get_voting_access_display }}{% if event.voting_close_at %} · closes {{ event.voting_close_at|date:"Y-m-d H:i" }} UTC{% endif %}</p><a class="btn" href="{% url 'gallery' event.slug %}">Open the gallery to vote</a></div>
+    <div class="card"><h3>Community vote</h3><p class="muted">{{ event.get_voting_access_display }}{% if event.voting_close_at %} · closes {{ event.voting_close_at|date:"Y-m-d H:i" }} UTC{% endif %}</p>{% if event.voting_open %}<a class="btn primary" href="{% url 'ballot' event.slug %}">Open your ballot</a>{% else %}<span class="badge neutral">Not open right now</span>{% endif %}</div>
     {% endif %}
   </div>
 </div>

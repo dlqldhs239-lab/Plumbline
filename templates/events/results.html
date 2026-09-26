@@ -6,10 +6,10 @@
 {% if rows %}
 <div class="card table-wrap">
 <table>
-  <thead><tr><th class="num">#</th><th>Project</th><th>Team</th><th>Track</th><th class="num">Reviews</th><th class="num">Score</th></tr></thead>
+  <thead><tr><th class="num">#</th><th>Project</th><th>Team</th><th>Track</th><th class="num">Reviews</th><th class="num">Score</th>{% if event.voting_access != 'closed' %}<th class="num">Community votes</th>{% endif %}</tr></thead>
   <tbody>
   {% for r in rows %}
-    <tr><td class="num"><strong>{{ r.rank_normalized|default:"—" }}</strong></td><td><a href="{{ r.project.get_absolute_url }}">{{ r.project.title }}</a></td><td>{{ r.project.team.name }}</td><td>{{ r.project.track.name|default:"" }}</td><td class="num">{{ r.review_count }}</td><td class="num">{{ r.normalized_mean|floatformat:2|default:"—" }}</td></tr>
+    <tr><td class="num"><strong>{{ r.rank_normalized|default:"—" }}</strong></td><td><a href="{{ r.project.get_absolute_url }}">{{ r.project.title }}</a></td><td>{{ r.project.team.name }}</td><td>{{ r.project.track.name|default:"" }}</td><td class="num">{{ r.review_count }}</td><td class="num">{{ r.normalized_mean|floatformat:2|default:"—" }}</td>{% if event.voting_access != 'closed' %}<td class="num">{{ r.community_score|floatformat:0|default:"0" }}</td>{% endif %}</tr>
   {% endfor %}
   </tbody>
 </table>

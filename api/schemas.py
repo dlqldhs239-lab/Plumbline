@@ -122,7 +122,41 @@ class ResultOut(Schema):
     normalized_mean: float | None
     rank_raw: int | None
     rank_normalized: int | None
+    community_score: float | None = None
     method: str
+
+
+class BallotItem(Schema):
+    project_id: int
+    title: str
+    tagline: str = ""
+    track: str | None
+    team: str
+    my_weight: int = 0
+
+
+class BallotOut(Schema):
+    event: str
+    quadratic: bool
+    credits: int
+    credits_used: int
+    items: list[BallotItem]
+
+
+class VoteIn(Schema):
+    weight: int = 1
+
+
+class CommentIn(Schema):
+    body: str
+
+
+class CommentOut(Schema):
+    id: int
+    author: str
+    body: str
+    created_at: datetime
+    hidden: bool = False
 
 
 class ProgressRow(Schema):

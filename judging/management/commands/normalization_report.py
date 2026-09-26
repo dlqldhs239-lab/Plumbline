@@ -1,0 +1,72 @@
+"""Print the normalization proof for an event as Markdown.
+
+    python manage.py normalization_report sample-hack-2026 > docs/normalization-proof.md
+
+Shows judge statistics, then every project's raw mean, normalized score and
+rank movement. This is the artifact JUDGING.md refers to; it is regenerated
+from the database, never edited by hand.
+"""
+
+from __future__ import annotations
+
+from django.core.management.base import BaseCommand, CommandError
+
+from events.models import Event, EventRole, Project, Role
+from judging.normalization import normalize
+from judging.services import collect_reviews
+
+
+class Command(BaseCommand):
+    help = "Markdown proof of cross-judge normalization for one event."
+
+    def add_arguments(self, parser):
+        parser.add_argument("slug")
+
+    def handle(self, *args, **options):
+        try:
+            event = Event.objects.get(slug=options["slug"])
+        except Event.DoesNotExist:
+            raise CommandError("no such event")
+        reviews, weights, rubric = collect_reviews(event)
+        result = normalize(reviews, rubric.scale_min, rubric.scale_max)
+        titles = {str(p.id): p for p in Project.objects.filter(event=event).select_related("track")}
+        judge_label = {}
+        for r in EventRole.objects.filter(event=event, role=Role.JUDGE).select_related("user"):
+            judge_label[str(r.user_id)] = f"{r.external_id or r.user.username}"
+
+        out = self.stdout.write
+        out(f"# Normalization proof — {event.name}")
+        out("")
+        out(f"Method `{result.method}`; rubric scale {rubric.scale_min}–{rubric.scale_max}; weights "
+            + ", ".join(f"{k}={v:g}" for k, v in weights.items()) + ".")
+        out(f"{len(reviews)} submitted reviews over {len(result.projects)} eligible projects by {len(result.judges)} judges. "
+            f"Panel mean {result.panel_mean:.3f}, panel spread {result.panel_stdev:.3f}.")
+        out("")
+        out("## Judges")
+        out("")
+        out("| judge | reviews | mean | spread | shrink weight | shrunk mean | shrunk spread | note |")
+        out("|---|---:|---:|---:|---:|---:|---:|---|")
+        for jid, js in sorted(result.judges.items(), key=lambda kv: judge_label.get(kv[0], kv[0])):
+            note = "flat: every score identical, rank-neutral" if js.flat else ("few reviews: pulled toward panel" if js.n < 3 else "")
+            out(f"| {judge_label.get(jid, jid)} | {js.n} | {js.mean:.3f} | {js.stdev:.3f} | {js.shrink_weight:.2f} | {js.shrunk_mean:.3f} | {js.shrunk_stdev:.3f} | {note} |")
+        out("")
+        out("## Projects")
+        out("")
+        out("Sorted by normalized rank. Δ is raw rank minus normalized rank: positive means the project moved up once judge bias was removed.")
+        out("")
+        out("| norm. rank | raw rank | Δ | project | track | reviews | raw mean | normalized | judges |")
+        out("|---:|---:|---:|---|---|---:|---:|---:|---|")
+        by_project_judges: dict[str, list[str]] = {}
+        for r in reviews:
+            by_project_judges.setdefault(r.project_id, []).append(judge_label.get(r.judge_id, r.judge_id))
+        for pid, s in sorted(result.projects.items(), key=lambda kv: (kv[1].rank_normalized or 0, kv[0])):
+            p = titles.get(pid)
+            delta = (s.rank_raw or 0) - (s.rank_normalized or 0)
+            sign = f"+{delta}" if delta > 0 else str(delta)
+            out(f"| {s.rank_normalized} | {s.rank_raw} | {sign} | {p.title if p else pid} | {p.track.name if p and p.track else ''} | {s.n} | {s.raw_mean:.3f} | {s.normalized:.3f} | {', '.join(sorted(by_project_judges.get(pid, [])))} |")
+        moved = sum(1 for s in result.projects.values() if s.rank_raw != s.rank_normalized)
+        biggest = max(result.projects.values(), key=lambda s: abs((s.rank_raw or 0) - (s.rank_normalized or 0)))
+        out("")
+        out(f"{moved} of {len(result.projects)} projects changed rank. Largest move: "
+            f"{titles[biggest.project_id].title if biggest.project_id in titles else biggest.project_id} "
+            f"from raw #{biggest.rank_raw} to normalized #{biggest.rank_normalized}.")

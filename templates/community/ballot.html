@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% load community %}
+{% block title %}Vote · {{ event.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><div class="eyebrow"><a href="{{ event.get_absolute_url }}">{{ event.name }}</a> · community vote</div><h1>Your ballot</h1>
+    <small class="muted">{% if quadratic %}You have <strong>{{ credits }}</strong> credits. Putting <em>n</em> votes on one project costs <em>n²</em> credits, so spreading votes is cheaper than piling on. <strong>{{ left }}</strong> left.{% else %}One vote per project. Change your mind any time before voting closes.{% endif %}{% if event.voting_close_at %} Closes {{ event.voting_close_at|date:"Y-m-d H:i" }} UTC.{% endif %}</small>
+  </div>
+</div>
+<p class="muted">Projects are shown in an order that is random for you and stays the same when you reload. Totals are hidden until the organizers publish results.</p>
+<div class="grid cols-3">
+  {% for p in projects %}
+  {% with w=weights|get_item:p.id %}
+  <article class="card" id="p{{ p.id }}">
+    {% if p.thumbnail_url %}<img class="thumb" src="{{ p.thumbnail_url }}" alt="">{% else %}<div class="thumb placeholder" aria-hidden="true">{{ p.title|slice:":1" }}</div>{% endif %}
+    <h3><a href="{{ p.get_absolute_url }}">{{ p.title }}</a></h3>
+    <p class="meta">{{ p.tagline }}</p>
+    <div class="row spread"><small>{{ p.team.name }}</small>{% if p.track %}<span class="badge neutral">{{ p.track.name }}</span>{% endif %}</div>
+    <div class="row" style="margin-top:.75rem">
+      {% if quadratic %}
+        <form method="post" action="{% url 'vote' event.slug p.pk %}" class="inline">{% csrf_token %}<input type="hidden" name="weight" value="{{ w|default:0|add:'-1' }}"><button class="btn small" type="submit" {% if not w %}disabled{% endif %} aria-label="fewer votes">−</button></form>
+        <strong style="min-width:2rem;text-align:center">{{ w|default:0 }}</strong>
+        <form method="post" action="{% url 'vote' event.slug p.pk %}" class="inline">{% csrf_token %}<input type="hidden" name="weight" value="{{ w|default:0|add:'1' }}"><button class="btn small" type="submit" aria-label="more votes">+</button></form>
+        {% if w %}<small class="muted">costs {{ w|square }}</small>{% endif %}
+      {% else %}
+        <form method="post" action="{% url 'vote' event.slug p.pk %}" class="inline">{% csrf_token %}<input type="hidden" name="weight" value="{% if w %}0{% else %}1{% endif %}"><button class="btn {% if w %}primary{% endif %}" type="submit">{% if w %}✓ Voted — remove{% else %}Vote{% endif %}</button></form>
+      {% endif %}
+    </div>
+  </article>
+  {% endwith %}
+  {% empty %}<div class="empty">Nothing to vote on yet.</div>{% endfor %}
+</div>
+{% endblock %}

@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     "accounts",
     "events",
     "judging",
+    "community",
 ]
 
 MIDDLEWARE = [
@@ -87,6 +88,17 @@ DATABASES = {
 }
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# Rate-limit counters live in the database so every gunicorn worker sees the
+# same numbers. Created by `manage.py createcachetable` in the entrypoint.
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.db.DatabaseCache",
+        "LOCATION": "plumbline_cache",
+        "TIMEOUT": 300,
+        "OPTIONS": {"MAX_ENTRIES": 10000},
+    }
+}
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},

@@ -43,6 +43,21 @@
     {% if answers %}
     <div class="card"><h3>Organizer questions</h3>{% for a in answers %}<p><strong>{{ a.question.prompt }}</strong><br>{{ a.value|default:"—"|linebreaksbr }}</p>{% endfor %}</div>
     {% endif %}
+    {% if event.comments_enabled and project.is_public %}
+    <div class="card" id="comments">
+      <h3>Comments</h3>
+      {% for c in comments %}
+        <div style="padding:.6rem 0;border-bottom:1px solid var(--line)" class="{% if c.is_hidden %}dim{% endif %}">
+          <div class="row spread"><strong>{{ c.author.get_full_name|default:c.author.username }}</strong><small class="muted">{{ c.created_at|date:"Y-m-d H:i" }} UTC{% if c.is_hidden %} · hidden{% endif %}</small></div>
+          {% if c.is_hidden and not is_organizer %}<p class="muted"><em>Hidden by an organizer.</em></p>{% else %}<p style="margin:.25rem 0 0;white-space:pre-wrap">{{ c.body }}</p>{% endif %}
+          {% if is_organizer %}<form method="post" action="{% url 'hide_comment' event.slug project.pk c.pk %}" class="inline">{% csrf_token %}<input type="hidden" name="hidden" value="{% if c.is_hidden %}0{% else %}1{% endif %}"><button class="btn small" type="submit">{% if c.is_hidden %}Unhide{% else %}Hide{% endif %}</button></form>{% endif %}
+        </div>
+      {% empty %}<p class="muted">No comments yet.</p>{% endfor %}
+      {% if user.is_authenticated %}
+        <form method="post" action="{% url 'add_comment' event.slug project.pk %}" style="margin-top:1rem">{% csrf_token %}<div class="field"><label for="body">Add a comment</label><textarea id="body" name="body" rows="3" maxlength="2000" required></textarea></div><button class="btn" type="submit">Post</button></form>
+      {% else %}<p class="muted" style="margin-top:.75rem"><a href="{% url 'accounts:login' %}?next={{ request.path }}">Sign in</a> to comment.</p>{% endif %}
+    </div>
+    {% endif %}
   </div>
   <div class="stack">
     <div class="card">
@@ -59,6 +74,9 @@
       <h3>Team {{ project.team.name }}</h3>
       <ul>{% for m in members %}<li>{{ m.user.get_full_name|default:m.user.username }}{% if m.role == 'owner' %} <span class="badge neutral">owner</span>{% endif %}</li>{% endfor %}</ul>
     </div>
+    {% if event.voting_open and project.is_public %}
+    <div class="card"><h3>Community vote</h3><p class="muted">Voting is open for this event.</p><a class="btn" href="{% url 'ballot' event.slug %}#p{{ project.pk }}">Go to your ballot</a></div>
+    {% endif %}
     {% if result %}
     <div class="card">
       <h3>Result</h3>

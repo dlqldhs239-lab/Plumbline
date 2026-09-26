@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}Vote · {{ event.name }}{% endblock %}
+{% block main_class %}narrow{% endblock %}
+{% block content %}
+<div class="eyebrow"><a href="{{ event.get_absolute_url }}">{{ event.name }}</a></div>
+<h1>Community vote</h1>
+<div class="card"><p>{{ reason }}</p>{% if event.voting_open_at %}<p class="muted">Voting window: {{ event.voting_open_at|date:"Y-m-d H:i" }} → {{ event.voting_close_at|date:"Y-m-d H:i"|default:"open-ended" }} UTC</p>{% endif %}<a class="btn" href="{% url 'gallery' event.slug %}">Browse the gallery</a></div>
+{% endblock %}
