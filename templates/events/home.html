@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Events · {{ SITE_NAME }}{% endblock %}
+{% block content %}
+<section class="hero">
+  <div class="eyebrow">Submission and judging portal</div>
+  <h1>Judging that holds a straight line.</h1>
+  <p>Teams submit, judges score against a weighted rubric, scores are normalized across judges, and every step is exportable. Role isolation is enforced in the backend.</p>
+  {% if not user.is_authenticated %}
+    <div class="row"><a class="btn primary" href="{% url 'accounts:signup' %}">Create an account</a><a class="btn" href="{% url 'accounts:login' %}">Sign in</a></div>
+  {% else %}
+    <div class="row"><a class="btn primary" href="{% url 'event_create' %}">Create an event</a><a class="btn" href="{% url 'dashboard' %}">Your dashboard</a></div>
+  {% endif %}
+</section>
+
+<h2>Events</h2>
+{% if events %}
+<div class="grid cols-3">
+  {% for e in events %}
+  <div class="card">
+    <div class="row spread"><span class="badge {% if e.phase == 'submissions' %}ok{% elif e.phase == 'judging' %}warn{% elif e.phase == 'results' %}{% else %}neutral{% endif %}">{{ e.phase|title }}</span><small>{{ e.project_count }} project{{ e.project_count|pluralize }}</small></div>
+    <h3><a href="{{ e.get_absolute_url }}">{{ e.name }}</a></h3>
+    <p class="meta">{{ e.tagline|default:"" }}</p>
+    <p class="meta">Submissions close {{ e.submissions_close_at|date:"Y-m-d H:i" }} UTC</p>
+    <a href="{% url 'gallery' e.slug %}">Gallery →</a>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty">No events yet.</div>
+{% endif %}
+{% endblock %}

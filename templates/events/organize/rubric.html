@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Rubric · {{ event.name }}{% endblock %}
+{% block content %}
+{% include "events/organize/_nav.html" with on="rubric" %}
+<div class="page-head"><div><h1>Rubric</h1><small class="muted">Scale {{ rubric.scale_min }}–{{ rubric.scale_max }}. Weights are relative: a criterion with weight 2 counts twice as much as weight 1.</small></div></div>
+{% if locked %}<div class="messages"><li class="warning">Scores already exist, so the criteria are locked. Weights still shape the final score at recompute time via the values stored here.</li></div>{% endif %}
+<div class="card">
+  <form method="post">
+    {% csrf_token %}
+    {{ formset.management_form }}
+    <table>
+      <thead><tr><th>Key</th><th>Name</th><th style="width:7rem">Weight</th><th>Description</th><th></th></tr></thead>
+      <tbody>
+      {% for f in formset %}
+      <tr>
+        <td>{{ f.key }}{{ f.key.errors }}</td><td>{{ f.name }}{{ f.name.errors }}</td><td>{{ f.weight }}{{ f.weight.errors }}</td><td>{{ f.description }}</td>
+        <td>{% if f.DELETE %}<label class="checkbox" style="white-space:nowrap">{{ f.DELETE }} remove</label>{% endif %}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% if not locked %}<button class="btn primary" type="submit" style="margin-top:1rem">Save rubric</button>{% endif %}
+  </form>
+</div>
+<p class="muted" style="margin-top:.75rem">Need another row? Save once and an empty row appears.</p>
+{% endblock %}

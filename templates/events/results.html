@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Results · {{ event.name }}{% endblock %}
+{% block content %}
+<div class="page-head"><div><div class="eyebrow"><a href="{{ event.get_absolute_url }}">{{ event.name }}</a></div><h1>Results</h1>
+{% if preview %}<span class="badge warn">Organizer preview — not published</span>{% else %}<small class="muted">Published {{ event.results_published_at|date:"Y-m-d H:i" }} UTC</small>{% endif %}</div></div>
+{% if rows %}
+<div class="card table-wrap">
+<table>
+  <thead><tr><th class="num">#</th><th>Project</th><th>Team</th><th>Track</th><th class="num">Reviews</th><th class="num">Score</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr><td class="num"><strong>{{ r.rank_normalized|default:"—" }}</strong></td><td><a href="{{ r.project.get_absolute_url }}">{{ r.project.title }}</a></td><td>{{ r.project.team.name }}</td><td>{{ r.project.track.name|default:"" }}</td><td class="num">{{ r.review_count }}</td><td class="num">{{ r.normalized_mean|floatformat:2|default:"—" }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+<p class="muted" style="margin-top:.75rem">Score is the cross-judge normalized mean on the rubric scale ({{ rows.0.method }}). See the organizer's JUDGING notes for the method.</p>
+{% else %}<div class="empty">No results computed yet.</div>{% endif %}
+{% endblock %}

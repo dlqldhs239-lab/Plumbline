@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Join {{ team.name }}{% endblock %}
+{% block main_class %}narrow{% endblock %}
+{% block content %}
+<div class="eyebrow"><a href="{{ event.get_absolute_url }}">{{ event.name }}</a></div>
+<h1>Join team {{ team.name }}</h1>
+<div class="card">
+  {% if valid and not event.submissions_closed %}
+    <p>You were invited to join <strong>{{ team.name }}</strong> for {{ event.name }}. You can be on one team per event.</p>
+    <form method="post">{% csrf_token %}<button class="btn primary" type="submit">Join this team</button> <a class="btn" href="{{ event.get_absolute_url }}">Not now</a></form>
+  {% else %}
+    <p class="muted">This invite link is no longer valid{% if event.submissions_closed %} (submissions have closed){% endif %}. Ask a teammate for a new one.</p>
+  {% endif %}
+</div>
+{% endblock %}

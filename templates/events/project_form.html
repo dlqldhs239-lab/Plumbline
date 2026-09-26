@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}{% if project %}Edit {{ project.title }}{% else %}New project{% endif %} · {{ event.name }}{% endblock %}
+{% block main_class %}narrow{% endblock %}
+{% block content %}
+<div class="eyebrow"><a href="{{ event.get_absolute_url }}">{{ event.name }}</a>{% if team %} · Team {{ team.name }}{% endif %}</div>
+<h1>{% if project %}Edit project{% else %}New project{% endif %}</h1>
+<p class="muted">Save a draft as often as you like. Submit when it is ready; you can keep editing a submitted project until {{ event.submissions_close_at|date:"Y-m-d H:i" }} UTC.</p>
+<div class="card">
+  <form method="post">
+    {% csrf_token %}
+    {% if teams %}<div class="field"><label for="team_id">Team</label><select name="team_id" id="team_id">{% for t in teams %}<option value="{{ t.pk }}">{{ t.name }}</option>{% endfor %}</select></div>{% endif %}
+    {% include "includes/form_fields.html" %}
+    <div class="row">
+      <button class="btn" type="submit" name="save">Save draft</button>
+      {% if not project or project.status != 'submitted' %}<button class="btn primary" type="submit" name="submit">Save and submit</button>{% else %}<button class="btn primary" type="submit" name="save">Save changes</button>{% endif %}
+      {% if project %}<a class="btn" href="{{ project.get_absolute_url }}">Cancel</a>{% endif %}
+    </div>
+  </form>
+</div>
+{% endblock %}

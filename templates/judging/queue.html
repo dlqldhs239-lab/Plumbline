@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Your reviews · {{ event.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><div class="eyebrow"><a href="{{ event.get_absolute_url }}">{{ event.name }}</a> · judge console</div><h1>Your reviews</h1><small class="muted">{{ done }} of {{ total }} submitted{% if not judging_open %} · judging is closed{% endif %}</small></div>
+  <div class="actions">{% if next_item and judging_open %}<a class="btn primary" href="{% url 'judging:review' event.slug next_item.pk %}">Continue → {{ next_item.project.title }}</a>{% endif %}</div>
+</div>
+<div class="bar" style="margin-bottom:1rem"><span style="width:{% if total %}{% widthratio done total 100 %}{% else %}0{% endif %}%"></span></div>
+{% if items %}
+<div class="card table-wrap">
+<table>
+  <thead><tr><th>Project</th><th>Track</th><th>Batch</th><th>Status</th><th></th></tr></thead>
+  <tbody>
+  {% for i in items %}
+  <tr class="{% if i.a.status == 'submitted' %}dim{% endif %}">
+    <td><strong>{{ i.a.project.title }}</strong><br><small class="muted">{{ i.a.project.tagline }}</small></td>
+    <td>{{ i.a.project.track.name|default:"" }}</td><td><small>{{ i.a.batch }}</small></td>
+    <td><span class="badge {% if i.a.status == 'submitted' %}ok{% elif i.a.status == 'in_progress' %}warn{% else %}neutral{% endif %}">{{ i.a.get_status_display }}</span>{% if i.a.status == 'in_progress' %} <small class="muted">{{ i.filled }}/{{ i.n }}</small>{% endif %}</td>
+    <td><a class="btn small" href="{% url 'judging:review' event.slug i.a.pk %}">{% if i.a.status == 'submitted' %}View{% else %}Review{% endif %}</a></td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}<div class="empty">Nothing assigned to you yet.</div>{% endif %}
+<p class="muted" style="margin-top:.75rem">You only ever see your own assignments. Other judges' scores are not visible to you anywhere, including the API.</p>
+{% endblock %}

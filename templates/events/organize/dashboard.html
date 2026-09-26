@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Organize · {{ event.name }}{% endblock %}
+{% block content %}
+{% include "events/organize/_nav.html" with on="dashboard" %}
+<div class="page-head"><div><h1>{{ event.name }}</h1><small class="muted">Phase: <strong>{{ event.phase }}</strong> · now {{ now|date:"Y-m-d H:i" }} UTC · submissions close {{ event.submissions_close_at|date:"Y-m-d H:i" }} UTC</small></div>
+<div class="actions"><a class="btn" href="{% url 'gallery' event.slug %}">Gallery</a><a class="btn" href="{% url 'organize_export' event.slug 'projects' %}">Export projects CSV</a></div></div>
+
+<div class="grid cols-4">
+  <div class="card stat"><div class="n">{{ counts.submitted }}</div><div class="l">submitted projects</div></div>
+  <div class="card stat"><div class="n">{{ counts.drafts }}</div><div class="l">drafts</div></div>
+  <div class="card stat"><div class="n">{{ counts.teams }}</div><div class="l">teams</div></div>
+  <div class="card stat"><div class="n">{{ counts.judges }}</div><div class="l">judges</div></div>
+  <div class="card stat"><div class="n">{{ counts.reviews_done }} <small class="muted">/ {{ counts.assignments }}</small></div><div class="l">reviews submitted</div></div>
+  <div class="card stat"><div class="n">{{ counts.duplicates }}</div><div class="l">flagged duplicates</div></div>
+  <div class="card stat"><div class="n">{{ counts.hidden }}</div><div class="l">hidden</div></div>
+</div>
+
+<div class="grid cols-2" style="margin-top:1rem">
+  <div class="card">
+    <div class="row spread"><h3>Judge progress</h3><a class="btn small" href="{% url 'organize_export' event.slug 'assignments' %}">CSV</a></div>
+    {% if progress %}
+    <table>
+      <thead><tr><th>Judge</th><th class="num">Done</th><th class="num">Started</th><th class="num">Not started</th><th style="width:30%"></th></tr></thead>
+      <tbody>
+      {% for r in progress %}
+        <tr class="{% if r.pct == 100 %}dim{% endif %}"><td>{{ r.name }}</td><td class="num">{{ r.submitted }}/{{ r.total }}</td><td class="num">{{ r.in_progress }}</td><td class="num">{% if r.pending %}<strong>{{ r.pending }}</strong>{% else %}0{% endif %}</td><td><div class="bar"><span style="width:{{ r.pct }}%"></span></div></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<p class="muted">No assignments yet. <a href="{% url 'organize_assignments' event.slug %}">Assign judges →</a></p>{% endif %}
+  </div>
+  <div class="card">
+    <h3>Coverage per project</h3>
+    <p class="muted">Sorted so the least-reviewed projects are on top.</p>
+    <div class="table-wrap" style="max-height:28rem;overflow:auto">
+    <table>
+      <thead><tr><th>Project</th><th>Track</th><th class="num">Done</th><th class="num">Assigned</th></tr></thead>
+      <tbody>
+      {% for p in per_project %}<tr class="{% if p.n_done >= event.reviews_per_project %}dim{% endif %}"><td><a href="{{ p.get_absolute_url }}">{{ p.title }}</a></td><td>{{ p.track.name|default:"" }}</td><td class="num">{{ p.n_done }}</td><td class="num">{{ p.n_assigned }}</td></tr>{% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

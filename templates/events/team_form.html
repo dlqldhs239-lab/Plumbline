@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}New team · {{ event.name }}{% endblock %}
+{% block main_class %}narrow{% endblock %}
+{% block content %}
+<div class="eyebrow"><a href="{{ event.get_absolute_url }}">{{ event.name }}</a></div>
+<h1>Create a team</h1>
+<p class="muted">Solo? Create a team of one. Teammates join through an invite link you generate on the team page.</p>
+<div class="card">
+  <form method="post">{% csrf_token %}{% include "includes/form_fields.html" %}<button class="btn primary" type="submit">Create team</button></form>
+</div>
+{% endblock %}

@@ -15,7 +15,8 @@ RUN pip install -r requirements.txt
 
 COPY . .
 
-RUN python manage.py collectstatic --noinput
+RUN chmod +x docker/entrypoint.sh \
+ && DJANGO_SECRET_KEY=build-only python manage.py collectstatic --noinput
 
 EXPOSE 8080
 ENTRYPOINT ["/app/docker/entrypoint.sh"]

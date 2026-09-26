@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Results · {{ event.name }}{% endblock %}
+{% block main_class %}narrow{% endblock %}
+{% block content %}
+<div class="eyebrow"><a href="{{ event.get_absolute_url }}">{{ event.name }}</a></div>
+<h1>Results are not published yet</h1>
+<p class="muted">Standings stay hidden from everyone but organizers until they are published.</p>
+<a class="btn" href="{{ event.get_absolute_url }}">Back to the event</a>
+{% endblock %}

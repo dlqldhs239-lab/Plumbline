@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Judge · {{ SITE_NAME }}{% endblock %}
+{% block main_class %}narrow{% endblock %}
+{% block content %}
+<h1>Judge console</h1>
+{% if rows %}
+<div class="stack">
+  {% for r in rows %}
+  <a class="card" href="{% url 'judging:queue' r.event.slug %}" style="display:block;color:inherit">
+    <div class="row spread"><strong>{{ r.event.name }}</strong><small>{{ r.done }} / {{ r.total }} reviews</small></div>
+    <div class="bar" style="margin-top:.5rem"><span style="width:{% if r.total %}{% widthratio r.done r.total 100 %}{% else %}0{% endif %}%"></span></div>
+  </a>
+  {% endfor %}
+</div>
+{% else %}<div class="empty">You are not a judge in any event. Organizers add judges by email.</div>{% endif %}
+{% endblock %}

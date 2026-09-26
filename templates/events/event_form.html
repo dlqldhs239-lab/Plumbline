@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}{% if creating %}New event{% else %}Settings · {{ event.name }}{% endif %}{% endblock %}
+{% block main_class %}narrow{% endblock %}
+{% block content %}
+{% if not creating %}{% include "events/organize/_nav.html" with on="settings" %}{% endif %}
+<h1>{% if creating %}Create an event{% else %}Event settings{% endif %}</h1>
+<p class="muted">All times are UTC. The submission deadline is enforced by the server the moment it passes; extend it here if you need to.</p>
+<div class="card">
+  <form method="post">
+    {% csrf_token %}
+    {% include "includes/form_fields.html" %}
+    <button class="btn primary" type="submit">{% if creating %}Create event{% else %}Save settings{% endif %}</button>
+    {% if not creating %}<a class="btn" href="{% url 'organize_dashboard' event.slug %}">Cancel</a>{% endif %}
+  </form>
+</div>
+{% if not creating %}
+<p class="muted" style="margin-top:1rem">Prizes and organizer questions are edited in the <a href="{% url 'admin:events_event_change' event.pk %}">admin</a>.</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Audit log · {{ event.name }}{% endblock %}
+{% block content %}
+{% include "events/organize/_nav.html" with on="audit" %}
+<div class="page-head">
+  <div><h1>Audit log</h1><small class="muted">Every write, from the UI, the API or the seed, newest first.</small></div>
+  <div class="actions">
+    <form method="get" class="row"><select name="action" aria-label="Action"><option value="">All actions</option>{% for a in actions %}<option value="{{ a }}" {% if a == action %}selected{% endif %}>{{ a }}</option>{% endfor %}</select><button class="btn" type="submit">Filter</button></form>
+    <a class="btn" href="{% url 'organize_export' event.slug 'audit' %}">Export CSV</a>
+  </div>
+</div>
+<div class="card table-wrap">
+<table>
+  <thead><tr><th>When (UTC)</th><th>Actor</th><th>Action</th><th>Target</th><th>Via</th><th>Detail</th></tr></thead>
+  <tbody>
+  {% for e in page.object_list %}
+  <tr><td class="mono" style="white-space:nowrap">{{ e.created_at|date:"Y-m-d H:i:s" }}</td><td>{{ e.actor_label|default:"system" }}</td><td class="mono">{{ e.action }}</td><td>{{ e.target_label }}<br><small class="muted">{{ e.target_type }} {{ e.target_id }}</small></td><td><small>{{ e.channel }}{% if e.ip_address %} · {{ e.ip_address }}{% endif %}</small></td><td><small class="mono">{{ e.detail }}</small></td></tr>
+  {% empty %}<tr><td colspan="6" class="muted">Nothing logged yet.</td></tr>{% endfor %}
+  </tbody>
+</table>
+</div>
+{% if page.has_other_pages %}<div class="row" style="margin-top:1rem">{% if page.has_previous %}<a class="btn" href="?action={{ action }}&page={{ page.previous_page_number }}">← Newer</a>{% endif %}<small>Page {{ page.number }} of {{ page.paginator.num_pages }}</small>{% if page.has_next %}<a class="btn" href="?action={{ action }}&page={{ page.next_page_number }}">Older →</a>{% endif %}</div>{% endif %}
+{% endblock %}

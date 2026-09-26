@@ -1,25 +1,27 @@
 # Plumbline — DOGFOOD 2026 checker configuration.
-# Run:  python3 run.py .dogfood.toml > acceptance-report.txt
+# Run:  python3 checker/run.py .dogfood.toml --fixtures fixtures.json > acceptance-report.txt
 
 [portal]
 base_url = "http://localhost:8080"
 
 [tiers]
-claimed = []
+claimed = ["T1", "T2"]
 pitch = "A self-hosted submission and judging portal whose role isolation is enforced at the API and whose judge normalization is documented and proven on the fixtures."
 
 [auth]
-# Bearer tokens for the seeded fixture users. The seed step prints these
-# same values at boot (docker compose up). They are derived from
-# PLUMBLINE_SEED_SECRET so a restart keeps this file valid.
-organizer   = "Authorization: Bearer pl_org_PLACEHOLDER"
-judge_a     = "Authorization: Bearer pl_jdg_a_PLACEHOLDER"
-judge_b     = "Authorization: Bearer pl_jdg_b_PLACEHOLDER"
-participant = "Authorization: Bearer pl_prt_PLACEHOLDER"
+# Bearer tokens for the seeded fixture users. `docker compose up` prints these
+# same values at boot; they are derived from PLUMBLINE_SEED_SECRET (default
+# dev value) so a fresh database still matches this file.
+# judge_a is fixture judge jdg_01, judge_b is jdg_02.
+organizer   = "Authorization: Bearer pl_org_be9f3b69c49bae960cfb5bc4e04dba18"
+judge_a     = "Authorization: Bearer pl_jdg_a_80e3329989340423d5c052b3839eeebb"
+judge_b     = "Authorization: Bearer pl_jdg_b_73150204e1afdf7eaa0f4a4815ef11b9"
+participant = "Authorization: Bearer pl_prt_4689bd927396725c4356e17234a11839"
 
 [routes]
-gallery      = "/events/sample-hack-2026/gallery"
+gallery      = "/events/sample-hack-2026/gallery/"
 submit       = "/api/events/sample-hack-2026/projects"
 judge_scores = "/api/judges/me/scores"
+# The URL that returns judge_a's (jdg_01) scores. Visited as judge_b → 403.
 peer_scores  = "/api/judges/jdg_01/scores"
 csv_export   = "/api/events/sample-hack-2026/export/scores.csv"

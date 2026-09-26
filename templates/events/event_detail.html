@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}{{ event.name }} · {{ SITE_NAME }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="eyebrow">Event</div>
+    <h1>{{ event.name }}</h1>
+    {% if event.tagline %}<p class="muted">{{ event.tagline }}</p>{% endif %}
+  </div>
+  <div class="actions">
+    <a class="btn" href="{% url 'gallery' event.slug %}">Gallery ({{ project_count }})</a>
+    {% if event.results_published %}<a class="btn" href="{% url 'results' event.slug %}">Results</a>{% endif %}
+    {% if is_organizer %}<a class="btn primary" href="{% url 'organize_dashboard' event.slug %}">Organize</a>{% endif %}
+    {% if 'judge' in roles %}<a class="btn primary" href="{% url 'judging:queue' event.slug %}">Judge console</a>{% endif %}
+  </div>
+</div>
+
+{% with phase=event.phase %}
+<div class="phase" style="margin-bottom:1.25rem">
+  <span class="{% if phase == 'upcoming' %}on{% else %}past{% endif %}">Upcoming</span>
+  <span class="{% if phase == 'submissions' %}on{% elif phase != 'upcoming' %}past{% endif %}">Submissions</span>
+  <span class="{% if phase == 'judging' or phase == 'closed' %}on{% elif phase == 'results' %}past{% endif %}">Judging</span>
+  <span class="{% if phase == 'results' %}on{% endif %}">Results</span>
+</div>
+{% endwith %}
+
+<div class="grid cols-2">
+  <div class="stack">
+    <div class="card">
+      <h3>Dates <small class="muted">(UTC)</small></h3>
+      <table>
+        <tr><td>Submissions open</td><td class="num">{{ event.submissions_open_at|date:"Y-m-d H:i" }}</td></tr>
+        <tr><td>Submissions close</td><td class="num"><strong>{{ event.submissions_close_at|date:"Y-m-d H:i" }}</strong></td></tr>
+        {% if event.judging_open_at %}<tr><td>Judging opens</td><td class="num">{{ event.judging_open_at|date:"Y-m-d H:i" }}</td></tr>{% endif %}
+        {% if event.judging_close_at %}<tr><td>Judging closes</td><td class="num">{{ event.judging_close_at|date:"Y-m-d H:i" }}</td></tr>{% endif %}
+        {% if event.results_published_at %}<tr><td>Results published</td><td class="num">{{ event.results_published_at|date:"Y-m-d H:i" }}</td></tr>{% endif %}
+      </table>
+    </div>
+    {% if event.description %}<div class="card"><h3>About</h3>{{ event.description|linebreaks }}</div>{% endif %}
+    {% if event.tracks.all %}
+    <div class="card"><h3>Tracks</h3><ul>{% for t in event.tracks.all %}<li><a href="{% url 'gallery' event.slug %}?track={{ t.id }}">{{ t.name }}</a>{% if t.description %} — <small>{{ t.description }}</small>{% endif %}</li>{% endfor %}</ul></div>
+    {% endif %}
+    {% if event.prizes.all %}
+    <div class="card"><h3>Prizes</h3><table>{% for p in event.prizes.all %}<tr><td>{{ p.name }}{% if p.track %} <span class="badge neutral">{{ p.track.name }}</span>{% endif %}</td><td class="num">{% if p.amount %}{{ p.amount|floatformat:0 }} {{ p.currency }}{% endif %}</td></tr>{% endfor %}</table></div>
+    {% endif %}
+  </div>
+
+  <div class="stack">
+    <div class="card">
+      <h3>Participate</h3>
+      {% if not user.is_authenticated %}
+        <p>Sign in to form a team and submit a project.</p>
+        <a class="btn primary" href="{% url 'accounts:signup' %}">Create account</a> <a class="btn" href="{% url 'accounts:login' %}?next={{ request.path }}">Sign in</a>
+      {% elif membership %}
+        <p>You are on team <a href="{% url 'team_detail' event.slug membership.team.pk %}"><strong>{{ membership.team.name }}</strong></a>.</p>
+        <div class="row">
+          <a class="btn" href="{% url 'team_detail' event.slug membership.team.pk %}">Team page</a>
+          {% if event.submissions_open %}<a class="btn primary" href="{% url 'project_create' event.slug %}">New project</a>{% endif %}
+        </div>
+      {% else %}
+        {% if event.submissions_open %}
+          <p>Create a team, or join one with an invite link from a teammate.</p>
+          <a class="btn primary" href="{% url 'team_create' event.slug %}">Create a team</a>
+        {% elif event.submissions_closed %}
+          <p class="muted">Submissions closed {{ event.submissions_close_at|date:"Y-m-d H:i" }} UTC. Teams are frozen.</p>
+        {% else %}
+          <p class="muted">Submissions open {{ event.submissions_open_at|date:"Y-m-d H:i" }} UTC.</p>
+        {% endif %}
+      {% endif %}
+    </div>
+    {% if event.voting_access != 'closed' %}
+    <div class="card"><h3>Community vote</h3><p class="muted">{{ event.get_voting_access_display }}{% if event.voting_close_at %} · closes {{ event.voting_close_at|date:"Y-m-d H:i" }} UTC{% endif %}</p><a class="btn" href="{% url 'gallery' event.slug %}">Open the gallery to vote</a></div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,11 @@
+<div class="eyebrow"><a href="{{ event.get_absolute_url }}">{{ event.name }}</a> · organizer console</div>
+<nav class="subnav">
+  <a class="{% if on == 'dashboard' %}on{% endif %}" href="{% url 'organize_dashboard' event.slug %}">Overview</a>
+  <a class="{% if on == 'projects' %}on{% endif %}" href="{% url 'organize_projects' event.slug %}">Projects</a>
+  <a class="{% if on == 'judges' %}on{% endif %}" href="{% url 'organize_judges' event.slug %}">Judges</a>
+  <a class="{% if on == 'rubric' %}on{% endif %}" href="{% url 'organize_rubric' event.slug %}">Rubric</a>
+  <a class="{% if on == 'assignments' %}on{% endif %}" href="{% url 'organize_assignments' event.slug %}">Assignments</a>
+  <a class="{% if on == 'results' %}on{% endif %}" href="{% url 'organize_results' event.slug %}">Results</a>
+  <a class="{% if on == 'audit' %}on{% endif %}" href="{% url 'organize_audit' event.slug %}">Audit log</a>
+  <a class="{% if on == 'settings' %}on{% endif %}" href="{% url 'organize_settings' event.slug %}">Settings</a>
+</nav>

@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Results · {{ event.name }}{% endblock %}
+{% block content %}
+{% include "events/organize/_nav.html" with on="results" %}
+<div class="page-head">
+  <div><h1>Results</h1><small class="muted">{% if event.results_published %}Published {{ event.results_published_at|date:"Y-m-d H:i" }} UTC{% else %}Not published — only organizers can see this{% endif %}</small></div>
+  <div class="actions">
+    <form method="post" class="inline">{% csrf_token %}<input type="hidden" name="action" value="recompute"><button class="btn primary" type="submit">Recompute</button></form>
+    {% if event.results_published %}
+      <form method="post" class="inline">{% csrf_token %}<input type="hidden" name="action" value="unpublish"><button class="btn danger" type="submit">Unpublish</button></form>
+    {% else %}
+      <form method="post" class="inline">{% csrf_token %}<input type="hidden" name="action" value="publish"><button class="btn" type="submit" {% if not rows %}disabled{% endif %}>Publish</button></form>
+    {% endif %}
+    <a class="btn" href="{% url 'organize_export' event.slug 'results' %}">Results CSV</a>
+    <a class="btn" href="{% url 'organize_export' event.slug 'scores' %}">Scores CSV</a>
+    <a class="btn" href="{% url 'organize_export' event.slug 'calibration' %}">Calibration CSV</a>
+  </div>
+</div>
+
+{% if rows %}
+<div class="grid cols-2">
+  <div class="card">
+    <h3>Biggest rank movements</h3>
+    <p class="muted">Where normalization changed the order. A project drawing a harsh judge moves up; one drawing a generous judge moves down.</p>
+    <table><thead><tr><th>Project</th><th class="num">Raw</th><th class="num">Normalized</th><th class="num">Δ</th></tr></thead><tbody>
+    {% for r in movers %}<tr><td>{{ r.project.title }}</td><td class="num">#{{ r.rank_raw }}</td><td class="num">#{{ r.rank_normalized }}</td><td class="num">{% if r.delta > 0 %}<span class="badge ok">▲ {{ r.delta }}</span>{% elif r.delta < 0 %}<span class="badge bad">▼ {{ r.delta_abs }}</span>{% else %}—{% endif %}</td></tr>{% endfor %}
+    </tbody></table>
+  </div>
+  <div class="card">
+    <h3>Judge calibration</h3>
+    <p class="muted">Per-judge mean and spread from the last recompute. <strong>Flat</strong> judges gave every project the same score and contribute no ranking information. Shrink weight is how much the judge's own statistics count versus the panel's (n / (n + 3)).</p>
+    <div class="table-wrap" style="max-height:22rem;overflow:auto">
+    <table><thead><tr><th>Judge</th><th class="num">Reviews</th><th class="num">Mean</th><th class="num">Spread</th><th class="num">Shrink</th></tr></thead><tbody>
+    {% for c in calibration %}<tr class="{% if c.flat %}dim{% endif %}"><td>{{ c.judge.get_full_name|default:c.judge.username }}{% if c.flat %} <span class="badge warn">flat</span>{% endif %}</td><td class="num">{{ c.review_count }}</td><td class="num">{{ c.mean|floatformat:2 }}</td><td class="num">{{ c.stdev|floatformat:2 }}</td><td class="num">{{ c.shrink_weight|floatformat:2 }}</td></tr>{% endfor %}
+    </tbody></table>
+    </div>
+  </div>
+</div>
+
+<div class="card table-wrap" style="margin-top:1rem">
+<table>
+  <thead><tr><th class="num">Rank</th><th class="num">Raw rank</th><th>Project</th><th>Team</th><th>Track</th><th class="num">Reviews</th><th class="num">Raw mean</th><th class="num">Normalized</th></tr></thead>
+  <tbody>
+  {% for r in rows %}<tr><td class="num"><strong>{{ r.rank_normalized|default:"—" }}</strong></td><td class="num">{{ r.rank_raw|default:"—" }}</td><td><a href="{{ r.project.get_absolute_url }}">{{ r.project.title }}</a></td><td>{{ r.project.team.name }}</td><td>{{ r.project.track.name|default:"" }}</td><td class="num">{{ r.review_count }}</td><td class="num">{{ r.raw_mean|floatformat:3|default:"—" }}</td><td class="num">{{ r.normalized_mean|floatformat:3|default:"—" }}</td></tr>{% endfor %}
+  </tbody>
+</table>
+</div>
+<p class="muted" style="margin-top:.75rem">Method: {{ rows.0.method }} — per-judge z-scores with shrinkage toward the panel, mapped back to the rubric scale. Documented in JUDGING.md.</p>
+{% else %}
+<div class="empty">Nothing computed yet. Press <strong>Recompute</strong> once judges have submitted reviews.</div>
+{% endif %}
+{% endblock %}

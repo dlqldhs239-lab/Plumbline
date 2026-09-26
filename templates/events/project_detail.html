@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}{{ project.title }} · {{ event.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="eyebrow"><a href="{{ event.get_absolute_url }}">{{ event.name }}</a> · <a href="{% url 'gallery' event.slug %}">Gallery</a></div>
+    <h1>{{ project.title }}</h1>
+    {% if project.tagline %}<p class="muted">{{ project.tagline }}</p>{% endif %}
+    <div class="row">
+      <span class="badge {% if project.status == 'submitted' %}ok{% elif project.status == 'draft' %}warn{% else %}bad{% endif %}">{{ project.get_status_display }}</span>
+      {% if project.is_hidden %}<span class="badge bad">Hidden from gallery</span>{% endif %}
+      {% if project.duplicate_of %}<span class="badge warn">Duplicate of <a href="{{ project.duplicate_of.get_absolute_url }}">#{{ project.duplicate_of_id }}</a></span>{% endif %}
+      {% if project.track %}<span class="badge neutral">{{ project.track.name }}</span>{% endif %}
+      <small>by {{ project.team.name }}{% if project.submitted_at %} · submitted {{ project.submitted_at|date:"Y-m-d H:i" }} UTC{% endif %}</small>
+    </div>
+  </div>
+  {% if can_edit %}
+  <div class="actions">
+    {% if editing_open %}
+      <a class="btn" href="{% url 'project_edit' event.slug project.pk %}">Edit</a>
+      {% if project.status != 'submitted' %}
+        <form method="post" action="{% url 'project_submit' event.slug project.pk %}" class="inline">{% csrf_token %}<button class="btn primary" type="submit">Submit</button></form>
+      {% else %}
+        <form method="post" action="{% url 'project_withdraw' event.slug project.pk %}" class="inline">{% csrf_token %}<button class="btn danger" type="submit">Withdraw</button></form>
+      {% endif %}
+    {% else %}
+      <span class="badge neutral">Editing closed</span>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+
+<div class="grid cols-2">
+  <div class="stack">
+    {% if project.thumbnail_url %}<img class="thumb" src="{{ project.thumbnail_url }}" alt="">{% endif %}
+    <div class="card">
+      <h3>Description</h3>
+      {% if project.description %}{{ project.description|linebreaks }}{% else %}<p class="muted">No description yet.</p>{% endif %}
+    </div>
+    {% if project.image_urls %}
+    <div class="card"><h3>Gallery</h3><div class="grid cols-3">{% for u in project.image_urls %}<a href="{{ u }}" target="_blank" rel="noopener"><img class="thumb" src="{{ u }}" alt="" style="margin:0"></a>{% endfor %}</div></div>
+    {% endif %}
+    {% if answers %}
+    <div class="card"><h3>Organizer questions</h3>{% for a in answers %}<p><strong>{{ a.question.prompt }}</strong><br>{{ a.value|default:"—"|linebreaksbr }}</p>{% endfor %}</div>
+    {% endif %}
+  </div>
+  <div class="stack">
+    <div class="card">
+      <h3>Links</h3>
+      <table>
+        {% if project.repo_url %}<tr><td>Repository</td><td><a href="{{ project.repo_url }}" rel="noopener" target="_blank">{{ project.repo_url }}</a></td></tr>{% endif %}
+        {% if project.live_url %}<tr><td>Live</td><td><a href="{{ project.live_url }}" rel="noopener" target="_blank">{{ project.live_url }}</a></td></tr>{% endif %}
+        {% if project.demo_video_url %}<tr><td>Demo video</td><td><a href="{{ project.demo_video_url }}" rel="noopener" target="_blank">{{ project.demo_video_url }}</a></td></tr>{% endif %}
+      </table>
+      {% if not project.repo_url and not project.live_url and not project.demo_video_url %}<p class="muted">No links yet.</p>{% endif %}
+    </div>
+    {% if project.tech_tags %}<div class="card"><h3>Built with</h3><div class="tags">{% for t in project.tech_tags %}<span>{{ t }}</span>{% endfor %}</div></div>{% endif %}
+    <div class="card">
+      <h3>Team {{ project.team.name }}</h3>
+      <ul>{% for m in members %}<li>{{ m.user.get_full_name|default:m.user.username }}{% if m.role == 'owner' %} <span class="badge neutral">owner</span>{% endif %}</li>{% endfor %}</ul>
+    </div>
+    {% if result %}
+    <div class="card">
+      <h3>Result</h3>
+      <table>
+        <tr><td>Rank (normalized)</td><td class="num"><strong>#{{ result.rank_normalized }}</strong></td></tr>
+        <tr><td>Rank (raw)</td><td class="num">#{{ result.rank_raw }}</td></tr>
+        <tr><td>Reviews</td><td class="num">{{ result.review_count }}</td></tr>
+      </table>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

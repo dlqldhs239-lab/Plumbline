@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}{{ team.name }} · {{ event.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><div class="eyebrow"><a href="{{ event.get_absolute_url }}">{{ event.name }}</a></div><h1>Team {{ team.name }}</h1></div>
+  <div class="actions">{% if event.submissions_open %}<a class="btn primary" href="{% url 'project_create' event.slug %}">New project</a>{% endif %}</div>
+</div>
+<div class="grid cols-2">
+  <div class="card">
+    <h3>Members</h3>
+    <ul>{% for m in members %}<li>{{ m.user.get_full_name|default:m.user.username }} <small class="muted">{{ m.user.email }}</small>{% if m.role == 'owner' %} <span class="badge neutral">owner</span>{% endif %}</li>{% endfor %}</ul>
+    <h3 style="margin-top:1rem">Invite link</h3>
+    {% if event.submissions_closed %}
+      <p class="muted">Submissions have closed; teams are frozen.</p>
+    {% else %}
+      {% for i in invites %}
+        <pre>{{ request.scheme }}://{{ request.get_host }}{{ i.get_absolute_url }}</pre>
+        <small class="muted">{{ i.uses }}/{{ i.max_uses }} used · expires {{ i.expires_at|date:"Y-m-d H:i" }} UTC</small>
+      {% empty %}<p class="muted">No active invite link.</p>{% endfor %}
+      <form method="post" action="{% url 'team_invite' event.slug team.pk %}" style="margin-top:.75rem">{% csrf_token %}<button class="btn" type="submit">Generate invite link</button></form>
+    {% endif %}
+  </div>
+  <div class="card">
+    <h3>Projects</h3>
+    {% if projects %}<ul>{% for p in projects %}<li><a href="{{ p.get_absolute_url }}">{{ p.title }}</a> <span class="badge {% if p.status == 'submitted' %}ok{% elif p.status == 'draft' %}warn{% else %}bad{% endif %}">{{ p.get_status_display }}</span></li>{% endfor %}</ul>{% else %}<p class="muted">No project yet.</p>{% endif %}
+  </div>
+</div>
+{% endblock %}

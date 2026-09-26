@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Projects · {{ event.name }}{% endblock %}
+{% block content %}
+{% include "events/organize/_nav.html" with on="projects" %}
+<div class="page-head"><h1>Projects</h1><div class="actions"><a class="btn" href="{% url 'organize_export' event.slug 'projects' %}">Export CSV</a></div></div>
+<div class="card table-wrap">
+<table>
+  <thead><tr><th>Project</th><th>Team</th><th>Track</th><th>Status</th><th>Submitted (UTC)</th><th></th></tr></thead>
+  <tbody>
+  {% for p in projects %}
+  <tr class="{% if p.is_hidden or p.duplicate_of %}dim{% endif %}">
+    <td><a href="{{ p.get_absolute_url }}">{{ p.title }}</a>{% if p.duplicate_of %} <span class="badge warn" title="Same team and title as #{{ p.duplicate_of_id }}">duplicate of #{{ p.duplicate_of_id }}</span>{% endif %}<br><small class="muted">#{{ p.id }}{% if p.external_id %} · {{ p.external_id }}{% endif %}</small></td>
+    <td>{{ p.team.name }}</td><td>{{ p.track.name|default:"" }}</td>
+    <td><span class="badge {% if p.status == 'submitted' %}ok{% elif p.status == 'draft' %}warn{% else %}bad{% endif %}">{{ p.get_status_display }}</span>{% if p.is_hidden %} <span class="badge bad">hidden</span>{% endif %}</td>
+    <td>{{ p.submitted_at|date:"Y-m-d H:i"|default:"—" }}</td>
+    <td><form method="post" action="{% url 'organize_project_hide' event.slug p.pk %}" class="inline">{% csrf_token %}{% if p.is_hidden %}<input type="hidden" name="hidden" value="0"><button class="btn small" type="submit">Unhide</button>{% else %}<input type="hidden" name="hidden" value="1"><button class="btn small danger" type="submit">Hide</button>{% endif %}</form></td>
+  </tr>
+  {% empty %}<tr><td colspan="6" class="muted">No projects.</td></tr>{% endfor %}
+  </tbody>
+</table>
+</div>
+<p class="muted" style="margin-top:.75rem">Hidden and duplicate projects stay out of the gallery, judge assignment and results. Duplicates are flagged automatically when a team submits the same title twice; the earlier one stands.</p>
+{% endblock %}
