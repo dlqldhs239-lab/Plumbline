@@ -56,6 +56,7 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "audit.middleware.RequestActorMiddleware",
+    "plumbline.middleware.OutOfRangeMiddleware",
 ]
 
 ROOT_URLCONF = "plumbline.urls"
@@ -142,6 +143,14 @@ PLUMBLINE_SITE_NAME = os.environ.get("PLUMBLINE_SITE_NAME", "Plumbline")
 PLUMBLINE_WEBHOOKS_ASYNC = env_bool("PLUMBLINE_WEBHOOKS_ASYNC", True)
 PLUMBLINE_WEBHOOK_TIMEOUT = float(os.environ.get("PLUMBLINE_WEBHOOK_TIMEOUT", "5"))
 PLUMBLINE_WEBHOOK_MAX_ATTEMPTS = int(os.environ.get("PLUMBLINE_WEBHOOK_MAX_ATTEMPTS", "5"))
+
+# Webhook receivers on loopback, private or link-local addresses are refused
+# unless this is on: otherwise an organizer could make the portal call
+# services that only the server can reach.
+PLUMBLINE_WEBHOOK_ALLOW_PRIVATE = env_bool("PLUMBLINE_WEBHOOK_ALLOW_PRIVATE", False)
+
+# Believe X-Forwarded-For only when a reverse proxy you control sets it.
+PLUMBLINE_TRUST_PROXY = env_bool("PLUMBLINE_TRUST_PROXY", False)
 
 # Rate limits for anonymous write endpoints (voting, comments). Requests per minute per client.
 PLUMBLINE_ANON_WRITE_RATE = int(os.environ.get("PLUMBLINE_ANON_WRITE_RATE", "20"))

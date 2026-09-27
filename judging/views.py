@@ -56,9 +56,7 @@ def event_queue(request, slug):
 @login_required
 def review(request, slug, pk):
     event = get_object_or_404(Event, slug=slug)
-    assignment = services.get_own_assignment(request.user, pk)
-    if assignment.event_id != event.id:
-        raise PermissionDenied("That review is not yours.")
+    assignment = services.get_own_assignment(request.user, pk, event)
     rubric = services.ensure_rubric(event)
     criteria = list(rubric.criteria.all())
     existing = {s.criterion_id: s.value for s in assignment.scores.all()}

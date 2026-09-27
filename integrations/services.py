@@ -13,7 +13,9 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import ipaddress
 import json
+import socket
 import threading
 import urllib.error
 import urllib.request
@@ -91,12 +93,62 @@ def _deliver_many(delivery_ids: list[int], own_thread: bool):
             close_old_connections()
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """A receiver that answers with a redirect is not followed: the address
+    that was checked is the only one the portal will call."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def _is_internal(address: str) -> bool:
+    ip = ipaddress.ip_address(address)
+    if getattr(ip, "ipv4_mapped", None):
+        ip = ip.ipv4_mapped
+    return not ip.is_global
+
+
+def check_destination(url: str, resolve: bool = True):
+    """Refuse receivers on this machine or its private network, unless the
+    operator has allowed them. With resolve=False only the written form of
+    the address is checked, which needs no network."""
+    if settings.PLUMBLINE_WEBHOOK_ALLOW_PRIVATE:
+        return
+    host = (urlparse(url).hostname or "").strip().lower().rstrip(".")
+    refusal = ValidationError(
+        "Webhook receivers on local or private addresses are refused. "
+        "Set PLUMBLINE_WEBHOOK_ALLOW_PRIVATE=1 if the receiver is on your own network."
+    )
+    if not host or host == "localhost" or host.endswith((".localhost", ".local", ".internal")):
+        raise refusal
+    try:
+        literal = ipaddress.ip_address(host)
+    except ValueError:
+        literal = None
+    if literal is not None:
+        if _is_internal(str(literal)):
+            raise refusal
+        return
+    if host.replace(".", "").isdigit() or host.startswith("0x"):
+        raise refusal  # 2130706433, 127.1 and friends: addresses written to slip past a check
+    if "." not in host:
+        raise refusal  # a bare name (db, redis) only means something on the server's own network
+    if not resolve:
+        return
+    port = urlparse(url).port or (443 if url.lower().startswith("https") else 80)
+    for info in socket.getaddrinfo(host, port, type=socket.SOCK_STREAM):
+        if _is_internal(info[4][0]):
+            raise refusal
+
+
 def _post(url: str, body: bytes, headers: dict, timeout: float) -> tuple[int, str]:
     """Send one request. Returns (status, first 300 chars of the response).
     Separated so tests can replace the network."""
+    check_destination(url)
     request = urllib.request.Request(url, data=body, headers=headers, method="POST")
+    opener = urllib.request.build_opener(_NoRedirect)
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with opener.open(request, timeout=timeout) as response:
             return response.status, response.read(300).decode("utf-8", "replace")
     except urllib.error.HTTPError as e:
         return e.code, e.read(300).decode("utf-8", "replace")
@@ -123,7 +175,8 @@ def deliver(delivery: WebhookDelivery) -> WebhookDelivery:
     except Exception as e:  # noqa: BLE001 - any network failure is a failed delivery, never a crash
         delivery.status_code = None
         delivery.status = WebhookDelivery.Status.FAILED
-        delivery.error = f"{type(e).__name__}: {e}"[:300]
+        reason = "; ".join(e.messages) if isinstance(e, ValidationError) else str(e)
+        delivery.error = f"{type(e).__name__}: {reason}"[:300]
     delivery.save()
     return delivery
 
@@ -159,16 +212,28 @@ def retry_failed(max_attempts: int | None = None) -> dict:
 
 def _clean_url(url: str) -> str:
     url = (url or "").strip()
-    parsed = urlparse(url)
-    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+    try:
+        parsed = urlparse(url)
+        parsed.port  # noqa: B018 - reading it is what validates it
+    except ValueError:
+        raise ValidationError("Webhook URL is not a valid address.") from None
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
         raise ValidationError("Webhook URL must be an http or https address.")
+    if parsed.username or parsed.password:
+        raise ValidationError("Webhook URL must not carry a username or password.")
+    if len(url) > 500:
+        raise ValidationError("Webhook URL can be at most 500 characters.")
+    check_destination(url, resolve=False)
     return url
 
 
 def _clean_actions(actions) -> list[str]:
     if isinstance(actions, str):
         actions = actions.replace(",", "\n").splitlines()
-    return [a.strip() for a in (actions or []) if a and a.strip()]
+    cleaned = [str(a).strip() for a in (actions or []) if a and str(a).strip()]
+    if len(cleaned) > 50 or any(len(a) > 80 for a in cleaned):
+        raise ValidationError("At most 50 action prefixes, each at most 80 characters.")
+    return cleaned
 
 
 @transaction.atomic

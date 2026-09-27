@@ -36,6 +36,14 @@ class SignupForm(UserCreationForm):
         model = User
         fields = ("username", "email")
 
+    def clean_username(self):
+        username = self.cleaned_data["username"]
+        if "@" in username:
+            # Signing in accepts an email or a username; a username that looks
+            # like someone's email would make it unclear which was meant.
+            raise forms.ValidationError("A username cannot contain @. Your email goes in the field below.")
+        return username
+
     def clean_email(self):
         email = self.cleaned_data["email"].strip().lower()
         if User.objects.filter(email__iexact=email).exists():

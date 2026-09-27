@@ -8,6 +8,7 @@ import random
 import secrets
 
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.signing import BadSignature, Signer
@@ -19,6 +20,7 @@ from audit.services import record
 from events.models import Event, Project
 from events.permissions import is_organizer
 from judging.services import eligible_projects
+from plumbline.inputs import as_int, client_ip
 
 from .models import Comment, Vote, Voter
 
@@ -34,13 +36,6 @@ def _hash(value: str) -> str:
     return hashlib.sha256((settings.SECRET_KEY + "|" + (value or "")).encode()).hexdigest()
 
 
-def client_ip(request) -> str:
-    forwarded = request.META.get("HTTP_X_FORWARDED_FOR")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
-    return request.META.get("REMOTE_ADDR", "")
-
-
 class Throttled(PermissionDenied):
     pass
 
@@ -50,8 +45,14 @@ def throttle(request, bucket: str, limit: int | None = None, window: int = 60):
     the database cache. Raises Throttled when exceeded."""
     limit = limit or settings.PLUMBLINE_ANON_WRITE_RATE
     key = f"throttle:{bucket}:{_hash(client_ip(request))[:24]}"
-    added = cache.add(key, 1, timeout=window)
-    count = 1 if added else cache.incr(key)
+    if cache.add(key, 1, timeout=window):
+        return
+    try:
+        count = cache.incr(key)
+    except ValueError:
+        # The window ended between the two calls; this request opens the next one.
+        cache.add(key, 1, timeout=window)
+        return
     if count > limit:
         raise Throttled("Too many requests from this address. Try again in a minute.")
 
@@ -65,6 +66,12 @@ def voter_from_request(request, event: Event) -> Voter | None:
         if not request.user.is_authenticated:
             return None
         return Voter.objects.filter(event=event, user=request.user).first()
+    # Open mode: an account holds one ballot however it arrives (browser or
+    # API token), so a signed-in caller is matched by account first.
+    if event.voting_access == Event.VotingAccess.OPEN and request.user.is_authenticated:
+        mine = Voter.objects.filter(event=event, user=request.user).first()
+        if mine is not None:
+            return mine
     raw = request.COOKIES.get(cookie_name(event))
     if not raw:
         return None
@@ -72,7 +79,10 @@ def voter_from_request(request, event: Event) -> Voter | None:
         key = signer.unsign(raw)
     except BadSignature:
         return None
-    return Voter.objects.filter(event=event, key=key).first()
+    voter = Voter.objects.filter(event=event, key=key).first()
+    if voter is not None and voter.user_id and voter.user_id != getattr(request.user, "id", None):
+        return None  # a ballot bound to an account is not used by anyone else
+    return voter
 
 
 @transaction.atomic
@@ -105,9 +115,22 @@ def admit_voter(request, event: Event, ballot_token: str | None = None) -> Voter
     elif mode == Event.VotingAccess.OPEN:
         existing = voter_from_request(request, event)
         if existing is not None:
+            if request.user.is_authenticated and existing.user_id is None:
+                # Signed in after opening the ballot: the ballot becomes theirs.
+                Voter.objects.filter(pk=existing.pk, user__isnull=True).update(user=request.user)
+                existing.user = request.user
             return existing
         throttle(request, f"admit:{event.pk}", limit=10)
+        if request.user.is_authenticated:
+            # Without this an API caller, who carries no cookie, would be
+            # handed a new ballot and a new budget on every request.
+            get_user_model().objects.select_for_update().filter(pk=request.user.pk).first()
+            taken = Voter.objects.filter(event=event, user=request.user).first()
+            if taken is not None:
+                return taken
         voter = Voter(event=event, kind=Voter.Kind.OPEN, ip_hash=ip_hash, ua_hash=ua_hash)
+        if request.user.is_authenticated:
+            voter.user = request.user
         created = True
         _flag_duplicates(voter)
     else:
@@ -204,12 +227,15 @@ def cast_vote(request, event: Event, voter: Voter, project: Project, weight: int
         raise PermissionDenied("Voting is closed.")
     if voter.is_voided:
         raise PermissionDenied("This ballot has been voided.")
+    if voter.event_id != event.id:
+        raise PermissionDenied("That ballot belongs to a different event.")
     if project.event_id != event.id or not project.is_public or project.duplicate_of_id:
         raise ValidationError("That project is not on the ballot.")
     throttle(request, f"vote:{event.pk}")
-    weight = int(weight)
-    if weight < 0:
-        raise ValidationError("Weight cannot be negative.")
+    weight = as_int(weight, "Weight", 0, 1000)
+    # Two requests from one ballot are counted one after the other, so the
+    # budget holds when they arrive together.
+    Voter.objects.select_for_update().filter(pk=voter.pk).first()
     if event.voting_credits:
         others = sum(v.weight**2 for v in voter.votes.exclude(project=project))
         if others + weight * weight > event.voting_credits:
@@ -269,7 +295,15 @@ def integrity_report(event: Event) -> dict:
         "total": voters.count(),
         "voided": voters.filter(voided_at__isnull=False).count(),
         "flagged": voters.exclude(flags=[]).count(),
-        "by_kind": dict(voters.values_list("kind").annotate(n=Count("id")).values_list("kind", "n")),
+        # Counted on its own query: the vote join above would count a ballot
+        # once per vote it holds.
+        "by_kind": dict(
+            Voter.objects.filter(event=event)
+            .order_by()
+            .values("kind")
+            .annotate(n=Count("id", distinct=True))
+            .values_list("kind", "n")
+        ),
         "shared_ips": list(by_ip[:50]),
         "voters": voters.order_by("-n_votes", "-created_at"),
     }

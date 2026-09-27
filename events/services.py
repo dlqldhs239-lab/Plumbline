@@ -6,20 +6,35 @@ enforces the rule it is named after and writes an audit entry.
 
 from __future__ import annotations
 
+import secrets
 from datetime import timedelta
 
+from django.contrib.auth import get_user_model
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.core.validators import validate_email
 from django.db import transaction
 from django.utils import timezone
+from django.utils.text import slugify
 
 from audit.services import record
+from plumbline.inputs import as_id, as_int
 
-from .models import Event, EventRole, Project, Role, Team, TeamInvite, TeamMembership
+from .models import Event, EventRole, Project, Role, Team, TeamInvite, TeamMembership, Track
 from .permissions import is_organizer, is_team_member
+
+# Slugs that would hide a page of the portal itself (/events/new/).
+RESERVED_SLUGS = {"new"}
+MAX_REVIEWS_PER_PROJECT = 20
 
 
 class DeadlinePassed(PermissionDenied):
     pass
+
+
+def _lock_user(user):
+    """Serialise the rules that are counted per person (one team per event).
+    A row lock on PostgreSQL; SQLite serialises writers by itself."""
+    get_user_model().objects.select_for_update().filter(pk=user.pk).first()
 
 
 def ensure_participant(user, event: Event) -> EventRole:
@@ -32,11 +47,16 @@ def create_team(event: Event, user, name: str) -> Team:
     name = (name or "").strip()
     if not name:
         raise ValidationError("Team name is required.")
+    if event.submissions_closed() and not is_organizer(user, event):
+        raise DeadlinePassed("Submissions for this event have closed; teams are frozen.")
+    _lock_user(user)
     if TeamMembership.objects.filter(team__event=event, user=user).exists():
         raise ValidationError("You are already on a team for this event.")
     if Team.objects.filter(event=event, name__iexact=name).exists():
         raise ValidationError("A team with that name already exists in this event.")
-    team = Team.objects.create(event=event, name=name, created_by=user)
+    team = Team(event=event, name=name, created_by=user)
+    team.full_clean(exclude=["external_id"])
+    team.save()
     TeamMembership.objects.create(team=team, user=user, role=TeamMembership.MemberRole.OWNER)
     ensure_participant(user, event)
     record("team.create", actor=user, event=event, target=team)
@@ -47,6 +67,8 @@ def create_team(event: Event, user, name: str) -> Team:
 def create_invite(team: Team, user, max_uses: int = 10, ttl_hours: int = 72) -> TeamInvite:
     if not is_team_member(user, _proxy(team)) and not is_organizer(user, team.event):
         raise PermissionDenied("Only team members can create invite links.")
+    max_uses = as_int(max_uses, "max_uses", 1, 1000)
+    ttl_hours = as_int(ttl_hours, "ttl_hours", 1, 24 * 90)
     invite = TeamInvite.objects.create(
         team=team,
         created_by=user,
@@ -65,6 +87,7 @@ def join_team(invite: TeamInvite, user) -> TeamMembership:
     team = invite.team
     if team.event.submissions_closed():
         raise DeadlinePassed("Submissions for this event have closed; teams are frozen.")
+    _lock_user(user)
     if TeamMembership.objects.filter(team=team, user=user).exists():
         return TeamMembership.objects.get(team=team, user=user)
     if TeamMembership.objects.filter(team__event=team.event, user=user).exists():
@@ -149,6 +172,8 @@ def submit_project(project: Project, user) -> Project:
         raise PermissionDenied("You are not a member of this project's team.")
     if not project.title.strip():
         raise ValidationError("A title is required before submitting.")
+    # Two teammates pressing submit at once must not both get through.
+    Team.objects.select_for_update().filter(pk=project.team_id).first()
     already = (
         Project.objects.filter(team=project.team, status=Project.Status.SUBMITTED, duplicate_of__isnull=True)
         .exclude(pk=project.pk)
@@ -218,11 +243,22 @@ def _apply(project: Project, data: dict):
         value = data[field]
         if field in ("image_urls", "tech_tags"):
             value = _as_list(value)
-        if field == "track" and value is not None and not hasattr(value, "pk"):
-            from .models import Track
-
-            value = Track.objects.filter(event=project.event, pk=value).first()
+        if field == "track" and value is not None:
+            value = _track_of(project.event, value)
         setattr(project, field, value)
+
+
+def _track_of(event: Event, value) -> Track:
+    """A track of this event, or a refusal. A track from another event is an
+    error the caller should hear about, not something to drop silently."""
+    if hasattr(value, "pk"):
+        track = value if value.event_id == event.id else None
+    else:
+        pk = as_id(value)
+        track = Track.objects.filter(event=event, pk=pk).first() if pk else None
+    if track is None:
+        raise ValidationError("That track does not belong to this event.")
+    return track
 
 
 def _as_list(value) -> list[str]:
@@ -257,6 +293,100 @@ EVENT_FIELDS = (
     "theme_accent",
     "theme_signal",
 )
+# Columns that cannot be empty: "null" for these is a mistake, not a value.
+EVENT_REQUIRED = (
+    "name",
+    "submissions_open_at",
+    "submissions_close_at",
+    "reviews_per_project",
+    "voting_access",
+    "voting_credits",
+    "comments_enabled",
+    "is_listed",
+    "theme_ground",
+    "theme_ink",
+    "theme_accent",
+    "theme_signal",
+)
+
+
+def clean_slug(raw, name: str = "", exclude_pk=None) -> str:
+    """The slug an event will live under. Names that leave nothing behind in
+    ASCII (a name written in Hangul, say) get a generated one."""
+    slug = (slugify(raw or "") or slugify(name or ""))[:80].strip("-")
+    if not slug:
+        slug = f"event-{secrets.token_hex(3)}"
+    if slug in RESERVED_SLUGS:
+        raise ValidationError(f"The slug '{slug}' is used by the portal itself. Choose another.")
+    if Event.objects.filter(slug=slug).exclude(pk=exclude_pk).exists():
+        raise ValidationError("That slug is taken.")
+    return slug
+
+
+def _check_event(event: Event):
+    for field in EVENT_REQUIRED:
+        if getattr(event, field) in (None, ""):
+            raise ValidationError(f"{field} cannot be empty.")
+    if event.submissions_close_at <= event.submissions_open_at:
+        raise ValidationError("submissions_close_at must be after submissions_open_at.")
+    if event.judging_open_at and event.judging_close_at and event.judging_close_at <= event.judging_open_at:
+        raise ValidationError("judging_close_at must be after judging_open_at.")
+    if event.voting_open_at and event.voting_close_at and event.voting_close_at <= event.voting_open_at:
+        raise ValidationError("voting_close_at must be after voting_open_at.")
+    event.reviews_per_project = as_int(event.reviews_per_project, "reviews_per_project", 1, MAX_REVIEWS_PER_PROJECT)
+    event.voting_credits = as_int(event.voting_credits, "voting_credits", 0, 10000)
+
+
+@transaction.atomic
+def create_event(user, data: dict, tracks=()) -> Event:
+    """Create an event with its tracks, organizer role and default rubric, or
+    nothing at all: a refusal halfway leaves no half-made event behind."""
+    if not user or not user.is_authenticated:
+        raise PermissionDenied("Sign in to create an event.")
+    name = (data.get("name") or "").strip()
+    if not name:
+        raise ValidationError("An event needs a name.")
+    event = Event(name=name, slug=clean_slug(data.get("slug"), name), created_by=user)
+    for field in EVENT_FIELDS:
+        if field != "name" and data.get(field) is not None:
+            setattr(event, field, data[field])
+    _check_event(event)
+    event.full_clean(exclude=["external_id"])
+    event.save()
+    _add_tracks(event, tracks)
+    EventRole.objects.create(event=event, user=user, role=Role.ORGANIZER)
+    from judging.services import ensure_rubric
+
+    ensure_rubric(event)
+    record("event.create", actor=user, event=event, target=event)
+    return event
+
+
+def _add_tracks(event: Event, names) -> list[Track]:
+    existing = {t.name.lower() for t in event.tracks.all()}
+    order = len(existing)
+    created = []
+    for raw in names or []:
+        name = str(raw or "").strip()
+        if not name or name.lower() in existing:
+            continue
+        if len(name) > 120:
+            raise ValidationError("A track name can be at most 120 characters.")
+        created.append(Track.objects.create(event=event, name=name, order=order))
+        existing.add(name.lower())
+        order += 1
+    return created
+
+
+@transaction.atomic
+def add_tracks(event: Event, user, names) -> list[Track]:
+    """Add tracks by name. Names the event already has are skipped."""
+    if not is_organizer(user, event):
+        raise PermissionDenied("Only organizers can add tracks.")
+    created = _add_tracks(event, names)
+    if created:
+        record("event.tracks.add", actor=user, event=event, target=event, detail={"tracks": [t.name for t in created]})
+    return created
 
 
 @transaction.atomic
@@ -266,6 +396,11 @@ def update_event(event: Event, user, data: dict) -> Event:
     if not is_organizer(user, event):
         raise PermissionDenied("Only organizers can change event settings.")
     changed = {}
+    if data.get("slug") and data["slug"] != event.slug:
+        slug = clean_slug(data["slug"], exclude_pk=event.pk)
+        if slug != event.slug:
+            changed["slug"] = [event.slug, slug]
+            event.slug = slug
     for field in EVENT_FIELDS:
         if field not in data:
             continue
@@ -274,9 +409,8 @@ def update_event(event: Event, user, data: dict) -> Event:
         if before != after:
             setattr(event, field, after)
             changed[field] = [_plain(before), _plain(after)]
-    if event.submissions_close_at <= event.submissions_open_at:
-        raise ValidationError("submissions_close_at must be after submissions_open_at.")
-    event.full_clean()
+    _check_event(event)
+    event.full_clean(exclude=["external_id"])
     event.save()
     if changed:
         record("event.update", actor=user, event=event, target=event, detail={"changed": changed})
@@ -292,32 +426,34 @@ def add_judge(event: Event, user, email: str, name: str = "", tracks=None) -> Ev
     """Create the judge's account if needed and give them the judge role.
     Passing tracks (a list of Track objects or ids) restricts what they see;
     an empty list means every track."""
-    from django.contrib.auth.models import User
-
-    from .models import Track
+    User = get_user_model()
 
     if not is_organizer(user, event):
         raise PermissionDenied("Only organizers can add judges.")
     email = (email or "").strip().lower()
-    if "@" not in email:
-        raise ValidationError("A valid email is required.")
-    judge = User.objects.filter(email__iexact=email).first()
+    try:
+        validate_email(email)
+    except ValidationError:
+        raise ValidationError("A valid email is required.") from None
+    if len(email) > 254:
+        raise ValidationError("That email address is too long.")
+    name = (name or "").strip()
+    if len(name) > 150:
+        raise ValidationError("A name can be at most 150 characters.")
+    track_objs = [_track_of(event, t) for t in tracks or []]
+    judge = User.objects.filter(email__iexact=email).order_by("id").first()
     if judge is None:
-        username = email.split("@")[0][:150]
+        username = email.split("@")[0][:140] or "judge"
         base, i = username, 2
         while User.objects.filter(username=username).exists():
             username, i = f"{base}{i}", i + 1
         judge = User.objects.create_user(username=username, email=email)
         judge.set_unusable_password()
         if name:
-            judge.first_name, _, judge.last_name = name.partition(" ")
+            first, _, last = name.partition(" ")
+            judge.first_name, judge.last_name = first[:150], last[:150]
         judge.save()
     role, created = EventRole.objects.get_or_create(event=event, user=judge, role=Role.JUDGE)
-    track_objs = []
-    for t in tracks or []:
-        track_objs.append(t if hasattr(t, "pk") else Track.objects.get(pk=t, event=event))
-    if any(t.event_id != event.id for t in track_objs):
-        raise ValidationError("Tracks must belong to this event.")
     role.tracks.set(track_objs)
     record(
         "judge.invite" if created else "judge.update",
@@ -333,23 +469,38 @@ def add_judge(event: Event, user, email: str, name: str = "", tracks=None) -> Ev
 def remove_judge(role: EventRole, user):
     if not is_organizer(user, role.event):
         raise PermissionDenied("Only organizers can remove judges.")
+    from accounts.models import SignInLink
     from judging.models import JudgeAssignment
 
     if JudgeAssignment.objects.filter(event=role.event, judge=role.user, status="submitted").exists():
         raise ValidationError("This judge has submitted reviews; keep them for the record and reassign instead.")
     JudgeAssignment.objects.filter(event=role.event, judge=role.user).delete()
+    # A link this organizer made for the invitation stops working with it.
+    SignInLink.objects.filter(user=role.user, used_at__isnull=True, created_by=user).update(expires_at=timezone.now())
     record("judge.remove", actor=user, event=role.event, target=role, detail={"email": role.user.email})
     role.delete()
 
 
 def can_issue_sign_in_link(actor, target_user) -> bool:
     """Admins may create a sign-in link for anyone. An organizer may create one
-    only for an account that has never been used: invited, no password set,
-    never signed in. Otherwise inviting an existing user as a judge would be a
-    way to take their account over."""
+    only for an account that (1) has never been used: no password, never
+    signed in, no API token, no staff rights; and (2) belongs to nobody else:
+    every event it has a role or a team in is one this organizer runs.
+
+    Without the second rule, adding someone else's invited judge to an event
+    of your own would be a way to sign in as them."""
     if actor.is_superuser:
         return True
-    return target_user.last_login is None and not target_user.has_usable_password()
+    if target_user.is_staff or target_user.is_superuser or not target_user.is_active:
+        return False
+    if target_user.last_login is not None or target_user.has_usable_password():
+        return False
+    if target_user.api_tokens.exists():
+        return False
+    mine = Event.objects.filter(roles__user=actor, roles__role=Role.ORGANIZER).values("id")
+    if EventRole.objects.filter(user=target_user).exclude(event__in=mine).exists():
+        return False
+    return not TeamMembership.objects.filter(user=target_user).exclude(team__event__in=mine).exists()
 
 
 @transaction.atomic
@@ -359,10 +510,13 @@ def issue_judge_link(role: EventRole, actor) -> str:
 
     if not is_organizer(actor, role.event):
         raise PermissionDenied("Only organizers can create sign-in links.")
+    if role.role != Role.JUDGE:
+        raise ValidationError("Sign-in links are for invited judges.")
     if not can_issue_sign_in_link(actor, role.user):
         raise ValidationError(
-            "This judge already has a working account. They sign in with their own password; "
-            "if they have lost it, an administrator can create a link for them."
+            "This judge already has an account of their own, or was invited to an event you do not run. "
+            "They sign in with their own password or the link from that event; "
+            "an administrator can create a new link for them."
         )
     _, raw = SignInLink.issue(role.user, created_by=actor)
     record("judge.sign_in_link", actor=actor, event=role.event, target=role, detail={"email": role.user.email})

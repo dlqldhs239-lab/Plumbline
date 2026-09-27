@@ -1,7 +1,7 @@
 from django import forms
-from django.utils.text import slugify
+from django.core.exceptions import ValidationError
 
-from . import theme
+from . import services, theme
 from .models import CustomQuestion, Event, Project, Team, Track
 
 
@@ -89,27 +89,32 @@ class EventForm(forms.ModelForm):
             data.update(theme.preset(data["theme_preset"]))
             for field, value in theme.preset(data["theme_preset"]).items():
                 setattr(self.instance, field, value)
-        if not data.get("slug"):
-            data["slug"] = slugify(data.get("name", ""))
+        if self.instance.pk and not data.get("slug"):
+            data["slug"] = self.instance.slug
+        try:
+            data["slug"] = services.clean_slug(data.get("slug"), data.get("name", ""), exclude_pk=self.instance.pk)
+        except ValidationError as e:
+            self.add_error("slug", e)
         if data.get("submissions_open_at") and data.get("submissions_close_at"):
             if data["submissions_close_at"] <= data["submissions_open_at"]:
                 self.add_error("submissions_close_at", "Must be after the opening time.")
-        if Event.objects.filter(slug=data.get("slug")).exclude(pk=self.instance.pk).exists():
-            self.add_error("slug", "That slug is already used.")
+        for name in self.track_names():
+            if len(name) > 120:
+                self.add_error("tracks_text", "A track name can be at most 120 characters.")
+                break
         return data
 
-    def save(self, commit=True):
-        event = super().save(commit)
-        if commit:
-            existing = {t.name.lower() for t in event.tracks.all()}
-            order = event.tracks.count()
-            for line in (self.cleaned_data.get("tracks_text") or "").splitlines():
-                name = line.strip()
-                if name and name.lower() not in existing:
-                    Track.objects.create(event=event, name=name, order=order)
-                    existing.add(name.lower())
-                    order += 1
-        return event
+    def track_names(self) -> list[str]:
+        text = (self.cleaned_data or {}).get("tracks_text") or ""
+        return [line.strip() for line in text.splitlines() if line.strip()]
+
+    def event_data(self) -> dict:
+        """The settings as the service layer takes them. Saving goes through
+        events.services so the rules and the audit entry are the same as for
+        the API."""
+        data = {f: self.cleaned_data[f] for f in services.EVENT_FIELDS if f in self.cleaned_data}
+        data["slug"] = self.cleaned_data.get("slug")
+        return data
 
 
 class TeamForm(forms.ModelForm):
@@ -199,8 +204,10 @@ class JudgeInviteForm(forms.Form):
 
 class AssignForm(forms.Form):
     reviews_per_project = forms.IntegerField(min_value=1, max_value=20, initial=3)
-    batch = forms.CharField(required=False, help_text="Label for this run, e.g. batch-1")
-    seed = forms.IntegerField(required=False, help_text="Optional. Same seed, same assignment.")
+    batch = forms.CharField(required=False, max_length=40, help_text="Label for this run, e.g. batch-1")
+    seed = forms.IntegerField(
+        required=False, min_value=0, max_value=2**31 - 1, help_text="Optional. Same seed, same assignment."
+    )
 
 
 class CriterionForm(forms.Form):

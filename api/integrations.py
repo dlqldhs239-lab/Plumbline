@@ -43,14 +43,16 @@ class DeliveryOut(Schema):
     last_attempt_at: datetime | None = None
 
 
-def webhook_out(h: Webhook) -> dict:
+def webhook_out(h: Webhook, reveal: bool = False) -> dict:
+    """The signing secret is returned in full once, when the webhook is
+    created. After that only its first characters, enough to tell two apart."""
     return {
         "id": h.id,
         "url": h.url,
         "actions": h.actions,
         "description": h.description,
         "active": h.active,
-        "secret": h.secret,
+        "secret": h.secret if reveal else f"{h.secret[:6]}…",
         "created_at": h.created_at,
     }
 
@@ -87,7 +89,7 @@ def create_webhook(request, slug: str, payload: WebhookIn):
     (`project.`, `score.submit`); empty means everything."""
     event = _event(slug)
     hook = services.create_webhook(event, request.user, payload.url, payload.actions, payload.description)
-    return 201, webhook_out(hook)
+    return 201, webhook_out(hook, reveal=True)
 
 
 @api.delete(

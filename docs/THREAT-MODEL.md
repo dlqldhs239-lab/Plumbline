@@ -34,6 +34,12 @@ to 10 new ballots per address per minute and votes to 20 per minute, counted
 in a database-backed cache shared by all workers. Organizers void ballots;
 voided votes stay in the table but leave the tally.
 
+A signed-in caller holds one ballot per account however they arrive: the
+browser and an API token of the same account share it, and a ballot opened
+before signing in becomes the account's. Two requests from one ballot are
+counted one after the other, so the quadratic budget holds when they arrive
+together.
+
 *Not stopped:* a botnet with many addresses, or a mobile carrier's NAT that
 makes a whole city look like one address (which is why flagged ballots are
 not auto-rejected). If the event matters, use **email ballot links** or
@@ -90,6 +96,32 @@ the answer is 403, not a hidden button. The checker's peer-scores probe
 exercises exactly this path, and `tests/test_acceptance.py` covers the
 fixture-id, user-id and username forms of the URL, plus the UI.
 
+This holds whether or not the caller names an event, and for a judge whose
+tracks were narrowed after the assignment was made: the track is checked
+when the review is read and again when a score is saved. Someone with no
+organizer role gets the same 403 for a judge that exists and one that does
+not, so the endpoint cannot be used to list usernames.
+
+### Taking over an invited judge's account
+
+*Attack:* anyone may create an event. Create one, add the email of a judge
+who was invited to a different event and has not signed in yet, and ask for
+their sign-in link.
+
+*Answer:* an organizer can create a sign-in link only for an account that
+has never been used (no password, never signed in, no API token, no staff
+rights) **and** whose every role and team is in an event that organizer
+runs. The judge invited elsewhere fails the second test, and the link their
+real organizer made keeps working. Administrators can create a link for
+anyone. The link is shown once, in the response that created it; it is not
+stored in the session, and only its hash is in the database.
+
+*Not stopped:* the portal sends no mail, so it never proves that an email
+address belongs to the person using it. Whoever invites an address first
+decides who receives the link. An organizer who adds a judge that shows as
+*Active* without having invited them should confirm with that person that
+the account is theirs.
+
 ### A judge scores their own team
 
 *Answer:* automatic and manual assignment refuse a judge who is a member of
@@ -132,6 +164,45 @@ actor logged.
 the UI; every API write is audited with the actor. A leaked organizer token
 is as bad as a leaked organizer password, so the console has the same
 revoke list a password reset would.
+
+### Webhooks pointed at the server's own network
+
+*Attack:* an organizer (on a shared installation, anyone can be one)
+registers `http://127.0.0.1:5432/` or a cloud metadata address as a webhook
+and reads the result of the ping.
+
+*Answer:* loopback, private, link-local and other non-public addresses are
+refused when the webhook is created, in every spelling we know of
+(`localhost.`, `127.1`, `2130706433`, IPv4-mapped IPv6). The name is resolved
+and checked again each time a delivery is sent, redirects are not followed,
+and addresses carrying a username or password are refused. An operator whose
+receivers really are on a private network sets
+`PLUMBLINE_WEBHOOK_ALLOW_PRIVATE=1`.
+
+*Not stopped:* a name that changes its answer between our check and the
+connection a few milliseconds later. Closing that needs the connection
+itself pinned to the checked address; if your threat model includes it,
+restrict outbound traffic from the container.
+
+### Forged client addresses
+
+*Attack:* send a different `X-Forwarded-For` with every request, so each one
+looks like a new visitor to the rate limiter and the duplicate-ballot flags.
+
+*Answer:* the header is ignored unless `PLUMBLINE_TRUST_PROXY=1`. Whatever
+the source, an address that does not parse is stored as empty, never as
+text.
+
+### The fixture loader on a live installation
+
+*Attack:* not an attacker: the container loads the sample fixtures on every
+start. If the loader wrote each time, a restart would undo edited scores,
+bring back a deleted administrator with a published password, and promote
+whoever had since registered `admin@example.org`.
+
+*Answer:* the loader writes only while the fixture event does not exist. It
+never changes an account that is already there. Set `PLUMBLINE_SEED=0` for a
+real event.
 
 ### CSRF against the API from a logged-in browser
 

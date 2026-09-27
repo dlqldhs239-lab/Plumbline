@@ -8,6 +8,7 @@ from django.views.decorators.http import require_POST
 from events.models import Event, Project
 from events.permissions import is_organizer
 from judging import export as export_services
+from plumbline.inputs import id_or_404
 
 from . import services
 from .models import Comment, Voter
@@ -128,7 +129,7 @@ def organize_voting(request, slug):
                 f"{len(created)} ballot link{'s' if len(created) != 1 else ''} created. Export the CSV and send them with your mail tool.",
             )
         elif action == "void":
-            voter = get_object_or_404(Voter, pk=request.POST.get("voter"), event=event)
+            voter = get_object_or_404(Voter, pk=id_or_404(request.POST.get("voter")), event=event)
             services.void_voter(voter, request.user, request.POST.get("reason", ""))
             messages.info(request, "Ballot voided; its votes no longer count.")
         return redirect("organize_voting", slug=slug)
@@ -137,7 +138,7 @@ def organize_voting(request, slug):
     projects = sorted(
         (
             (p, tallies.get(p.id, {"votes": 0, "voters": 0}))
-            for p in event.projects.filter(status=Project.Status.SUBMITTED, is_hidden=False)
+            for p in event.projects.filter(status=Project.Status.SUBMITTED, is_hidden=False, duplicate_of__isnull=True)
         ),
         key=lambda pt: -pt[1]["votes"],
     )

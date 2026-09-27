@@ -8,6 +8,7 @@ from django.utils import timezone
 
 from accounts.models import ApiToken
 from events.models import EventRole, Project, Role
+from judging import services as judging_services
 from judging.models import JudgeAssignment
 
 from .base import SeededTestCase
@@ -146,8 +147,13 @@ class OrganizerApiTests(SeededTestCase):
         self.assertEqual(titles.count("Dry Harbour"), 1)
 
     def test_manual_assignment_and_removal(self):
-        project = Project.objects.get(external_id="prj_01")
-        judge = EventRole.objects.get(event=self.event, external_id="jdg_01").user
+        role = EventRole.objects.get(event=self.event, external_id="jdg_01")
+        judge = role.user
+        track_ids = list(role.tracks.values_list("id", flat=True))
+        open_to_judge = judging_services.eligible_projects(self.event).exclude(assignments__judge=judge)
+        if track_ids:
+            open_to_judge = open_to_judge.filter(track_id__in=track_ids)
+        project = open_to_judge.first()
         r = self.post("/assignments", "organizer", {"judge": "jdg_01", "project_id": project.pk, "batch": "extra"})
         self.assertEqual(r.status_code, 201, r.content)
         aid = r.json()["id"]

@@ -38,7 +38,7 @@ expected = "sha256=" + hex(hmac_sha256(secret, raw_body))</pre>
     <tr class="{% if not h.active %}dim{% endif %}">
       <td>{{ h.url }}{% if h.description %}<br><small class="muted">{{ h.description }}</small>{% endif %}</td>
       <td>{% for a in h.actions %}<span class="badge neutral">{{ a }}</span> {% empty %}<small class="muted">everything</small>{% endfor %}</td>
-      <td><code>{{ h.secret }}</code></td>
+      <td><code>{{ h.secret|slice:":6" }}…</code></td>
       <td><span class="badge {% if h.active %}ok{% else %}neutral{% endif %}">{% if h.active %}active{% else %}paused{% endif %}</span></td>
       <td style="white-space:nowrap">
         <form method="post" class="inline">{% csrf_token %}<input type="hidden" name="webhook" value="{{ h.pk }}"><input type="hidden" name="action" value="test"><button class="btn small" type="submit">Send ping</button></form>

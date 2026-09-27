@@ -5,16 +5,18 @@ from __future__ import annotations
 
 import random
 from collections import defaultdict
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.core.validators import validate_slug
 from django.db import transaction
-from django.db.models import Count, Q
+from django.db.models import Count, F, Q
 from django.utils import timezone
 
 from audit.services import record
 from events.models import Event, EventRole, Project, Role, TeamMembership
 from events.permissions import is_organizer, judge_track_ids
+from plumbline.inputs import as_int
 
 from .models import Criterion, JudgeAssignment, JudgeCalibration, ProjectResult, Rubric, Score
 from .normalization import Review, normalize, weighted_score
@@ -40,17 +42,54 @@ def replace_criteria(rubric: Rubric, user, rows: list[dict]):
         raise PermissionDenied("Only organizers can edit the rubric.")
     if Score.objects.filter(criterion__rubric=rubric).exists():
         raise ValidationError("Scores exist for this rubric; criteria can no longer be replaced.")
+    cleaned = clean_criteria(rows)
     rubric.criteria.all().delete()
-    for i, row in enumerate(rows):
-        Criterion.objects.create(
-            rubric=rubric,
-            key=row["key"],
-            name=row["name"],
-            description=row.get("description", ""),
-            weight=Decimal(str(row.get("weight", 1))),
-            order=i,
+    for i, row in enumerate(cleaned):
+        Criterion.objects.create(rubric=rubric, order=i, **row)
+    record("rubric.replace", actor=user, event=rubric.event, target=rubric, detail={"criteria": cleaned})
+
+
+def clean_criteria(rows: list[dict]) -> list[dict]:
+    """A rubric a judge can actually score with: at least one criterion,
+    distinct keys, and weights that add up to something."""
+    if not rows:
+        raise ValidationError("A rubric needs at least one criterion.")
+    if len(rows) > 30:
+        raise ValidationError("A rubric can have at most 30 criteria.")
+    cleaned, seen = [], set()
+    for row in rows:
+        key = str(row.get("key") or "").strip().lower()
+        name = str(row.get("name") or "").strip()
+        try:
+            validate_slug(key)
+        except ValidationError:
+            raise ValidationError(
+                f"'{key}' is not a usable key: letters, digits, hyphens and underscores only."
+            ) from None
+        if len(key) > 40:
+            raise ValidationError(f"The key '{key}' is longer than 40 characters.")
+        if key in seen:
+            raise ValidationError(f"The key '{key}' is used twice. Each criterion needs its own.")
+        seen.add(key)
+        if not name or len(name) > 120:
+            raise ValidationError(f"Criterion '{key}' needs a name of at most 120 characters.")
+        try:
+            weight = Decimal(str(row.get("weight", 1) if row.get("weight") is not None else 1))
+        except (InvalidOperation, ValueError):
+            raise ValidationError(f"The weight of '{key}' is not a number.") from None
+        if not weight.is_finite() or weight < 0 or weight > Decimal("9999.99"):
+            raise ValidationError(f"The weight of '{key}' must be between 0 and 9999.99.")
+        cleaned.append(
+            {
+                "key": key,
+                "name": name,
+                "description": str(row.get("description") or ""),
+                "weight": weight.quantize(Decimal("0.01")),
+            }
         )
-    record("rubric.replace", actor=user, event=rubric.event, target=rubric, detail={"criteria": rows})
+    if not any(row["weight"] > 0 for row in cleaned):
+        raise ValidationError("At least one criterion needs a weight above zero.")
+    return cleaned
 
 
 # --- assignment ------------------------------------------------------------
@@ -85,8 +124,12 @@ def assign_balanced(
     """
     if not is_organizer(user, event):
         raise PermissionDenied("Only organizers can assign judges.")
-    k = reviews_per_project or event.reviews_per_project
-    batch = batch or timezone.now().strftime("batch-%Y%m%d-%H%M")
+    k = as_int(reviews_per_project or event.reviews_per_project, "reviews_per_project", 1, 20)
+    batch = (batch or timezone.now().strftime("batch-%Y%m%d-%H%M")).strip()
+    if len(batch) > 40:
+        raise ValidationError("A batch label can be at most 40 characters.")
+    if seed is not None:
+        seed = as_int(seed, "seed", 0, 2**31 - 1)
     rng = random.Random(seed)
 
     judge_roles = list(judges_for(event))
@@ -94,7 +137,10 @@ def assign_balanced(
         raise ValidationError("This event has no judges yet.")
     load = {r.user_id: 0 for r in judge_roles}
     for row in JudgeAssignment.objects.filter(event=event).values("judge_id").annotate(n=Count("id")):
-        load[row["judge_id"]] = row["n"]
+        # Reviews by someone who is no longer a judge still count toward a
+        # project's total, but that person gets no new work.
+        if row["judge_id"] in load:
+            load[row["judge_id"]] = row["n"]
     tracks_of = {r.user_id: set(r.tracks.values_list("id", flat=True)) for r in judge_roles}
     users_of = {r.user_id: r.user for r in judge_roles}
 
@@ -140,8 +186,18 @@ def assign_manual(event: Event, user, judge_user, project: Project, batch: str =
         raise PermissionDenied("Only organizers can assign judges.")
     if not EventRole.objects.filter(event=event, user=judge_user, role=Role.JUDGE).exists():
         raise ValidationError("That user is not a judge in this event.")
+    if project.event_id != event.id:
+        raise ValidationError("That project belongs to a different event.")
+    if not eligible_projects(event).filter(pk=project.pk).exists():
+        raise ValidationError("Only submitted projects that are not hidden or marked as duplicates can be assigned.")
+    allowed = judge_track_ids(judge_user, event)
+    if allowed is not None and project.track_id not in allowed:
+        raise ValidationError("That judge is restricted to other tracks.")
     if conflicted(judge_user, project):
         raise ValidationError("That judge is on the project's team.")
+    batch = (batch or "manual").strip()
+    if len(batch) > 40:
+        raise ValidationError("A batch label can be at most 40 characters.")
     assignment, created = JudgeAssignment.objects.get_or_create(
         event=event, judge=judge_user, project=project, defaults={"batch": batch}
     )
@@ -164,22 +220,33 @@ def unassign(assignment: JudgeAssignment, user):
 
 
 def assignments_for_judge(judge_user, event: Event | None = None):
-    """Only this judge's own assignments, further limited to their tracks."""
+    """Only this judge's own assignments, limited to the tracks they hold in
+    each event, whether or not the caller names an event. A project that has
+    been withdrawn or hidden since it was assigned drops out of the queue;
+    a review already submitted stays on the record."""
     qs = JudgeAssignment.objects.filter(judge=judge_user).select_related("project", "project__track", "event")
+    roles = EventRole.objects.filter(user=judge_user, role=Role.JUDGE).prefetch_related("tracks")
     if event is not None:
         qs = qs.filter(event=event)
-        allowed = judge_track_ids(judge_user, event)
-        if allowed is not None:
-            qs = qs.filter(project__track_id__in=allowed)
-    return qs
+        roles = roles.filter(event=event)
+    visible = Q(pk__in=[])
+    for role in roles:
+        track_ids = [t.id for t in role.tracks.all()]
+        if track_ids:
+            visible |= Q(event_id=role.event_id, project__track_id__in=track_ids)
+        else:
+            visible |= Q(event_id=role.event_id)
+    current = Q(project__status=Project.Status.SUBMITTED, project__is_hidden=False, project__duplicate_of__isnull=True)
+    return qs.filter(visible).filter(Q(status=JudgeAssignment.Status.SUBMITTED) | current)
 
 
-def get_own_assignment(judge_user, assignment_id: int) -> JudgeAssignment:
-    """The only way to load an assignment for scoring. Filtering by judge here
-    is what makes another judge's URL return 404 rather than their ballot."""
+def get_own_assignment(judge_user, assignment_id: int, event: Event | None = None) -> JudgeAssignment:
+    """The only way to load an assignment for scoring. Filtering by judge and
+    track here is what makes another judge's URL a refusal rather than their
+    ballot. The answer is the same whether the id exists or not."""
     try:
-        return assignments_for_judge(judge_user).get(pk=assignment_id)
-    except JudgeAssignment.DoesNotExist:
+        return assignments_for_judge(judge_user, event).get(pk=assignment_id)
+    except (JudgeAssignment.DoesNotExist, OverflowError):
         raise PermissionDenied("That review is not yours.") from None
 
 
@@ -194,15 +261,17 @@ def save_scores(
         raise PermissionDenied("Judging is not open for this event.")
     if assignment.status == JudgeAssignment.Status.SUBMITTED and not is_organizer(user, event):
         raise ValidationError("This review was already submitted.")
+    if not assignments_for_judge(user, event).filter(pk=assignment.pk).exists():
+        raise PermissionDenied("This project is outside your tracks, or is no longer in the running.")
+    if len(comment or "") > 10000:
+        raise ValidationError("Comments are limited to 10,000 characters.")
     rubric = ensure_rubric(event)
     criteria = {c.key: c for c in rubric.criteria.all()}
     cleaned = {}
-    for key, value in values.items():
+    for key, value in (values or {}).items():
         if key not in criteria or value in (None, ""):
             continue
-        v = int(value)
-        if not rubric.scale_min <= v <= rubric.scale_max:
-            raise ValidationError(f"{criteria[key].name} must be between {rubric.scale_min} and {rubric.scale_max}.")
+        v = as_int(value, criteria[key].name, rubric.scale_min, rubric.scale_max)
         cleaned[key] = v
     if submit and set(cleaned) != set(criteria):
         missing = [criteria[k].name for k in criteria if k not in cleaned]
@@ -295,6 +364,17 @@ def publish_results(event: Event, user, publish: bool = True):
     event.results_published_at = timezone.now() if publish else None
     event.save(update_fields=["results_published_at", "updated_at"])
     record("results.publish" if publish else "results.unpublish", actor=user, event=event, target=event)
+
+
+def standings(event: Event):
+    """The stored results, minus any project that has left the running since
+    they were computed. Hiding a project takes it off the published page at
+    once; it does not wait for the next recompute."""
+    return (
+        ProjectResult.objects.filter(event=event, project__in=eligible_projects(event))
+        .select_related("project", "project__track", "project__team")
+        .order_by(F("rank_normalized").asc(nulls_last=True), F("rank_raw").asc(nulls_last=True), "id")
+    )
 
 
 def progress(event: Event) -> list[dict]:

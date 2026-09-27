@@ -5,6 +5,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 
 from events.models import Event
 from events.permissions import is_organizer
+from plumbline.inputs import id_or_404
 
 from . import services
 from .models import Webhook, WebhookDelivery
@@ -26,9 +27,12 @@ def organize_integrations(request, slug):
                     request.POST.get("actions", ""),
                     request.POST.get("description", ""),
                 )
-                messages.success(request, f"Webhook created. Signing secret: {hook.secret}")
+                messages.success(
+                    request,
+                    f"Webhook created. Signing secret: {hook.secret} (copy it now; it is not shown in full again).",
+                )
             elif action in ("enable", "disable", "delete", "test"):
-                hook = get_object_or_404(Webhook, pk=request.POST.get("webhook"), event=event)
+                hook = get_object_or_404(Webhook, pk=id_or_404(request.POST.get("webhook")), event=event)
                 if action == "delete":
                     services.delete_webhook(hook, request.user)
                     messages.info(request, "Webhook deleted.")
@@ -41,7 +45,7 @@ def organize_integrations(request, slug):
                 else:
                     services.set_active(hook, request.user, action == "enable")
             elif action == "retry":
-                d = get_object_or_404(WebhookDelivery, pk=request.POST.get("delivery"), webhook__event=event)
+                d = get_object_or_404(WebhookDelivery, pk=id_or_404(request.POST.get("delivery")), webhook__event=event)
                 d = services.retry(d, request.user)
                 if d.status == WebhookDelivery.Status.OK:
                     messages.success(request, "Delivered.")
@@ -56,11 +60,5 @@ def organize_integrations(request, slug):
     return render(
         request,
         "events/organize/integrations.html",
-        {
-            "event": event,
-            "hooks": hooks,
-            "deliveries": deliveries,
-            "known_actions": actions,
-            "embed_url": request.build_absolute_uri(f"/events/{event.slug}/embed/gallery/"),
-        },
+        {"event": event, "hooks": hooks, "deliveries": deliveries, "known_actions": actions},
     )

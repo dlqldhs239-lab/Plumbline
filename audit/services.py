@@ -11,12 +11,9 @@ from .models import AuditLog
 
 
 def _client_ip(request) -> str | None:
-    if request is None:
-        return None
-    forwarded = request.META.get("HTTP_X_FORWARDED_FOR")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
-    return request.META.get("REMOTE_ADDR")
+    from plumbline.inputs import client_ip
+
+    return client_ip(request) or None
 
 
 def plain(detail: dict[str, Any] | None) -> dict[str, Any]:
@@ -43,9 +40,9 @@ def record(
         channel = "api" if request.path.startswith("/api/") else "ui"
     entry = AuditLog(
         actor=actor,
-        actor_label=(actor.get_username() if actor else ""),
+        actor_label=(actor.get_username()[:200] if actor else ""),
         event=event,
-        action=action,
+        action=action[:80],
         detail=plain(detail),
         ip_address=_client_ip(request),
         channel=channel or "system",

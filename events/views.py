@@ -2,6 +2,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.db.models import Count, Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -12,6 +13,7 @@ from audit.services import record
 from judging import export as export_services
 from judging import services as judging_services
 from judging.models import JudgeAssignment, JudgeCalibration, ProjectResult
+from plumbline.inputs import as_id, id_or_404
 
 from . import services
 from .forms import AssignForm, CriterionFormSet, EventForm, JudgeInviteForm, ProjectForm, TeamForm
@@ -88,8 +90,9 @@ def gallery(request, slug):
         qs = qs.filter(
             Q(title__icontains=q) | Q(tagline__icontains=q) | Q(team__name__icontains=q) | Q(tech_tags__icontains=q)
         )
-    if track.isdigit():
-        qs = qs.filter(track_id=int(track))
+    if track:
+        track_id = as_id(track)
+        qs = qs.filter(track_id=track_id) if track_id else qs.none()
     qs = qs.order_by("-submitted_at", "id")
     page = Paginator(qs, GALLERY_PAGE_SIZE).get_page(request.GET.get("page"))
     return render(request, "events/gallery.html", {"event": event, "page": page, "q": q, "track": track})
@@ -104,7 +107,7 @@ def project_detail(request, slug, pk):
     members = project.team.memberships.select_related("user")
     result = None
     if event.results_published:
-        result = ProjectResult.objects.filter(project=project).first()
+        result = judging_services.standings(event).filter(project=project).first()
     organizer = is_organizer(request.user, event)
     member = services.is_team_member(request.user, project)
     breakdown, feedback = None, []
@@ -141,7 +144,7 @@ def results(request, slug):
     event = _event(slug)
     if not event.results_published and not is_organizer(request.user, event):
         return render(request, "events/results_hidden.html", {"event": event}, status=403)
-    rows = ProjectResult.objects.filter(event=event).select_related("project", "project__track", "project__team")
+    rows = judging_services.standings(event)
     return render(
         request, "events/results.html", {"event": event, "rows": rows, "preview": not event.results_published}
     )
@@ -176,15 +179,13 @@ def dashboard(request):
 def event_create(request):
     form = EventForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
-        event = form.save(commit=False)
-        event.created_by = request.user
-        event.save()
-        form.save()  # tracks
-        EventRole.objects.get_or_create(event=event, user=request.user, role=Role.ORGANIZER)
-        judging_services.ensure_rubric(event)
-        record("event.create", event=event, target=event)
-        messages.success(request, f"{event.name} created. You are its organizer.")
-        return redirect("organize_dashboard", slug=event.slug)
+        try:
+            event = services.create_event(request.user, form.event_data(), form.track_names())
+        except ValidationError as e:
+            form.add_error(None, e)
+        else:
+            messages.success(request, f"{event.name} created. You are its organizer.")
+            return redirect("organize_dashboard", slug=event.slug)
     return render(request, "events/event_form.html", {"form": form, "creating": True})
 
 
@@ -264,18 +265,22 @@ def project_create(request, slug):
     form = ProjectForm(request.POST or None, event=event)
     if request.method == "POST" and form.is_valid():
         if team is None:
-            team = get_object_or_404(Team, pk=request.POST.get("team_id"), event=event)
+            team = get_object_or_404(Team, pk=id_or_404(request.POST.get("team_id")), event=event)
         try:
-            project = services.create_project(event, team, request.user, form.data_dict())
-            _save_answers(project, form)
+            # One unit: if submitting is refused, no stray draft is left behind.
+            with transaction.atomic():
+                project = services.create_project(event, team, request.user, form.data_dict())
+                _save_answers(project, form)
+                if "submit" in request.POST:
+                    services.submit_project(project, request.user)
+        except (ValidationError, PermissionDenied) as e:
+            form.add_error(None, getattr(e, "messages", [str(e)]))
+        else:
             if "submit" in request.POST:
-                services.submit_project(project, request.user)
                 messages.success(request, "Project submitted. You can keep editing until the deadline.")
             else:
                 messages.success(request, "Draft saved.")
             return redirect(project)
-        except (ValidationError, PermissionDenied) as e:
-            form.add_error(None, getattr(e, "messages", [str(e)]))
     return render(
         request,
         "events/project_form.html",
@@ -297,17 +302,18 @@ def project_edit(request, slug, pk):
         raise PermissionDenied("You are not on this project's team.")
     form = ProjectForm(request.POST or None, event=event, instance=project)
     if request.method == "POST" and form.is_valid():
+        submitting = "submit" in request.POST and project.status != Project.Status.SUBMITTED
         try:
-            services.update_project(project, request.user, form.data_dict())
-            _save_answers(project, form)
-            if "submit" in request.POST and project.status != Project.Status.SUBMITTED:
-                services.submit_project(project, request.user)
-                messages.success(request, "Project submitted.")
-            else:
-                messages.success(request, "Saved.")
-            return redirect(project)
+            with transaction.atomic():
+                services.update_project(project, request.user, form.data_dict())
+                _save_answers(project, form)
+                if submitting:
+                    services.submit_project(project, request.user)
         except (ValidationError, PermissionDenied) as e:
             form.add_error(None, getattr(e, "messages", [str(e)]))
+        else:
+            messages.success(request, "Project submitted." if submitting else "Saved.")
+            return redirect(project)
     return render(
         request, "events/project_form.html", {"event": event, "form": form, "team": project.team, "project": project}
     )
@@ -390,17 +396,20 @@ def organize_settings(request, slug):
     _organizer_or_403(request, event)
     form = EventForm(request.POST or None, instance=event)
     if request.method == "POST" and form.is_valid():
-        before = {"submissions_close_at": event.submissions_close_at.isoformat()}
-        form.save()
-        record(
-            "event.update",
-            event=event,
-            target=event,
-            detail={"before": before, "after": {"submissions_close_at": event.submissions_close_at.isoformat()}},
-        )
-        messages.success(request, "Event settings saved.")
-        return redirect("organize_dashboard", slug=event.slug)
-    return render(request, "events/event_form.html", {"form": form, "event": event, "creating": False})
+        # Validating the form has already written the new values onto `event`;
+        # the service needs the stored row to see what actually changed.
+        stored = Event.objects.get(pk=event.pk)
+        try:
+            with transaction.atomic():
+                services.update_event(stored, request.user, form.event_data())
+                services.add_tracks(stored, request.user, form.track_names())
+        except ValidationError as e:
+            form.add_error(None, e)
+        else:
+            messages.success(request, "Event settings saved.")
+            return redirect("organize_dashboard", slug=stored.slug)
+    shown = Event.objects.get(pk=event.pk) if request.method == "POST" else event
+    return render(request, "events/event_form.html", {"form": form, "event": shown, "creating": False})
 
 
 @login_required
@@ -438,19 +447,20 @@ def organize_judges(request, slug):
         except ValidationError as e:
             messages.error(request, "; ".join(e.messages))
         return redirect("organize_judges", slug=slug)
+    fresh_link = None
     if request.method == "POST" and request.POST.get("link"):
-        role = get_object_or_404(EventRole, pk=request.POST["link"], event=event, role=Role.JUDGE)
+        role = get_object_or_404(EventRole, pk=id_or_404(request.POST["link"]), event=event, role=Role.JUDGE)
         try:
             raw = services.issue_judge_link(role, request.user)
-            request.session["fresh_link"] = {
-                "email": role.user.email,
-                "url": request.build_absolute_uri(f"/accounts/claim/{raw}/"),
-            }
         except ValidationError as e:
             messages.error(request, "; ".join(e.messages))
-        return redirect("organize_judges", slug=slug)
-    if request.method == "POST" and request.POST.get("remove"):
-        role = get_object_or_404(EventRole, pk=request.POST["remove"], event=event, role=Role.JUDGE)
+            return redirect("organize_judges", slug=slug)
+        # Shown in this response only. The link is a credential, so it is
+        # never written to the session or anywhere else it could be read later.
+        fresh_link = {"email": role.user.email, "url": request.build_absolute_uri(f"/accounts/claim/{raw}/")}
+        form = JudgeInviteForm(event=event)
+    elif request.method == "POST" and request.POST.get("remove"):
+        role = get_object_or_404(EventRole, pk=id_or_404(request.POST["remove"]), event=event, role=Role.JUDGE)
         try:
             services.remove_judge(role, request.user)
             messages.info(request, "Judge removed.")
@@ -468,11 +478,14 @@ def organize_judges(request, slug):
         }
         for r in judges
     ]
-    return render(
+    response = render(
         request,
         "events/organize/judges.html",
-        {"event": event, "form": form, "rows": rows, "fresh_link": request.session.pop("fresh_link", None)},
+        {"event": event, "form": form, "rows": rows, "fresh_link": fresh_link},
     )
+    if fresh_link:
+        response["Cache-Control"] = "no-store"
+    return response
 
 
 @login_required

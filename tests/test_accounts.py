@@ -68,7 +68,7 @@ class SignInLinkTests(SeededTestCase):
         self.client.force_login(self.organizer)
         page = f"/events/{self.event.slug}/organize/judges/"
         r = self.client.post(page, {"link": role.pk}, follow=True)
-        self.assertContains(r, "already has a working account")
+        self.assertContains(r, "already has an account of their own")
         self.assertEqual(SignInLink.objects.filter(user=victim).count(), 0)
         r = self.client.post(
             f"/api/events/{self.event.slug}/judges/{victim.username}/sign-in-link", **self.bearer("organizer")

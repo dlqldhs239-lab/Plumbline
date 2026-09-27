@@ -82,6 +82,9 @@ by address, and voidable ballots that are never deleted.
 **Partial T4.** Every UI action is also an API call with a published OpenAPI
 schema and bearer tokens. Data leaves as CSV (projects, assignments, scores,
 results, calibration, votes, audit) and, for a full migration, `pg_dump`.
+Webhooks subscribe to an event's audit stream: signed with HMAC-SHA256, sent
+after the change is committed, recorded per delivery and retryable. Invited
+judges get in through a one-time sign-in link the organizer passes on.
 
 ## Tier claim
 
@@ -99,8 +102,8 @@ side of "claim your tiers honestly". To verify T3 yourself:
 
 ## What it does not do yet
 
-- Webhooks, certificates, signed judge participation records and an
-  embeddable gallery widget (the rest of T4).
+- Certificates, signed judge participation records and an embeddable
+  gallery widget (the rest of T4).
 - Bulk import beyond the fixture format; export is CSV and `pg_dump`.
 - File uploads: thumbnails and gallery images are URLs.
 - Outbound email. Judges and ballot links are created by the organizer and
@@ -123,11 +126,20 @@ Copy `.env.example` to `.env` and set:
 | `DJANGO_DEBUG` | `0` | leave it |
 | `PLUMBLINE_SITE_NAME` | `Plumbline` | shown in the header |
 | `PLUMBLINE_ANON_WRITE_RATE` | `20` | anonymous writes per minute per address |
+| `PLUMBLINE_TRUST_PROXY` | `0` | set `1` only behind a proxy you run; see below |
+| `PLUMBLINE_WEBHOOK_ALLOW_PRIVATE` | `0` | set `1` if webhook receivers live on your own network |
 | `GUNICORN_WORKERS` | `2` | processes |
 | `GUNICORN_THREADS` | `8` | threads per process; browsers hold idle connections, so keep this above 4 |
 
-Put a TLS-terminating proxy in front of port 8080 and forward
-`X-Forwarded-For` so rate limits and the audit log see real addresses.
+Put a TLS-terminating proxy in front of port 8080, have it set
+`X-Forwarded-For`, and set `PLUMBLINE_TRUST_PROXY=1` so rate limits and the
+audit log see real addresses. Leave it at `0` when the port is reached
+directly: the header is then whatever the caller typed.
+
+The fixtures are loaded once. Later starts read them only to print the
+checker headers; they never put back a score, a judge or an account that
+someone has changed or removed since. The seeded accounts share a published
+password, so for a real event start with `PLUMBLINE_SEED=0`.
 Create the first organizer with `docker compose exec web python manage.py createsuperuser`,
 then create an event at `/events/new/`.
 
@@ -142,7 +154,7 @@ pip install -r requirements.txt
 python manage.py migrate && python manage.py createcachetable
 python manage.py seed_fixtures fixtures.json
 python manage.py runserver 8080
-python manage.py test tests            # 49 tests, ~3 minutes
+python manage.py test tests            # 155 tests, ~10 minutes
 python manage.py normalization_report sample-hack-2026 > docs/normalization-proof.md
 ```
 

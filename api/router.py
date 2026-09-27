@@ -10,20 +10,21 @@ from __future__ import annotations
 
 from django.contrib.auth.models import User
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.db import DataError, transaction
 from django.db.models import Q
-from django.http import HttpResponse
+from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404
-from django.utils.text import slugify
 from ninja import NinjaAPI, Query
 from ninja.errors import HttpError
 
 from audit.services import record
 from events import services as event_services
-from events.models import Event, EventRole, Project, Role, Team, TeamMembership, Track
+from events.models import Event, EventRole, Project, Role, Team, TeamMembership
 from events.permissions import can_view_project, is_admin, is_organizer, roles_for
 from judging import export as export_services
 from judging import services as judging_services
-from judging.models import JudgeAssignment, ProjectResult
+from judging.models import JudgeAssignment
+from plumbline.inputs import as_id
 
 from .auth import auth_optional, auth_required
 from .schemas import (
@@ -64,6 +65,16 @@ def _forbidden(request, exc):
 def _bad_request(request, exc):
     detail = "; ".join(exc.messages) if hasattr(exc, "messages") else str(exc)
     return api.create_response(request, {"detail": detail}, status=400)
+
+
+@api.exception_handler(OverflowError)
+@api.exception_handler(DataError)
+def _out_of_range(request, exc):
+    """A number the database cannot hold: a wrong address when reading, a
+    refused value when writing. Never a crash."""
+    if request.method in ("GET", "HEAD"):
+        return api.create_response(request, {"detail": "Not found"}, status=404)
+    return api.create_response(request, {"detail": "A value is out of range or too long."}, status=400)
 
 
 # --- serializers -------------------------------------------------------------
@@ -145,28 +156,9 @@ def list_events(request):
 
 @api.post("/events", response={201: EventOut, 400: ErrorOut}, auth=auth_required, tags=["events"])
 def create_event(request, payload: EventIn):
-    slug = slugify(payload.slug or payload.name)
-    if not slug or Event.objects.filter(slug=slug).exists():
-        raise ValidationError("That slug is taken or empty.")
-    if payload.submissions_close_at <= payload.submissions_open_at:
-        raise ValidationError("submissions_close_at must be after submissions_open_at.")
-    event = Event.objects.create(
-        slug=slug,
-        name=payload.name,
-        tagline=payload.tagline,
-        description=payload.description,
-        submissions_open_at=payload.submissions_open_at,
-        submissions_close_at=payload.submissions_close_at,
-        judging_open_at=payload.judging_open_at,
-        judging_close_at=payload.judging_close_at,
-        reviews_per_project=payload.reviews_per_project,
-        created_by=request.user,
-    )
-    for i, name in enumerate(payload.tracks):
-        Track.objects.create(event=event, name=name, order=i)
-    EventRole.objects.create(event=event, user=request.user, role=Role.ORGANIZER)
-    judging_services.ensure_rubric(event)
-    record("event.create", actor=request.user, event=event, target=event)
+    """Create an event and become its organizer. Refused as a whole if any
+    part is wrong: no event is left behind without its tracks or its organizer."""
+    event = event_services.create_event(request.user, payload.dict(exclude={"tracks"}), payload.tracks)
     return 201, event_out(event)
 
 
@@ -234,8 +226,9 @@ def list_projects(request, slug: str, q: str = "", track: int | None = None, min
         qs = qs.filter(
             Q(title__icontains=q) | Q(tagline__icontains=q) | Q(team__name__icontains=q) | Q(tech_tags__icontains=q)
         )
-    if track:
-        qs = qs.filter(track_id=track)
+    if track is not None:
+        track_id = as_id(track)
+        qs = qs.filter(track_id=track_id) if track_id else qs.none()
     return [project_out(p) for p in qs.distinct()]
 
 
@@ -258,15 +251,17 @@ def create_project(request, slug: str, payload: ProjectIn):
     team = _resolve_team(request, event, payload.team_id)
     data = payload.dict(exclude={"team_id", "track_id", "submit"})
     data["track"] = payload.track_id
-    project = event_services.create_project(event, team, request.user, data)
-    if payload.submit:
-        event_services.submit_project(project, request.user)
+    # One unit: if submit=true is refused, no draft is left behind either.
+    with transaction.atomic():
+        project = event_services.create_project(event, team, request.user, data)
+        if payload.submit:
+            event_services.submit_project(project, request.user)
     return 201, project_out(project)
 
 
 def _resolve_team(request, event: Event, team_id: int | None) -> Team:
-    if team_id:
-        return get_object_or_404(Team, pk=team_id, event=event)
+    if team_id is not None:
+        return get_object_or_404(Team, pk=as_id(team_id) or 0, event=event)
     membership = TeamMembership.objects.filter(team__event=event, user=request.user).select_related("team").first()
     if membership is None:
         raise ValidationError("Create or join a team in this event first (or pass team_id).")
@@ -289,9 +284,10 @@ def update_project(request, slug: str, project_id: int, payload: ProjectIn):
     data = payload.dict(exclude_unset=True, exclude={"team_id", "track_id", "submit"})
     if "track_id" in payload.dict(exclude_unset=True):
         data["track"] = payload.track_id
-    project = event_services.update_project(project, request.user, data)
-    if payload.submit:
-        event_services.submit_project(project, request.user)
+    with transaction.atomic():
+        project = event_services.update_project(project, request.user, data)
+        if payload.submit:
+            event_services.submit_project(project, request.user)
     return project_out(project)
 
 
@@ -344,8 +340,16 @@ def judge_scores(request, judge_ref: str, event: str | None = Query(None, descri
     """A specific judge's scores. Allowed only for that judge themself, or for
     an organizer/admin of the event in question. Everyone else gets 403 here,
     in the backend, before any score is read."""
-    judge = _resolve_judge(judge_ref)
     ev = _event(event) if event else None
+    try:
+        judge = _resolve_judge(judge_ref)
+    except Http404:
+        # Only someone who may read judges' scores is told that a name does
+        # not exist. For everyone else the answer is the same either way.
+        allowed = is_organizer(request.user, ev) if ev is not None else _organizes_something(request.user)
+        if not allowed:
+            raise PermissionDenied("Another judge's scores are not visible to you.") from None
+        raise
     if judge.id == request.user.id:
         return my_scores(request, event)
     if ev is not None:
@@ -360,12 +364,21 @@ def judge_scores(request, judge_ref: str, event: str | None = Query(None, descri
     return {"judge": judge.username, "event": None, "assignments": [assignment_out(a) for a in qs]}
 
 
+def _organizes_something(user) -> bool:
+    return is_admin(user) or EventRole.objects.filter(user=user, role=Role.ORGANIZER).exists()
+
+
 def _resolve_judge(ref: str) -> User:
+    ref = (ref or "").strip()
+    if not ref or len(ref) > 150:
+        raise Http404("No such judge.")
     role = EventRole.objects.filter(role=Role.JUDGE, external_id=ref).select_related("user").first()
     if role:
         return role.user
-    if ref.isdigit():
-        return get_object_or_404(User, pk=int(ref))
+    if as_id(ref):
+        by_id = User.objects.filter(pk=as_id(ref)).first()
+        if by_id is not None:
+            return by_id
     return get_object_or_404(User, username=ref)
 
 
@@ -443,7 +456,7 @@ def results(request, slug: str):
     if not event.results_published and not is_organizer(request.user, event):
         raise PermissionDenied("Results are not published yet.")
     out = []
-    for r in ProjectResult.objects.filter(event=event).select_related("project", "project__track", "project__team"):
+    for r in judging_services.standings(event):
         out.append(
             {
                 "project_id": r.project_id,

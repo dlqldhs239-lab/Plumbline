@@ -102,7 +102,12 @@ class ProjectResult(models.Model):
     computed_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ["rank_normalized", "rank_raw", "id"]
+        # Unranked projects last on every database (SQLite would put them first).
+        ordering = [
+            models.F("rank_normalized").asc(nulls_last=True),
+            models.F("rank_raw").asc(nulls_last=True),
+            "id",
+        ]
 
 
 class JudgeCalibration(models.Model):
