@@ -16,6 +16,11 @@ class Rubric(models.Model):
     scale_min = models.PositiveSmallIntegerField(default=1)
     scale_max = models.PositiveSmallIntegerField(default=5)
     instructions = models.TextField(blank=True)
+    pairwise = models.BooleanField(
+        "Pairwise comparisons",
+        default=False,
+        help_text="Also ask each judge which of two of their projects is the better one.",
+    )
     jury_k = models.PositiveSmallIntegerField(
         "Jury-size adjustment",
         null=True,
@@ -120,6 +125,12 @@ class ProjectResult(models.Model):
     # The constant this row was computed with, so the page can say what was
     # done and the console can tell when the setting has moved on.
     jury_k = models.FloatField(null=True, blank=True)
+    # From pairwise comparisons, when the event uses them. The score is a log
+    # strength: 0 is average, and a difference of d means odds of e^d to 1.
+    pairwise_score = models.FloatField(null=True, blank=True)
+    pairwise_rank = models.PositiveIntegerField(null=True, blank=True)
+    pairwise_n = models.PositiveIntegerField(default=0)
+    pairwise_wins = models.FloatField(default=0)
     community_score = models.FloatField(null=True, blank=True)
     method = models.CharField(max_length=60, blank=True)
     computed_at = models.DateTimeField(auto_now=True)
@@ -138,6 +149,29 @@ class ProjectResult(models.Model):
         if self.rank is None or self.rank_raw is None:
             return None
         return self.rank_raw - self.rank
+
+
+class PairwiseComparison(models.Model):
+    """One judge, two projects, and which they preferred. `left` is always
+    the project with the smaller id, so a pair has one row per judge whichever
+    way round it was shown. `preferred` empty means the judge could not say."""
+
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="comparisons")
+    judge = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="comparisons")
+    left = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="+")
+    right = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="+")
+    preferred = models.ForeignKey(Project, null=True, blank=True, on_delete=models.CASCADE, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["judge", "left", "right"], name="uniq_comparison_per_judge"),
+            models.CheckConstraint(condition=models.Q(left__lt=models.F("right")), name="comparison_left_before_right"),
+        ]
+        indexes = [models.Index(fields=["event", "judge"])]
+
+    def __str__(self) -> str:
+        return f"{self.judge.get_username()}: {self.left_id} or {self.right_id}"
 
 
 class JudgeCalibration(models.Model):

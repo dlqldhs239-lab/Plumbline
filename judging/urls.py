@@ -8,4 +8,5 @@ urlpatterns = [
     path("", views.index, name="index"),
     path("<slug:slug>/", views.event_queue, name="queue"),
     path("<slug:slug>/review/<int:pk>/", views.review, name="review"),
+    path("<slug:slug>/compare/", views.compare, name="compare"),
 ]

@@ -703,6 +703,20 @@ body.embed main { padding: var(--s4); max-width: none; }
 input[type="file"] { width: 100%; min-height: var(--control); padding: var(--s2) 0; color: var(--ink-2); font: 400 13px/1.4 var(--sans); }
 input[type="file"]::file-selector-button { min-height: 30px; margin-right: var(--s3); padding: 0 var(--s3); border: 1px solid var(--edge); background: transparent; color: var(--ink); font: 600 12px/1 var(--sans); cursor: pointer; }
 
+/* pairwise: two projects, one question */
+.versus { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: var(--cg); row-gap: var(--s6); align-items: stretch; }
+.versus .side { border-top: 1px solid var(--ink); padding-top: var(--s4); display: flex; flex-direction: column; gap: var(--s4); min-width: 0; }
+.versus .side h2 { font: 700 clamp(30px, 3.4vw, 60px)/.92 var(--sans); font-stretch: 70%; letter-spacing: -.02em; overflow-wrap: anywhere; }
+.versus .side .by { color: var(--ink-2); }
+.versus .side .prose { font-size: 14.5px; }
+.versus .side .btn { align-self: flex-start; margin-top: auto; min-height: 52px; padding: 0 var(--s5); font-size: 15px; }
+.versus .between { grid-column: 1 / -1; display: flex; gap: var(--s5); align-items: center; flex-wrap: wrap; border-top: 1px solid var(--line); padding-top: var(--s5); }
+.strip .bar.grow { flex: 1; }
+@media (max-width: 800px) {
+  .versus { grid-template-columns: 1fr; }
+  .versus .side .btn { align-self: stretch; }
+}
+
 /* drawings arrive once, left to right */
 html.js [data-reveal] { clip-path: inset(-40px 100% -40px -40px); transition: clip-path var(--t-move) var(--ease); }
 html.js [data-reveal].seen { clip-path: inset(-40px -400px -40px -40px); }

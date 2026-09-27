@@ -7,8 +7,9 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.shortcuts import get_object_or_404, redirect, render
 
 from events.models import Event, Role
+from plumbline.inputs import as_id
 
-from . import services
+from . import pairwise_services, services
 from .models import JudgeAssignment
 from .normalization import weighted_score
 
@@ -91,6 +92,7 @@ def event_queue(request, slug):
             "total": len(items),
             "next_item": todo[0] if todo else None,
             "marks": _own_marks(rubric, items),
+            "pairs": pairwise_services.status(request.user, event) if rubric.pairwise else None,
             "judging_open": event.judging_open(),
             "judging_starts": event.judging_open_at or event.submissions_close_at,
             "judging_not_started": not event.judging_open()
@@ -177,3 +179,34 @@ def _past(moment) -> bool:
     from django.utils import timezone
 
     return moment <= timezone.now()
+
+
+@login_required
+def compare(request, slug):
+    """Two of the judge's own projects, side by side, and one question."""
+    event = get_object_or_404(Event, slug=slug)
+    if not event.roles.filter(user=request.user, role=Role.JUDGE).exists():
+        raise PermissionDenied("You are not a judge in this event.")
+    if not pairwise_services.enabled(event):
+        raise PermissionDenied("This event does not use pairwise judging.")
+    if request.method == "POST":
+        first, second = as_id(request.POST.get("first")), as_id(request.POST.get("second"))
+        chosen = request.POST.get("preferred")
+        preferred = None if chosen == "none" else as_id(chosen)
+        try:
+            if first is None or second is None or (chosen != "none" and preferred is None):
+                raise ValidationError("That was not a comparison.")
+            pairwise_services.record_comparison(request.user, event, first, second, preferred)
+        except (ValidationError, PermissionDenied) as e:
+            messages.error(request, "; ".join(getattr(e, "messages", [str(e)])))
+        return redirect("judging:compare", slug=slug)
+    return render(
+        request,
+        "judging/compare.html",
+        {
+            "event": event,
+            "pair": pairwise_services.next_pair(request.user, event),
+            "state": pairwise_services.status(request.user, event),
+            "judging_open": event.judging_open(),
+        },
+    )

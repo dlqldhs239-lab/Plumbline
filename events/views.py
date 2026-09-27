@@ -506,6 +506,12 @@ def organize_dashboard(request, slug):
     )
 
 
+def pairwise_summary(event, user):
+    from judging import pairwise_services
+
+    return pairwise_services.summary(event, user)
+
+
 def results_state(event) -> dict:
     """Whether the stored results still describe the reviews that are in."""
     from django.db.models import Max
@@ -715,6 +721,12 @@ def organize_rubric(request, slug):
     initial = [
         {"key": c.key, "name": c.name, "weight": c.weight, "description": c.description} for c in rubric.criteria.all()
     ]
+    if request.method == "POST" and "pairwise" in request.POST:
+        from judging import pairwise_services
+
+        pairwise_services.set_enabled(event, request.user, request.POST.get("pairwise") == "on")
+        messages.success(request, "Saved.")
+        return redirect("organize_rubric", slug=slug)
     if request.method == "POST" and "jury_k" in request.POST:
         try:
             judging_services.set_jury_k(rubric, request.user, request.POST.get("jury_k", "").strip())
@@ -833,6 +845,7 @@ def organize_results(request, slug):
             "calibration": calibration,
             "movers": movers,
             "elevation": elevation,
+            "pairwise": pairwise_summary(event, request.user),
             "state": results_state(event),
             "rubric": rubric,
             "jury_k": judging_services.computed_jury_k(event),

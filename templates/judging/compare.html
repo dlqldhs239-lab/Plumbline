@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Compare · {{ event.name }}{% endblock %}
+{% block content %}
+<nav class="strip" aria-label="Comparisons in {{ event.name }}">
+  <a class="label back" href="{% url 'judging:queue' event.slug %}">Your reviews</a>
+  <div class="bar grow"><span style="width:{% if state.asked %}{% widthratio state.done state.asked 100 %}{% else %}0{% endif %}%"></span></div>
+  <span class="label tnum">{{ state.done }} of {{ state.asked }} compared</span>
+</nav>
+
+{% if pair %}
+<div class="page-head tall review-head">
+  <div>
+    <div class="eyebrow">Comparison {{ state.done|add:1 }} of {{ state.asked }} · {{ event.name }}</div>
+    <h1 class="display-2">Which is the better project?</h1>
+    <p class="lede">Both are yours to review. Choose the one you would rank higher. No scale, no numbers.</p>
+  </div>
+</div>
+
+<form method="post" class="versus" id="versus">
+  {% csrf_token %}
+  <input type="hidden" name="first" value="{{ pair.0.pk }}">
+  <input type="hidden" name="second" value="{{ pair.1.pk }}">
+  {% for p in pair %}
+  <section class="side" aria-labelledby="side-{{ forloop.counter }}">
+    <span class="label">{% if forloop.first %}Left{% else %}Right{% endif %}{% if p.track %} · {{ p.track.name }}{% endif %}</span>
+    <h2 id="side-{{ forloop.counter }}">{{ p.title }}</h2>
+    {% if p.tagline %}<p class="lede">{{ p.tagline }}</p>{% endif %}
+    <p class="by">by <strong>{{ p.team.name }}</strong></p>
+    {% if p.repo_url or p.live_url or p.demo_video_url %}
+    <dl class="links">
+      {% if p.repo_url %}<dt class="label">Repository</dt><dd><a href="{{ p.repo_url }}" target="_blank" rel="noopener">{{ p.repo_url }}</a></dd>{% endif %}
+      {% if p.live_url %}<dt class="label">Live</dt><dd><a href="{{ p.live_url }}" target="_blank" rel="noopener">{{ p.live_url }}</a></dd>{% endif %}
+      {% if p.demo_video_url %}<dt class="label">Demo video</dt><dd><a href="{{ p.demo_video_url }}" target="_blank" rel="noopener">{{ p.demo_video_url }}</a></dd>{% endif %}
+    </dl>
+    {% endif %}
+    {% if p.description %}<div class="prose clamp">{{ p.description|truncatechars:700|linebreaks }}</div>{% endif %}
+    <button class="btn primary" type="submit" name="preferred" value="{{ p.pk }}"{% if not judging_open %} disabled{% endif %}>{% if forloop.first %}The left one{% else %}The right one{% endif %}</button>
+  </section>
+  {% endfor %}
+  <div class="between">
+    <button class="btn" type="submit" name="preferred" value="none"{% if not judging_open %} disabled{% endif %}>I cannot say</button>
+    <p class="keys"><kbd>←</kbd> left · <kbd>→</kbd> right · <kbd>↓</kbd> cannot say</p>
+    {% if not judging_open %}<p class="notice">Judging is not open. You can read the projects and compare them when it is.</p>{% endif %}
+  </div>
+</form>
+{% else %}
+<div class="page-head tall">
+  <div>
+    <div class="eyebrow">{{ event.name }}</div>
+    <h1 class="display-2">{% if state.projects < 2 %}Nothing to compare yet.{% else %}All {{ state.asked }} compared.{% endif %}</h1>
+    <p class="lede">{% if state.projects < 2 %}A comparison needs two projects, and you have {{ state.projects }} assigned.{% else %}Thank you. Your comparisons are in.{% endif %}</p>
+  </div>
+  <div class="actions"><a class="btn primary" href="{% url 'judging:queue' event.slug %}">Your reviews</a></div>
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}{% if pair and judging_open %}<script src="{% static 'js/compare.js' %}" defer></script>{% endif %}{% endblock %}

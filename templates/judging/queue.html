@@ -54,6 +54,14 @@
   </div>
 
   <aside class="stack loose">
+    {% if pairs and pairs.asked %}
+    <section class="card box" aria-labelledby="pairs-h">
+      <h3 id="pairs-h">Compare in pairs</h3>
+      <p class="muted">This event also asks which of two projects is the better one. No scale: a choice. {{ pairs.done }} of {{ pairs.asked }} done.</p>
+      <div class="bar" style="margin:var(--s4) 0"><span style="width:{% widthratio pairs.done pairs.asked 100 %}%"></span></div>
+      {% if pairs.left %}<a class="btn{% if not todo %} primary{% endif %}" href="{% url 'judging:compare' event.slug %}">{% if pairs.done %}Continue comparing{% else %}Start comparing{% endif %}</a>{% else %}<span class="badge ok">All compared</span>{% endif %}
+    </section>
+    {% endif %}
     {% if marks %}
     <section class="card" aria-labelledby="marks-h">
       <h3 id="marks-h">Your marks so far</h3>

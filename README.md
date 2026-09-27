@@ -97,6 +97,14 @@ unknown. A judge's record says that they judged and how much, never what
 they scored. A record whose place changed after a recompute is withdrawn and
 replaced, so there is never more than one to believe.
 
+**Pairwise mode (bonus).** Beside the rubric, judges can be asked which of
+two of their projects is the better one. The comparisons are ranked with a
+Bradley-Terry model (MM algorithm, a weak prior so that unbeaten projects
+and disconnected groups stay finite) and shown next to the rubric ranking
+with their agreement. Method and tests in [JUDGING.md](JUDGING.md), section
+5; the model on the fixture data in
+[docs/pairwise-proof.md](docs/pairwise-proof.md).
+
 ## Tier claim
 
 `.dogfood.toml` claims **T1, T2, T3 and T4**.
@@ -139,7 +147,6 @@ What each upper tier asks for, and where it is:
 - File uploads: thumbnails and gallery images are URLs.
 - Outbound email. Judges and ballot links are created by the organizer and
   distributed with whatever mail tool they already use.
-- Pairwise (Gavel-style) judging mode.
 
 ## Before a real event
 

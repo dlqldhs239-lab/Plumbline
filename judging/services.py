@@ -333,11 +333,22 @@ def recompute_results(event: Event, user) -> dict:
     from community.services import tally
 
     community = tally(event) if event.voting_access != Event.VotingAccess.CLOSED else {}
+    pairs = None
+    if rubric.pairwise:
+        from .pairwise_services import compute
+
+        pairs = compute(event)
     ProjectResult.objects.filter(event=event).delete()
     JudgeCalibration.objects.filter(event=event).delete()
     for project in eligible_projects(event):
         standing = result.projects.get(str(project.id))
+        versus = pairs.projects.get(str(project.id)) if pairs else None
+        heard = versus is not None and versus.comparisons > 0
         ProjectResult.objects.create(
+            pairwise_score=versus.score if heard else None,
+            pairwise_rank=versus.rank if heard else None,
+            pairwise_n=versus.comparisons if heard else 0,
+            pairwise_wins=versus.wins if heard else 0,
             event=event,
             project=project,
             review_count=standing.n if standing else 0,
@@ -372,6 +383,7 @@ def recompute_results(event: Event, user) -> dict:
         "jury_k": result.jury_k,
         "panel_mean": result.panel_mean,
         "panel_stdev": result.panel_stdev,
+        "comparisons": pairs.comparisons if pairs else 0,
     }
     record("results.recompute", actor=user, event=event, detail=summary)
     return summary

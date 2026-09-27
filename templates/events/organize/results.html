@@ -85,6 +85,26 @@
   </section>
 </div>
 
+{% if pairwise %}
+<section style="margin-top:var(--s7)" id="pairwise">
+  <div class="block-head inset">
+    <span class="label">Pairwise</span>
+    <h2>What the comparisons say</h2>
+    <p>{{ pairwise.comparisons }} comparison{{ pairwise.comparisons|pluralize }} by {{ pairwise.judges }} judge{{ pairwise.judges|pluralize }}, ranked with a Bradley-Terry model. A score of 0 is an average project; a project one point above another is preferred to it about 73 times in 100.{% if pairwise.tau is not None %} Agreement with the rubric ranking: <strong>{{ pairwise.tau|floatformat:2 }}</strong> (Kendall's tau, from minus one to one).{% endif %}</p>
+  </div>
+  {% if pairwise.stale %}<p class="notice">Comparisons have come in since these were computed. Recompute to include them.</p>{% endif %}
+  {% if pairwise.components > 1 %}<p class="notice">The comparisons fall into {{ pairwise.components }} groups that were never compared with each other. The order inside a group rests on comparisons; the order between groups rests on the prior alone.</p>{% endif %}
+  {% if pairwise.rows %}
+  <div class="table-wrap scroll">
+  <table class="standings">
+    <thead><tr><th class="num">Pairwise place</th><th>Project</th><th class="num">Compared</th><th class="num">Preferred</th><th class="num">Score</th><th class="num">Rubric place</th></tr></thead>
+    <tbody>{% for r in pairwise.rows %}<tr><td class="num"><strong>{{ r.pairwise_rank }}</strong></td><td><a href="{{ r.project.get_absolute_url }}">{{ r.project.title }}</a><small class="narrow">{{ r.project.team.name }}</small></td><td class="num">{{ r.pairwise_n }}</td><td class="num">{{ r.pairwise_wins|floatformat:"-1" }}</td><td class="num">{% if r.pairwise_score > 0 %}+{% endif %}{{ r.pairwise_score|floatformat:2 }}</td><td class="num">{{ r.rank|default:"n/a" }}</td></tr>{% endfor %}</tbody>
+  </table>
+  </div>
+  {% else %}<div class="empty"><strong>No comparisons counted yet</strong>{% if pairwise.comparisons %}Recompute to rank the {{ pairwise.comparisons }} that are in.{% else %}Judges find them on their review page.{% endif %}</div>{% endif %}
+</section>
+{% endif %}
+
 <section style="margin-top:var(--s7)">
   <div class="row spread" style="margin-bottom:var(--s4)"><h2 class="rule grow">Standings <span class="label tnum">{{ rows|length }}</span></h2></div>
   <div class="table-wrap">

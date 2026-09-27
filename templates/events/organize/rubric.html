@@ -24,6 +24,17 @@
 </div>
 <p class="muted" style="margin-top:.75rem">Need another row? Save once and an empty row appears.</p>
 
+<div class="card" style="margin-top:var(--s7)" id="pairwise">
+  <h3>Pairwise comparisons</h3>
+  <p class="muted">Besides marking each project, a judge can be asked which of two of their projects is the better one. A harsh judge and a generous judge disagree on every mark and can still agree on every comparison, so this ranking needs no correction for how judges mark. It is computed with a Bradley-Terry model and shown beside the rubric ranking; it does not replace it. {% if rubric.pairwise %}<strong>On.</strong>{% else %}<strong>Off.</strong>{% endif %}</p>
+  <form method="post" class="row">
+    {% csrf_token %}
+    <input type="hidden" name="pairwise" value="{% if rubric.pairwise %}off{% else %}on{% endif %}">
+    <button class="btn" type="submit">{% if rubric.pairwise %}Stop asking for comparisons{% else %}Ask judges to compare in pairs{% endif %}</button>
+  </form>
+  <p class="help">Comparisons already given are kept either way. The method is in JUDGING.md.</p>
+</div>
+
 <div class="card" style="margin-top:var(--s7)" id="jury">
   <h3>Jury-size adjustment</h3>
   <p class="muted">Projects do not all get the same number of reviews. A mean of two reviews is a weaker claim than a mean of five, so each project is pulled toward the panel mean in proportion to how few reviews it has. The number below is how many reviews the panel mean counts for. Currently <strong>{{ rubric.effective_jury_k|floatformat:"-1" }}</strong>{% if rubric.jury_k is None %}, following this event's reviews per project{% endif %}.</p>

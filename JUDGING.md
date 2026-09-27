@@ -191,7 +191,120 @@ their projects.
   a healthy spread; their projects move down a place or two relative to raw,
   as they should.
 
-## 5. Community vote
+## 5. Pairwise mode
+
+An organizer can switch this on beside the rubric (console, *Rubric*). It
+does not replace the rubric ranking; it is a second reading of the same
+projects by the same judges, shown next to the first.
+
+### Why
+
+Everything in section 4 exists because judges disagree about where "3" is.
+A comparison does not ask where anything is. It asks which of two projects
+is better, and a harsh judge and a generous judge can disagree on every
+mark and still agree on every comparison. There is nothing to normalize.
+
+### What a judge does
+
+On their review page the judge is offered *Compare in pairs*. They are shown
+two of their own assigned projects side by side and choose the left one,
+the right one, or neither. Left arrow, right arrow and down arrow do the
+same. One answer per judge and pair.
+
+A judge is only ever shown projects assigned to them, so the rules about
+tracks and about never judging one's own team hold here without being
+written twice.
+
+### Which pair comes next
+
+`judging/pairwise_services.py::next_pair`. Of the pairs the judge has not
+answered, the portal takes the one whose projects this judge has been asked
+about least, then the one whose projects have been compared least in the
+whole event. So every project is heard about before any is heard about
+twice. Ties are broken by a hash of the judge and the pair, which also
+decides which project stands on the left, so none gains from always being
+first.
+
+A judge with *n* projects is asked for every pair when there are few and
+for about three comparisons per project when there are many: 3 for three
+projects, 9 for six, 45 for thirty, where every pair would be 435.
+
+### The model
+
+Bradley-Terry. Each project has a strength *p* > 0 and
+
+```
+P(i is preferred to j) = p_i / (p_i + p_j)
+```
+
+The strengths that make the recorded comparisons most likely are found with
+the MM algorithm (Hunter, 2004). From equal strengths, repeat
+
+```
+p_i  <-  W_i / sum_j ( n_ij / (p_i + p_j) )
+```
+
+where *W_i* is how often *i* was preferred and *n_ij* how often *i* and
+*j* were compared. Each step raises the likelihood. A "neither" counts as
+half a win to each.
+
+Two things can leave the maximum undefined: a project that won every
+comparison has infinite strength, and two groups of projects never compared
+across have no common scale. So each project also meets a phantom opponent
+of strength 1, winning half a comparison and losing half. That is a weak
+prior centred on average. It keeps every strength finite, ties separate
+groups to one scale, and fades as real comparisons come in. The report says
+how many groups there were; if more than one, the order between them rests
+on the prior and the page says so.
+
+The published score is the log of the strength, centred on zero. A project
+one point above another is preferred to it about 73 times in 100.
+
+### How we know it is right
+
+`tests/test_pairwise.py`:
+
+- two projects, three wins to one, no prior: the strengths come out 3 to 1;
+- three projects: each strength satisfies the likelihood equation to seven
+  places;
+- a second implementation, plain gradient ascent on the log likelihood,
+  agrees with the MM algorithm to five places on 260 random comparisons;
+- given 3000 comparisons drawn from known strengths, the order is recovered
+  (Kendall's tau above 0.9);
+- an unbeaten project stays finite with the prior, and without it the
+  result says that it did not settle;
+- the order of the input does not change the answer.
+
+### On the fixture data
+
+The fixtures contain rubric scores and no comparisons. To run the model on
+real data all the same, `manage.py pairwise_report` takes the comparisons
+the scores imply: within one judge, of every two projects they scored, the
+one with the higher score is preferred. 275 comparisons, 34 of them ties.
+Full table: [docs/pairwise-proof.md](docs/pairwise-proof.md).
+
+- **First place is the same.** *Iron Switch* leads both rankings.
+- **Agreement with the adjusted rubric score: tau 0.69.** With the raw
+  mean: 0.64. The pairwise order is closer to the normalized order than to
+  the raw one, which is what should happen if both remove judge bias.
+- **The largest disagreement is instructive.** *Dry Harbour* is 29th on
+  the rubric and 2nd here. It has five reviews: 2.33, 3.67, 4.67, 2.0 and
+  4.0. The 4.67 is from jdg_26, who reviewed nine projects and gave no other
+  project as much, so that one review becomes eight won comparisons. The
+  2.0 is from jdg_01, who reviewed nothing else, so it becomes no
+  comparison at all. Implied comparisons weigh a judge by the square of
+  their load.
+
+That last point is a property of deriving comparisons from scores, and it
+is why the live mode does not do it. Judges there are asked for about three
+comparisons per project whatever their load, so nobody's opinion counts
+thirty-six times and nobody's counts zero.
+
+We do not claim that either ranking is the true one. Where they agree, an
+organizer can be confident. Where they differ by twenty places, the portal
+shows both and the reason is one click away.
+
+## 6. Community vote
 
 The community tally (sum of vote weights, voided ballots excluded) is stored
 next to the judged result as `community_score` and shown as its own column.
@@ -205,15 +318,15 @@ Quadratic voting is available per event: a voter has *C* credits and putting
 answer to a loud minority: concentrating influence gets expensive fast, so
 broad support beats a small enthusiastic block.
 
-## 6. What we would defend, and what we would change
+## 7. What we would defend, and what we would change
 
 Defend: per-judge standardization is the standard first step in any panel
 scoring problem (it is what conference reviewing systems do), and shrinkage
 is the standard fix for small *n*. The flat-judge rule is a conscious
 choice with an explanation in the UI, not a division-by-zero guard.
 
-Change with more time: a pairwise mode (Gavel's Crowd-BT) as an alternative
-that sidesteps calibration entirely; an interaction term for track
+Change with more time: judge reliability in the pairwise model (Crowd-BT),
+so that a judge who contradicts the panel counts for less; an interaction term for track
 difficulty when judges are track-restricted, since a judge's mean is then
 partly the track's mean; and confidence intervals on *A(p)* so the results
 page can say when two projects are indistinguishable.
