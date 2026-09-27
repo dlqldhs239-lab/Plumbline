@@ -98,7 +98,7 @@
   <div class="table-wrap scroll">
   <table class="standings">
     <thead><tr><th class="num">Pairwise place</th><th>Project</th><th class="num">Compared</th><th class="num">Preferred</th><th class="num">Score</th><th class="num">Rubric place</th></tr></thead>
-    <tbody>{% for r in pairwise.rows %}<tr><td class="num"><strong>{{ r.pairwise_rank }}</strong></td><td><a href="{{ r.project.get_absolute_url }}">{{ r.project.title }}</a><small class="narrow">{{ r.project.team.name }}</small></td><td class="num">{{ r.pairwise_n }}</td><td class="num">{{ r.pairwise_wins|floatformat:"-1" }}</td><td class="num">{% if r.pairwise_score > 0 %}+{% endif %}{{ r.pairwise_score|floatformat:2 }}</td><td class="num">{{ r.rank|default:"n/a" }}</td></tr>{% endfor %}</tbody>
+    <tbody>{% for r in pairwise.rows %}<tr><td class="num"><strong>{{ r.pairwise_place }}</strong></td><td><a href="{{ r.project.get_absolute_url }}">{{ r.project.title }}</a><small class="narrow">{{ r.project.team.name }}</small></td><td class="num">{{ r.pairwise_n }}</td><td class="num">{{ r.pairwise_wins|floatformat:"-1" }}</td><td class="num">{% if r.pairwise_score > 0 %}+{% endif %}{{ r.pairwise_score|floatformat:2 }}</td><td class="num">{{ r.rubric_place|default:"n/a" }}</td></tr>{% endfor %}</tbody>
   </table>
   </div>
   {% else %}<div class="empty"><strong>No comparisons counted yet</strong>{% if pairwise.comparisons %}Recompute to rank the {{ pairwise.comparisons }} that are in.{% else %}Judges find them on their review page.{% endif %}</div>{% endif %}

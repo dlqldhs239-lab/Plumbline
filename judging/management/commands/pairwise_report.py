@@ -15,6 +15,7 @@ from __future__ import annotations
 from django.core.management.base import BaseCommand, CommandError
 
 from events.models import Event, EventRole, Project, Role
+from judging.export import md_cell
 from judging.normalization import normalize
 from judging.pairwise import estimate, from_scores, kendall_tau
 from judging.pairwise_services import collect
@@ -86,8 +87,8 @@ class Command(BaseCommand):
             p = titles.get(s.project_id)
             rub = rubric_result.projects.get(s.project_id)
             out(
-                f"| {s.rank if s.rank else 'n/a'} | {rub.rank if rub else 'n/a'} | {p.title if p else s.project_id} | "
-                f"{p.track.name if p and p.track else ''} | {s.comparisons} | {s.wins:g} | {s.score:+.3f} | "
+                f"| {s.rank if s.rank else 'n/a'} | {rub.rank if rub else 'n/a'} | {md_cell(p.title if p else s.project_id)} | "
+                f"{md_cell(p.track.name if p and p.track else '')} | {s.comparisons} | {s.wins:g} | {s.score:+.3f} | "
                 f"{s.strength:.3f} |"
             )
         by_judge: dict[str, int] = {}

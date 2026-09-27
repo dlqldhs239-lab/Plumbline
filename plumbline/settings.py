@@ -9,6 +9,8 @@ from pathlib import Path
 
 import dj_database_url
 
+from plumbline.config import site_address
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
@@ -149,7 +151,7 @@ PLUMBLINE_SITE_NAME = os.environ.get("PLUMBLINE_SITE_NAME", "Plumbline")
 # for other people (certificates, sign-in links, ballot links, embeds) are
 # built from it. Empty means "whatever address the request came to", which
 # is right on a laptop and wrong behind anything that lets Host through.
-PLUMBLINE_SITE_URL = os.environ.get("PLUMBLINE_SITE_URL", "").strip()
+PLUMBLINE_SITE_URL = site_address(os.environ.get("PLUMBLINE_SITE_URL", ""))
 
 # Webhooks. Deliveries run in a background thread after the transaction
 # commits, so a slow receiver never slows a judge down. Set ASYNC to 0 to

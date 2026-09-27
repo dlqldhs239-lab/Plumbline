@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from django.core.exceptions import PermissionDenied
+from django.db import transaction
 from ninja import Schema
 
 from events.permissions import is_organizer
 from judging import pairwise_services
-from judging.models import ProjectResult
+from judging.services import computed_jury_k, ensure_rubric, set_jury_k
 
 from .auth import auth_optional, auth_required
 from .router import _event, api
@@ -51,6 +52,58 @@ class PairwiseRow(Schema):
     comparisons: int
     preferred: float
     rubric_rank: int | None
+
+
+class MethodIn(Schema):
+    pairwise: bool | None = None
+    jury_size: int | None = None
+    jury_size_follows_event: bool = False
+
+
+class MethodOut(Schema):
+    pairwise: bool
+    jury_size: int | None
+    jury_size_in_use: float | None
+
+
+def method_out(event) -> dict:
+    rubric = ensure_rubric(event)
+    return {"pairwise": rubric.pairwise, "jury_size": rubric.jury_k, "jury_size_in_use": computed_jury_k(event)}
+
+
+@api.get(
+    "/events/{slug}/judging/method", response={200: MethodOut, 403: ErrorOut}, auth=auth_required, tags=["judging"]
+)
+def get_method(request, slug: str):
+    """How this event is judged beyond the rubric: whether judges are also
+    asked to compare pairs, and the jury-size constant. Organizers only."""
+    event = _event(slug)
+    if not is_organizer(request.user, event):
+        raise PermissionDenied("Organizer role required.")
+    return method_out(event)
+
+
+@api.patch(
+    "/events/{slug}/judging/method",
+    response={200: MethodOut, 400: ErrorOut, 403: ErrorOut},
+    auth=auth_required,
+    tags=["judging"],
+)
+def set_method(request, slug: str, payload: MethodIn):
+    """Change only what is sent. `jury_size` 0 switches the adjustment off;
+    `jury_size_follows_event` puts it back to the event's reviews per project.
+    Results change at the next recompute, not before."""
+    event = _event(slug)
+    if not is_organizer(request.user, event):
+        raise PermissionDenied("Organizer role required.")
+    with transaction.atomic():
+        if payload.jury_size_follows_event:
+            set_jury_k(ensure_rubric(event), request.user, None)
+        elif payload.jury_size is not None:
+            set_jury_k(ensure_rubric(event), request.user, payload.jury_size)
+        if payload.pairwise is not None:
+            pairwise_services.set_enabled(event, request.user, payload.pairwise)
+    return method_out(event)
 
 
 def side(p) -> dict:
@@ -103,26 +156,23 @@ def compare(request, slug: str, payload: ComparisonIn):
 )
 def pairwise_ranking(request, slug: str):
     """The ranking from comparisons, as of the last recompute. Organizers
-    always; everyone else once results are published."""
+    always; everyone else once results are published. Places are counted
+    among the projects shown, as on the results page. Empty when the event
+    does not use pairwise judging."""
     event = _event(slug)
     if not event.results_published and not is_organizer(request.user, event):
         raise PermissionDenied("Results are not published yet.")
-    from judging.services import eligible_projects
-
-    rows = (
-        ProjectResult.objects.filter(event=event, pairwise_n__gt=0, project__in=eligible_projects(event))
-        .select_related("project")
-        .order_by("pairwise_rank", "id")
-    )
+    if not pairwise_services.enabled(event):
+        return []
     return [
         {
             "project_id": r.project_id,
             "title": r.project.title,
-            "rank": r.pairwise_rank,
+            "rank": r.pairwise_place,
             "score": r.pairwise_score,
             "comparisons": r.pairwise_n,
             "preferred": r.pairwise_wins,
-            "rubric_rank": r.rank,
+            "rubric_rank": r.rubric_place,
         }
-        for r in rows
+        for r in pairwise_services.ranking(event)
     ]

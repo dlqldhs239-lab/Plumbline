@@ -1,5 +1,5 @@
-from django.db import DataError
-from django.http import HttpResponseBadRequest, HttpResponseNotFound, JsonResponse
+from django.db import DataError, OperationalError
+from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseNotFound, JsonResponse
 from django.template.loader import render_to_string
 
 
@@ -17,6 +17,16 @@ class OutOfRangeMiddleware:
         return self.get_response(request)
 
     def process_exception(self, request, exception):
+        if isinstance(exception, OperationalError) and "locked" in str(exception).lower():
+            # SQLite, used for development, lets one writer in at a time and
+            # turns the others away. That is "try again", not a fault.
+            busy = "The database is busy. Try again in a moment."
+            if request.path.startswith("/api/"):
+                response = JsonResponse({"detail": busy}, status=503)
+            else:
+                response = HttpResponse(busy, status=503, content_type="text/plain; charset=utf-8")
+            response["Retry-After"] = "1"
+            return response
         if not isinstance(exception, (OverflowError, DataError)):
             return None
         reading = request.method in ("GET", "HEAD")

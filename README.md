@@ -7,6 +7,30 @@ A plumb line is the weighted string a builder hangs to check that a wall is
 truly vertical. This portal is built around the same idea: judging that is
 straight because the backend holds the line, not because a button is hidden.
 
+![The landing page: thirty plumb lines, one for each judge of the sample event](docs/screens/landing.png)
+
+## What is different here
+
+Every judging portal averages scores. An average believes a judge who gave
+everyone a four as much as one who thought about it, and it rewards the
+project that happened to draw the generous judges. Plumbline shows the
+organizer how far each judge hangs from the panel, corrects for it with a
+method written down in [JUDGING.md](JUDGING.md), and publishes both orders
+side by side so that anyone can see what the correction did.
+
+| | |
+|---|---|
+| ![Raw order against final order](docs/screens/slopegraph.png) | ![How each judge marks, against the panel mean](docs/screens/elevation.png) |
+| **Results, public.** The order raw means gave, the order that stands, and a line for every project that moved. | **Organizer console.** Each judge's mean and spread against the panel. The judge who gave every project the same score is dashed and counts as no opinion. |
+| ![The judge console](docs/screens/review.png) | ![Pairwise comparison](docs/screens/compare.png) |
+| **Judge console.** Number keys score, the sheet saves itself, *submit and next* moves on. Made for thirty projects in a sitting. | **Pairwise mode.** Which of two is better, ranked with a Bradley-Terry model beside the rubric. |
+| ![A signed certificate](docs/screens/certificate.png) | ![The organizer's dashboard](docs/screens/console.png) |
+| **Signed records.** A certificate with a number and a signature that anyone can check at `/verify/`. | **Dashboard.** What needs attention before results can be published, and nothing else. |
+
+The charts are drawn by the server as SVG. There is no chart library, no
+CDN and no build step; the pages work with scripts switched off. The design
+rules are in [docs/DESIGN.md](docs/DESIGN.md) and live at `/styleguide/`.
+
 ## Run it
 
 ```sh
@@ -101,7 +125,8 @@ replaced, so there is never more than one to believe.
 two of their projects is the better one. The comparisons are ranked with a
 Bradley-Terry model (MM algorithm, a weak prior so that unbeaten projects
 and disconnected groups stay finite) and shown next to the rubric ranking
-with their agreement. Method and tests in [JUDGING.md](JUDGING.md), section
+with their agreement. An organizer switches it on in the console, under
+*Rubric*, or with `PATCH /api/events/<slug>/judging/method`. Method and tests in [JUDGING.md](JUDGING.md), section
 5; the model on the fixture data in
 [docs/pairwise-proof.md](docs/pairwise-proof.md).
 
@@ -157,9 +182,9 @@ and in `.dogfood.toml`. That is what makes the checker work on a fresh
 clone, and it is fine on your own machine. The container says so at start,
 and staff see a notice on every page until it is no longer true.
 
-For a real event set `DJANGO_SECRET_KEY`, `PLUMBLINE_SEED=0` and
-`ALLOWED_HOSTS`, create your own administrator, and remove the seeded
-accounts if the sample was ever loaded.
+For a real event set `DJANGO_SECRET_KEY`, `PLUMBLINE_SEED=0`,
+`ALLOWED_HOSTS` and `PLUMBLINE_SITE_URL`, create your own administrator,
+and remove the seeded accounts if the sample was ever loaded.
 
 ## Running it for real
 
@@ -206,7 +231,7 @@ pip install -r requirements.txt
 python manage.py migrate && python manage.py createcachetable
 python manage.py seed_fixtures fixtures.json
 python manage.py runserver 8080
-python manage.py test tests            # 309 tests, 4 to 10 minutes
+python manage.py test tests            # 345 tests, 4 to 10 minutes
 python manage.py normalization_report sample-hack-2026 > docs/normalization-proof.md
 ```
 
@@ -218,7 +243,10 @@ Without `DATABASE_URL` the development server uses SQLite; Docker uses PostgreSQ
 - [DATA-MODEL.md](DATA-MODEL.md) — schema, and how data gets in and out
 - [JUDGING.md](JUDGING.md) — assignment strategy, scoring maths, normalization, defended
 - [docs/normalization-proof.md](docs/normalization-proof.md) — the method run on the fixture data
+- [docs/pairwise-proof.md](docs/pairwise-proof.md) — the pairwise model run on the fixture data
 - [docs/THREAT-MODEL.md](docs/THREAT-MODEL.md) — voting and submission abuse: what is stopped, what is not
+- [DECISIONS.md](DECISIONS.md) — what was decided, what was given up for it
+- [docs/DESIGN.md](docs/DESIGN.md) — the design rules, and why the pages look the way they do
 
 ## License
 

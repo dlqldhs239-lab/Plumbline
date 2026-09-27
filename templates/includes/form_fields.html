@@ -4,7 +4,7 @@
     <div class="field checkbox">{{ field }}<label for="{{ field.id_for_label }}">{{ field.label }}</label>{% if field.help_text %}<div class="help">{{ field.help_text }}</div>{% endif %}{{ field.errors }}</div>
   {% else %}
     <div class="field">
-      <label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %} <span class="muted" aria-hidden="true">*</span>{% endif %}</label>
+      <label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required or field.field.needed %} <span class="muted" aria-hidden="true">*</span>{% endif %}</label>
       {{ field }}
       {% if field.help_text %}<div class="help">{{ field.help_text }}</div>{% endif %}
       {{ field.errors }}

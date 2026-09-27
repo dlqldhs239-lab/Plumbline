@@ -49,10 +49,15 @@
   // Drawings are wiped in once, when they come into view. Without scripts they are simply there.
   var drawings = document.querySelectorAll('[data-reveal]');
   if ('IntersectionObserver' in window) {
+    // The frame around a drawing is watched, not the drawing: a drawing clipped to nothing is never reported as in view.
     var seen = new IntersectionObserver(function (entries) {
-      entries.forEach(function (en) { if (en.isIntersecting) { en.target.classList.add('seen'); seen.unobserve(en.target); } });
-    }, { threshold: 0.18 });
-    drawings.forEach(function (d) { seen.observe(d); });
+      entries.forEach(function (en) {
+        if (!en.isIntersecting) return;
+        en.target.querySelectorAll(':scope > [data-reveal]').forEach(function (d) { d.classList.add('seen'); });
+        seen.unobserve(en.target);
+      });
+    }, { rootMargin: '0px 0px -12% 0px' });
+    drawings.forEach(function (d) { seen.observe(d.parentElement); });
   } else {
     drawings.forEach(function (d) { d.classList.add('seen'); });
   }

@@ -204,10 +204,29 @@ def missing_answers(project: Project) -> list:
     return [q for q in CustomQuestion.objects.filter(event=project.event, required=True) if q.id not in answered]
 
 
+# Characters that show as nothing: formats and controls, every kind of
+# space, and the Hangul fillers, which are letters to Unicode and blanks to
+# the eye. An answer made only of these is no answer.
+SHOWS_AS_NOTHING = {"\u3164", "\u115f", "\u1160", "\uffa0", "\u2800"}
+
+
+def _shows(text: str) -> bool:
+    import unicodedata
+
+    return any(
+        ch not in SHOWS_AS_NOTHING and unicodedata.category(ch) not in ("Cf", "Cc", "Zs", "Zl", "Zp") for ch in text
+    )
+
+
 @transaction.atomic
 def set_answers(project: Project, user, answers: dict) -> int:
     """Store answers to the organizer's questions, keyed by question id.
-    Each is checked against the kind of its question."""
+    Each is checked against the kind of its question. The page and the API
+    both come through here, so they cannot disagree.
+
+    A draft may leave required questions open. A submitted project may not:
+    an edit that would leave one unanswered is refused, unless an organizer
+    makes it."""
     from .models import CustomAnswer, CustomQuestion
 
     _require_open_for_edit(project.event, user)
@@ -223,6 +242,10 @@ def set_answers(project: Project, user, answers: dict) -> int:
             value = "True" if raw else ""
         else:
             value = str(raw if raw is not None else "").strip()
+        if "\x00" in value:
+            raise ValidationError(f"{q.prompt}: the answer contains a character that cannot be stored.")
+        if not _shows(value):
+            value = ""
         if len(value) > 5000:
             raise ValidationError(f"{q.prompt}: the answer is longer than 5,000 characters.")
         if value and q.kind == CustomQuestion.Kind.CHOICE and value not in (q.choices or []):
@@ -233,6 +256,13 @@ def set_answers(project: Project, user, answers: dict) -> int:
             value = "True" if value.lower() in ("true", "1", "yes", "on") else ""
         CustomAnswer.objects.update_or_create(project=project, question=q, defaults={"value": value})
         saved += 1
+    if saved and project.status == Project.Status.SUBMITTED and not is_organizer(user, project.event):
+        unanswered = missing_answers(project)
+        if unanswered:
+            raise ValidationError(
+                "This project is submitted, and the organizers ask every submitted project to answer: "
+                + "; ".join(q.prompt for q in unanswered)
+            )
     return saved
 
 

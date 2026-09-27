@@ -204,6 +204,77 @@ whoever had since registered `admin@example.org`.
 never changes an account that is already there. Set `PLUMBLINE_SEED=0` for a
 real event.
 
+### A forged or altered certificate
+
+*Attack:* edit a certificate to say first place, or make one up.
+
+*Answer:* every record is a JSON document with an HMAC-SHA256 signature made
+with a key derived from the installation's secret, and a number. The check
+(`/verify/`, `POST /api/records/check`) answers *genuine* only if the
+signature fits **and** the record exists here **and** the stored document
+is the same. One changed character, a key written twice, a well-signed
+document that was never issued: none of them is genuine. A record of a
+place stands only while the results are published, the project is in them
+at the place and score the record states, and the person is still on the
+team. Hide the project, unpublish, or recompute to a different order, and
+the record says it does not stand and shows nothing of what it said. That
+holds for a withdrawn record too. A statement an organizer withdrew by hand
+is not issued again by the next run.
+
+*Not stopped:* someone showing another person's genuine certificate as
+their own. The check says the record is real, not who is holding it. And
+the check has to be asked of the portal that issued the record: the key is
+symmetric, so nobody else can verify the signature.
+
+### A spreadsheet that runs what a team typed
+
+*Attack:* name a team `=HYPERLINK("http://evil.example","click")` and wait
+for the organizer to open the export.
+
+*Answer:* every export goes through one function that writes any cell
+starting with `=`, `+`, `-`, `@`, tab or carriage return as text, numbers
+excepted. The cell is read the way a spreadsheet reads it: spaces and
+invisible characters in front are skipped and full-width signs count as the
+plain ones. Cells that hold several values are made safe value by value.
+
+*The price:* a phone number written `+82-10-...`, a handle written `@name`
+and a comment that opens with a dash carry a leading apostrophe in the
+file.
+
+### An import that puts people where they did not ask to be
+
+*Attack:* an organizer, or someone with an organizer's token, imports a
+file whose members column lists a judge of the same event, or an
+administrator.
+
+*Answer:* the check refuses judges and organizers of the event and staff
+accounts, names every existing account it would add, and the import does
+nothing if any row is refused.
+
+### A judge who picks their own comparisons
+
+*Attack:* in pairwise mode, answer only the pairs that help a favourite, or
+keep answering after the others have stopped.
+
+*Answer:* the portal decides which pair comes next and how many are asked.
+An answer about any other pair, or one more than was asked for, is refused.
+The next pair depends only on that judge's own answers, so it cannot be
+steered by timing either. A judge who joined a team after being assigned
+can neither score nor compare that team's project.
+
+### A forged Host header on a printed address
+
+*Attack:* request a certificate with `Host: evil.example` so that the
+address printed on it points elsewhere.
+
+*Answer:* with `PLUMBLINE_SITE_URL` set, every printed address is built
+from it and the header is ignored. The value is checked at start: anything
+but an http or https address stops the portal with a message.
+
+*Not stopped:* with `PLUMBLINE_SITE_URL` empty and `ALLOWED_HOSTS=*`, which
+is the sample installation, the address follows the request. Only the
+person who sent the header sees that page. Set both for a real event.
+
 ### CSRF against the API from a logged-in browser
 
 *Answer:* session-authenticated unsafe API calls must carry Django's CSRF

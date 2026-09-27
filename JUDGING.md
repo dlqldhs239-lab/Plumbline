@@ -211,19 +211,29 @@ two of their own assigned projects side by side and choose the left one,
 the right one, or neither. Left arrow, right arrow and down arrow do the
 same. One answer per judge and pair.
 
-A judge is only ever shown projects assigned to them, so the rules about
-tracks and about never judging one's own team hold here without being
-written twice.
+A judge is only ever shown projects assigned to them, so the rule about
+tracks holds here without being written twice. A project of a team the
+judge joined after being assigned is left out, here and in scoring.
+
+The judge answers the pair on the page and no other, and as many pairs as
+the portal asks for and no more. A judge who could choose which projects to
+compare, or keep going after the others had stopped, would weigh more than
+one who answered what they were shown. Comparisons count while both
+projects are still assigned to the judge who made them: taking a project
+from a judge takes their comparisons of it out of the count, as it takes
+their scores.
 
 ### Which pair comes next
 
 `judging/pairwise_services.py::next_pair`. Of the pairs the judge has not
 answered, the portal takes the one whose projects this judge has been asked
-about least, then the one whose projects have been compared least in the
-whole event. So every project is heard about before any is heard about
-twice. Ties are broken by a hash of the judge and the pair, which also
-decides which project stands on the left, so none gains from always being
-first.
+about least. So a judge hears about every one of their projects before
+hearing about any twice, and since assignment already spreads projects
+evenly over judges, the same holds across the event. Ties are broken by a
+hash of the judge and the pair, which also decides which project stands on
+the left, so none gains from always being first. The choice depends on
+nothing but this judge's own answers, so the pair on the page is still the
+pair when the answer arrives, whatever other judges did in between.
 
 A judge with *n* projects is asked for every pair when there are few and
 for about three comparisons per project when there are many: 3 for three

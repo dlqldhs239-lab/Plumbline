@@ -175,28 +175,40 @@ class ProjectForm(forms.ModelForm):
         if self.instance.pk:
             self.fields["image_urls_text"].initial = "\n".join(self.instance.image_urls or [])
             self.fields["tech_tags_text"].initial = ", ".join(self.instance.tech_tags or [])
+        # A draft may leave required questions open; a submission may not.
+        # The service decides. The form only marks the fields to match.
+        closing = "submit" in self.data or (self.instance.pk and self.instance.status == Project.Status.SUBMITTED)
         for q in event.custom_questions.all():
-            self.fields[f"q_{q.id}"] = self._question_field(q)
+            self.fields[f"q_{q.id}"] = self._question_field(q, bool(closing))
             if self.instance.pk:
                 ans = self.instance.answers.filter(question=q).first()
                 if ans:
                     self.fields[f"q_{q.id}"].initial = ans.value
 
     @staticmethod
-    def _question_field(q: CustomQuestion):
-        common = {"label": q.prompt, "required": q.required, "help_text": q.help_text}
+    def _build_question_field(q: CustomQuestion, closing: bool = True):
+        common = {"label": q.prompt, "required": q.required and closing, "help_text": q.help_text}
         if q.kind == CustomQuestion.Kind.TEXTAREA:
             return forms.CharField(widget=forms.Textarea(attrs={"rows": 4}), **common)
         if q.kind == CustomQuestion.Kind.URL:
-            return forms.URLField(**common)
+            # Text, checked by the service: the same addresses are accepted
+            # and refused here as over the API.
+            return forms.CharField(widget=forms.URLInput(), **common)
         if q.kind == CustomQuestion.Kind.CHOICE:
             choices = [(c, c) for c in q.choices]
-            if not q.required:
+            if not common["required"]:
                 choices = [("", "No answer"), *choices]
             return forms.ChoiceField(choices=choices, **common)
         if q.kind == CustomQuestion.Kind.CHECKBOX:
             return forms.BooleanField(**{**common, "required": False})
         return forms.CharField(**common)
+
+    @classmethod
+    def _question_field(cls, q: CustomQuestion, closing: bool = True):
+        field = cls._build_question_field(q, closing)
+        # Marked on the form even while a draft may leave it open.
+        field.needed = q.required
+        return field
 
     def data_dict(self) -> dict:
         d = {

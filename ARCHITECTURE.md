@@ -11,18 +11,27 @@ command cannot disagree about what is allowed. There is no queue, no cache
 server, no mail server and no JavaScript build: the goal was a portal an
 organizer can run on Monday and hand to someone else without a call.
 
+The reasons behind each choice, and what was turned down, are in
+[DECISIONS.md](DECISIONS.md).
+
 ```
 browser / curl / run.py
         │
         ▼
- gunicorn (2 workers)  ── whitenoise serves /static
+ gunicorn (2 workers x 8 threads)  ── whitenoise serves /static
         │
         ▼
- Django ─┬─ templates (server-rendered pages)
+ Django ─┬─ templates (server-rendered pages, SVG charts, three small scripts)
          ├─ api/ (django-ninja, OpenAPI at /api/docs)
-         ├─ events/services.py      teams, projects, deadlines
-         ├─ judging/services.py     rubric, assignment, scoring, normalization
+         ├─ events/services.py      events, teams, projects, deadlines, judges
+         ├─ events/extras.py        prizes, the organizer's form questions
+         ├─ events/importer.py      CSV import: check first, then all or nothing
+         ├─ judging/services.py     rubric, assignment, scoring, results
+         ├─ judging/normalization.py  judge z-scores, shrinkage, jury size
+         ├─ judging/pairwise.py     Bradley-Terry estimator
          ├─ community/services.py   voting, comments, rate limits
+         ├─ records/services.py     signed certificates and judge records
+         ├─ integrations/services.py  webhooks on the audit stream
          └─ audit/services.py       append-only log, called by every service
         │
         ▼
@@ -71,24 +80,41 @@ nothing but counters.
 
 **No outbound email.** An organizer already has a mail tool; the portal would
 need SMTP credentials, a hosted service, or a container that is one more
-thing to run. Instead, judges are added by email address and get a login; email
-ballot links are generated and exported as CSV for the organizer to send.
+thing to run. Instead, judges are added by email address and the organizer
+passes on a one-time sign-in link; email ballot links are generated and
+exported as CSV for the organizer to send.
 
-**Seeding at boot, idempotently.** `seed_fixtures` loads the organizer's
-fixture file keyed on the fixture ids, so `docker compose up` twice does not
-double anything. The event's close date comes from the file, so the closed
-event check passes without touching a clock. The four checker tokens are
-derived from `PLUMBLINE_SEED_SECRET`, so a committed `.dogfood.toml` still
-matches after `docker compose down -v`.
+**Threaded workers.** The portal is reached by browsers directly. A browser
+opens spare connections and leaves them idle, and with gunicorn's default
+worker each idle connection holds a whole worker until it times out. Two of
+them and the site stops answering. `gthread` workers keep idle connections
+in threads.
+
+**Seeding once.** `seed_fixtures` loads the organizer's fixture file the
+first time and never writes again: a restart must not put back a score
+someone edited or an account someone removed. In Docker the first load also
+computes and publishes the results, so the sample is a finished event. The
+event's close date comes from the file, so the closed event check passes
+without touching a clock. The four checker tokens are derived from
+`PLUMBLINE_SEED_SECRET`, so a committed `.dogfood.toml` still matches after
+`docker compose down -v`.
+
+**Charts drawn on the server.** The results slopegraph, the judge elevation
+and the date rule are SVG and HTML built in Python and rendered in the
+template. They are there with scripts switched off, they print, and what
+they show is tested like any other function. The one canvas, on the landing
+page, draws the same judges as plumb lines and stops when it has settled.
 
 ## Apps
 
 | app | owns |
 |---|---|
-| `accounts` | API tokens, sign-up, email-or-username login |
+| `accounts` | API tokens, one-time sign-in links, sign-up, email-or-username login |
 | `events` | Event, Track, Prize, EventRole, Team, TeamMembership, TeamInvite, Project, CustomQuestion/Answer; role checks (`permissions.py`); write rules (`services.py`); public pages, participant pages, organizer console |
-| `judging` | Rubric, Criterion, JudgeAssignment, Score, ProjectResult, JudgeCalibration; assignment, scoring, normalization (`normalization.py`), CSV export; judge console |
+| `judging` | Rubric, Criterion, JudgeAssignment, Score, PairwiseComparison, ProjectResult, JudgeCalibration; assignment, scoring, normalization (`normalization.py`), pairwise ranking (`pairwise.py`), what the public pages show (`showcase.py`), CSV export; judge console |
 | `community` | Voter, Vote, Comment; access modes, quadratic budget, ballot order, tallies, integrity report, moderation |
+| `records` | Record; issuing, withdrawing and checking signed certificates and judge participation records |
+| `integrations` | Webhook, WebhookDelivery; signing, delivery, retry |
 | `audit` | AuditLog; `record()` helper; middleware that makes the current actor and IP available to the service layer |
 | `api` | the ninja router, schemas and auth classes |
 
@@ -116,11 +142,26 @@ gunicorn. Static files are collected at build time and served by whitenoise,
 so no separate web server is required; put a TLS proxy in front for the
 public internet.
 
+## How it was checked
+
+- 345 tests, run on every change. Among them a second implementation of the
+  normalization and one of the Bradley-Terry estimator, each written from the
+  document and not from the module.
+- The official checker (T1, T2) and `tools/verify_tiers.py` (T3, T4), against
+  the Docker stack, with both reports committed.
+- A browser driven through every flow by script after each stage, and
+  screenshots of every page at 390, 1440 and 1920 pixels checked for overflow.
+- Four independent reviews by a reviewer that had not written the code, each
+  after a stage of work. They found 27, 14, 20 and then the findings of the
+  fourth; every one is fixed and has a test named for it
+  (`tests/test_review_*.py`).
+
 ## What we would do next
 
-- Pairwise mode with a Bradley–Terry estimator as an alternative to absolute
-  scoring; the assignment and audit plumbing already fit it.
-- Webhooks on the audit stream (every state change already passes through one
-  function).
-- Per-track standings and prizes on the results page.
+- Judge reliability in the pairwise model, so that a judge who contradicts
+  the panel counts for less.
+- Confidence intervals on the adjusted score, so the results page can say
+  when two projects cannot be told apart.
 - Image uploads with a local volume, behind the same URL fields.
+- Records signed with a public key, so that a check needs no call to the
+  portal that issued them.

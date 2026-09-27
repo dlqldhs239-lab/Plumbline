@@ -60,7 +60,7 @@ class RulesTests(Pairwise):
         self.assertEqual(PairwiseComparison.objects.count(), 0)
 
     def test_one_answer_per_judge_and_pair_whichever_way_round(self):
-        a, b = self.mine[0], self.mine[1]
+        a, b = pw.next_pair(self.judge, self.event)
         pw.record_comparison(self.judge, self.event, a.id, b.id, a.id)
         for first, second in ((a.id, b.id), (b.id, a.id)):
             with self.assertRaises(ValidationError):
@@ -70,9 +70,11 @@ class RulesTests(Pairwise):
         self.assertEqual(PairwiseComparison.objects.count(), 1)
 
     def test_a_hidden_project_leaves_the_pool_and_the_ranking(self):
-        a, b, c = self.mine[:3]
+        a, b = pw.next_pair(self.judge, self.event)
         pw.record_comparison(self.judge, self.event, a.id, b.id, a.id)
-        pw.record_comparison(self.judge, self.event, b.id, c.id, b.id)
+        c, d = pw.next_pair(self.judge, self.event)
+        pw.record_comparison(self.judge, self.event, c.id, d.id, c.id)
+        self.assertEqual(len({a.id, b.id, c.id, d.id}), 4)
         event_services.set_hidden(a, self.organizer, True)
         self.assertNotIn(a.id, {p.id for p in pw.pool(self.judge, self.event)})
         self.assertEqual(len(pw.collect(self.event)), 1)
@@ -146,7 +148,7 @@ class ResultsTests(Pairwise):
 
     def test_new_comparisons_make_the_summary_stale(self):
         services.recompute_results(self.event, self.organizer)
-        a, b = self.mine[:2]
+        a, b = pw.next_pair(self.judge, self.event)
         pw.record_comparison(self.judge, self.event, a.id, b.id, a.id)
         self.assertTrue(pw.summary(self.event, self.organizer)["stale"])
 

@@ -36,6 +36,7 @@ class IssueOut(Schema):
     issued: int
     standing: int
     withdrawn: int = 0
+    held_back: int = 0
     teams: int
     judges: int
 
@@ -55,19 +56,21 @@ class RevokeIn(Schema):
     reason: str
 
 
-def record_out(request, rec: Record) -> dict:
-    state = services.state_of(rec)["state"]
+def record_out(request, rec: Record, ground=None) -> dict:
+    found = services.state_of(rec, ground)
+    shown = not found["withheld"]
     return {
         "serial": rec.serial,
         "kind": rec.kind,
-        "state": state,
+        "state": found["state"],
         "issued_at": rec.issued_at,
         "revoked_at": rec.revoked_at,
         "revoke_reason": rec.revoke_reason,
         "url": site_url(request, rec.get_absolute_url()),
-        # A record that does not stand at present keeps its contents to itself.
-        "payload": rec.payload if state != "suspended" else {"serial": rec.serial},
-        "signature": rec.signature if state != "suspended" else "",
+        # A record that does not rest on the published results keeps its
+        # contents to itself, withdrawn or not.
+        "payload": rec.payload if shown else {"serial": rec.serial},
+        "signature": rec.signature if shown else "",
     }
 
 
@@ -87,12 +90,14 @@ def issue_records(request, slug: str, payload: IssueIn):
 def list_records(request, slug: str):
     event = _event(slug)
     _require_organizer(request, event)
-    return [record_out(request, r) for r in event.records.all()]
+    ground = services.Ground(event)
+    return [record_out(request, r, ground) for r in event.records.select_related("event", "project")]
 
 
 @api.get("/records/mine", response=list[RecordOut], auth=auth_required, tags=["records"])
 def my_records(request):
-    return [record_out(request, r) for r in Record.objects.filter(recipient=request.user).select_related("event")]
+    mine = Record.objects.filter(recipient=request.user).select_related("event", "project")
+    return [record_out(request, r) for r in mine]
 
 
 @api.post("/records/check", response=CheckOut, auth=auth_optional, tags=["records"])

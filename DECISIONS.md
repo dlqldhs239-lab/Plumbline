@@ -171,7 +171,36 @@ moves or decorates.
 of true, and that is what the normalization does. Used once per screen it
 reads; used everywhere it would be wallpaper.
 
-## 14. What we would do differently
+## 14. In pairwise mode the portal chooses the pair, not the judge
+
+**Chosen.** A judge answers the pair on the page and as many pairs as the
+portal asks for. Any other pair, or one more, is refused. Which pair comes
+next depends only on that judge's own answers.
+
+**Given up.** An earlier version also looked at how often each project had
+been compared in the whole event. That balanced the event a little better
+and meant the pair could change between showing it and receiving the
+answer, so the rule could not be enforced.
+
+**Why.** A judge who chooses what to compare, or compares more than the
+others, weighs more than the others. The rubric side already holds that
+nobody's opinion counts more than another's; the second ranking has to
+hold it too.
+
+## 15. A record states what the results state, or it does not stand
+
+**Chosen.** A certificate is checked against the published results every
+time it is opened: published, project in them, same place, same score,
+person still on the team. If not, it shows nothing and says why. What an
+organizer withdrew by hand is not issued again.
+
+**Given up.** Certificates that stay valid whatever happens afterwards,
+which is what a PDF is.
+
+**Why.** Two teams each holding a genuine record of first place is the
+failure that makes all records worthless.
+
+## 16. What we would do differently
 
 - **Review before building on top.** The first independent review came
   after three tiers were written and found twenty-seven problems, three of
@@ -179,5 +208,12 @@ reads; used everywhere it would be wallpaper.
 - **Line endings.** Patch scripts on Windows turned the container's
   entrypoint into CRLF and the image stopped starting. `.gitattributes`
   and a guard in the Dockerfile came after the fact.
-- **Prizes and organizer questions** are edited in the Django admin. They
-  deserve pages of their own in the console.
+- **Look at the page, not at the markup.** The charts are wiped in when
+  they come into view. The watcher was set on the chart itself, which was
+  clipped to nothing until the watcher fired, so in a browser it never
+  did. Every test passed, because the tests read the markup. It was found
+  while taking screenshots for the README. `tools/check_drawings.py` now checks
+  that every drawing arrives.
+- **Four reviews found seventy-seven problems.** None of the later ones
+  were in code the earlier reviews had covered. Review what is new, each
+  time.

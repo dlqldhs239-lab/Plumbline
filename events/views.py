@@ -18,7 +18,7 @@ from plumbline.inputs import as_id, id_or_404, site_url
 
 from . import services
 from .forms import AssignForm, CriterionFormSet, EventForm, JudgeInviteForm, ProjectForm, TeamForm
-from .models import CustomAnswer, Event, EventRole, Project, Role, Team, TeamInvite, TeamMembership
+from .models import Event, EventRole, Project, Role, Team, TeamInvite, TeamMembership
 from .permissions import can_edit_project, can_view_project, is_admin, is_organizer, roles_for
 
 GALLERY_PAGE_SIZE = 60
@@ -385,7 +385,7 @@ def project_create(request, slug):
             # One unit: if submitting is refused, no stray draft is left behind.
             with transaction.atomic():
                 project = services.create_project(event, team, request.user, form.data_dict())
-                _save_answers(project, form)
+                _save_answers(project, form, request.user)
                 if "submit" in request.POST:
                     services.submit_project(project, request.user)
         except (ValidationError, PermissionDenied) as e:
@@ -421,7 +421,7 @@ def project_edit(request, slug, pk):
         try:
             with transaction.atomic():
                 services.update_project(project, request.user, form.data_dict())
-                _save_answers(project, form)
+                _save_answers(project, form, request.user)
                 if submitting:
                     services.submit_project(project, request.user)
         except (ValidationError, PermissionDenied) as e:
@@ -434,9 +434,8 @@ def project_edit(request, slug, pk):
     )
 
 
-def _save_answers(project, form):
-    for qid, value in form.answers().items():
-        CustomAnswer.objects.update_or_create(project=project, question_id=qid, defaults={"value": value})
+def _save_answers(project, form, user):
+    services.set_answers(project, user, form.answers())
 
 
 @login_required

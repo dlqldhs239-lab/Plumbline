@@ -44,9 +44,10 @@ def record_detail(request, serial):
             "p": rec.payload,
             "event": rec.event,
             "state": state,
-            # While a record does not stand, what it says is not shown either:
-            # it may name a place in results that are not public.
-            "withheld": state["state"] == "suspended",
+            # While a record does not rest on the published results, withdrawn
+            # or not, what it says is not shown either: it may name a place in
+            # results that are not public.
+            "withheld": state["withheld"],
             "address": site_url(request, rec.get_absolute_url()),
         },
     )
@@ -54,7 +55,7 @@ def record_detail(request, serial):
 
 def record_json(request, serial):
     rec = _find(serial)
-    if services.state_of(rec)["state"] == "suspended":
+    if services.state_of(rec)["withheld"]:
         raise PermissionDenied("This record does not stand at present.")
     response = JsonResponse(services.document(rec), json_dumps_params={"indent": 2, "ensure_ascii": False})
     response["Content-Disposition"] = f'attachment; filename="{rec.serial}.json"'
@@ -96,14 +97,20 @@ def organize_records(request, slug):
                     request,
                     f"{out['issued']} record{'s' if out['issued'] != 1 else ''} issued for {out['teams']} "
                     f"teams and {out['judges']} judges. {out['standing']} already stood."
-                    + (f" {out['withdrawn']} withdrawn: no longer in the results." if out["withdrawn"] else ""),
+                    + (f" {out['withdrawn']} withdrawn: no longer in the results." if out["withdrawn"] else "")
+                    + (
+                        f" {out['held_back']} not issued again, because you withdrew the same statement earlier."
+                        if out["held_back"]
+                        else ""
+                    ),
                 )
         except ValidationError as e:
             messages.error(request, "; ".join(e.messages))
         return redirect("organize_records", slug=slug)
     records = list(event.records.select_related("recipient", "project", "event").order_by("kind", "revoked_at", "id"))
+    ground = services.Ground(event)
     for r in records:
-        r.resting = "" if r.is_revoked else services.why_not_standing(r)
+        r.resting = "" if r.is_revoked else services.why_not_standing(r, ground)
     standing = [r for r in records if not r.is_revoked and not r.resting]
     return render(
         request,

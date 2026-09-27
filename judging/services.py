@@ -271,6 +271,10 @@ def save_scores(
         raise ValidationError("This review was already submitted.")
     if not assignments_for_judge(user, event).filter(pk=assignment.pk).exists():
         raise PermissionDenied("This project is outside your tracks, or is no longer in the running.")
+    if conflicted(user, assignment.project):
+        # Assignment refuses a judge's own team; this is for the judge who
+        # joined the team after being assigned.
+        raise PermissionDenied("This is your own team's project. Ask the organizers to give it to another judge.")
     if len(comment or "") > 10000:
         raise ValidationError("Comments are limited to 10,000 characters.")
     rubric = ensure_rubric(event)

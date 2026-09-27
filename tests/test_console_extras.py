@@ -111,12 +111,13 @@ class QuestionTests(Fresh):
         self.assertContains(form, "Licence")
         self.assertContains(form, "&lt;b&gt;pick&lt;/b&gt;")
         r = self.client.post(
-            f"/events/{self.ev.slug}/projects/new/", {"title": "T", "track": self.tools.pk, "save": "1"}
+            f"/events/{self.ev.slug}/projects/new/", {"title": "T", "track": self.tools.pk, "submit": "1"}
         )
         self.assertEqual(r.status_code, 200)  # required and unanswered
+        self.assertFalse(Project.objects.filter(event=self.ev).exists())
         r = self.client.post(
             f"/events/{self.ev.slug}/projects/new/",
-            {"title": "T", "track": self.tools.pk, f"q_{q.pk}": "MIT", "save": "1"},
+            {"title": "T", "track": self.tools.pk, f"q_{q.pk}": "MIT", "submit": "1"},
         )
         self.assertEqual(r.status_code, 302)
         self.assertEqual(CustomAnswer.objects.get(question=q).value, "MIT")

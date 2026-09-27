@@ -7,26 +7,64 @@ import csv
 import io
 import json
 import re
+import unicodedata
 
 from events.models import Event, Project, TeamMembership
 
 from .models import JudgeAssignment, JudgeCalibration, ProjectResult
 from .services import ensure_rubric
 
-RUNS_AS_FORMULA = ("=", "+", "-", "@", "\t", "\r")
-PLAIN_NUMBER = re.compile(r"^[+-]?[0-9]+([.,][0-9]+)?$")
+RUNS_AS_FORMULA = ("=", "+", "-", "@")
+# -5, +5, 1,5, -1,234.56, -1e-05, -.5, -5%: a number however it is written.
+PLAIN_NUMBER = re.compile(r"^(?=.*[0-9])[+-]?([0-9]{1,3}(,[0-9]{3})+|[0-9]*)([.,][0-9]+)?([eE][+-]?[0-9]+)?%?$")
+
+
+def _as_a_spreadsheet_reads_it(text: str) -> str:
+    """Full-width signs folded to the plain ones, and whatever shows as
+    nothing in front taken off: spreadsheets do both before deciding whether
+    a cell is a formula."""
+    folded = unicodedata.normalize("NFKC", text)
+    start = 0
+    while start < len(folded) and (
+        folded[start].isspace() or unicodedata.category(folded[start]) in ("Cf", "Cc", "Zs", "Zl", "Zp")
+    ):
+        start += 1
+    return folded[start:]
 
 
 def safe_cell(value):
     """A team may call itself =HYPERLINK(...). An organizer opening the export
     in a spreadsheet must see that as text, not have it run. Cells that would
-    start a formula get a leading apostrophe, which spreadsheets show as
-    nothing and treat as "this is text". Numbers are left alone."""
-    if isinstance(value, str) and value.startswith(RUNS_AS_FORMULA) and not PLAIN_NUMBER.match(value):
-        return "'" + value
+    start a formula get a leading apostrophe, which says "this is text".
+    Numbers are left alone.
+
+    The price, paid knowingly: a phone number written +82-10-..., a handle
+    written @name and a comment that opens with a dash carry the apostrophe
+    too, and a reader who opens the file as plain text sees it."""
     if isinstance(value, (dict, list)):
         return safe_cell(json.dumps(value, ensure_ascii=False, default=str))
+    if not isinstance(value, str) or not value:
+        return value
+    if value[0] in ("\t", "\r"):
+        return "'" + value
+    read = _as_a_spreadsheet_reads_it(value)
+    if PLAIN_NUMBER.match(read):
+        return value
+    if read.startswith(RUNS_AS_FORMULA):
+        return "'" + value
     return value
+
+
+def joined(parts) -> str:
+    """Several values in one cell. Each is made safe by itself: a program
+    that splits the cell on the semicolon must not find a formula behind it."""
+    return ";".join(str(safe_cell(str(p))) for p in parts)
+
+
+def md_cell(value) -> str:
+    """Text for one cell of a Markdown table: a title with a bar or a line
+    break in it must not add a column or a row."""
+    return " ".join(str(value).split()).replace("\\", "\\\\").replace("|", "\\|")
 
 
 def to_csv(rows: list[list]) -> str:
@@ -75,9 +113,9 @@ def projects_csv(event: Event) -> tuple[str, list[list]]:
                 p.repo_url,
                 p.live_url,
                 p.demo_video_url,
-                ";".join(p.tech_tags or []),
+                joined(p.tech_tags or []),
                 p.submitted_at.isoformat() if p.submitted_at else "",
-                ";".join(members.get(p.team_id, [])),
+                joined(members.get(p.team_id, [])),
             ]
         )
     return f"{event.slug}-projects.csv", rows

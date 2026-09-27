@@ -12,6 +12,7 @@ from __future__ import annotations
 from django.core.management.base import BaseCommand, CommandError
 
 from events.models import Event, EventRole, Project, Role
+from judging.export import md_cell
 from judging.normalization import normalize
 from judging.services import collect_reviews
 
@@ -81,8 +82,8 @@ class Command(BaseCommand):
             delta = (s.rank_raw or 0) - (s.rank or 0)
             sign = f"+{delta}" if delta > 0 else str(delta)
             out(
-                f"| {s.rank} | {s.rank_normalized} | {s.rank_raw} | {sign} | {p.title if p else pid} | "
-                f"{p.track.name if p and p.track else ''} | {s.n} | {s.raw_mean:.3f} | {s.normalized:.3f} | "
+                f"| {s.rank} | {s.rank_normalized} | {s.rank_raw} | {sign} | {md_cell(p.title if p else pid)} | "
+                f"{md_cell(p.track.name if p and p.track else '')} | {s.n} | {s.raw_mean:.3f} | {s.normalized:.3f} | "
                 f"{s.jury_weight:.2f} | {s.adjusted:.3f} | {', '.join(sorted(by_project_judges.get(pid, [])))} |"
             )
         moved = sum(1 for s in result.projects.values() if s.rank_raw != s.rank)
