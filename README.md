@@ -129,6 +129,7 @@ Copy `.env.example` to `.env` and set:
 | `PLUMBLINE_ANON_WRITE_RATE` | `20` | anonymous writes per minute per address |
 | `PLUMBLINE_TRUST_PROXY` | `0` | set `1` only behind a proxy you run; see below |
 | `PLUMBLINE_WEBHOOK_ALLOW_PRIVATE` | `0` | set `1` if webhook receivers live on your own network |
+| `PLUMBLINE_PORT` | `8080` | the port on the host |
 | `GUNICORN_WORKERS` | `2` | processes |
 | `GUNICORN_THREADS` | `8` | threads per process; browsers hold idle connections, so keep this above 4 |
 
