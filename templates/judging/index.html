@@ -1,16 +1,25 @@
 {% extends "base.html" %}
 {% block title %}Judge · {{ SITE_NAME }}{% endblock %}
-{% block main_class %}narrow{% endblock %}
 {% block content %}
-<h1>Judge console</h1>
+<div class="page-head tall">
+  <div>
+    <div class="eyebrow">Judge console</div>
+    <h1 class="display-2">Your judging</h1>
+    {% if rows %}<p class="lede">The events you judge in. You see your own assignments and nothing of any other judge.</p>{% endif %}
+  </div>
+</div>
 {% if rows %}
-<div class="stack">
+<div class="ledger">
   {% for r in rows %}
-  <a class="card" href="{% url 'judging:queue' r.event.slug %}" style="display:block;color:inherit">
-    <div class="row spread"><strong>{{ r.event.name }}</strong><small>{{ r.done }} / {{ r.total }} reviews</small></div>
-    <div class="bar" style="margin-top:.5rem"><span style="width:{% if r.total %}{% widthratio r.done r.total 100 %}{% else %}0{% endif %}%"></span></div>
+  <a class="ledger-row" href="{% url 'judging:queue' r.event.slug %}">
+    <span class="badge {% if not r.total %}neutral{% elif not r.left %}ok{% elif r.open %}warn{% else %}neutral{% endif %}">{% if not r.total %}Nothing assigned{% elif not r.left %}All submitted{% elif r.open %}{{ r.left }} to review{% else %}Judging not open{% endif %}</span>
+    <span class="name"><strong>{{ r.event.name }}</strong>{% if r.event.tagline %}<small>{{ r.event.tagline }}</small>{% endif %}</span>
+    <span class="mono tnum">{{ r.done }} of {{ r.total }} submitted</span>
+    <span class="bar"><span style="width:{% if r.total %}{% widthratio r.done r.total 100 %}{% else %}0{% endif %}%"></span></span>
   </a>
   {% endfor %}
 </div>
-{% else %}<div class="empty"><strong>No judging assigned</strong>You are not a judge in any event. Organizers add judges by email address.</div>{% endif %}
+{% else %}
+<div class="empty"><strong>No judging assigned</strong>You are not a judge in any event. Organizers add judges by email address.</div>
+{% endif %}
 {% endblock %}

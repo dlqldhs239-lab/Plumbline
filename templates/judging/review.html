@@ -1,64 +1,96 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}Review {{ project.title }} · {{ event.name }}{% endblock %}
 {% block content %}
-<div class="page-head">
-  <div><div class="eyebrow"><a href="{% url 'judging:queue' event.slug %}">← Your reviews</a> · {{ pos }} of {{ total }}</div><h1>{{ project.title }}</h1>{% if project.tagline %}<p class="muted">{{ project.tagline }}</p>{% endif %}
-    <div class="row"><small>{{ project.team.name }}</small>{% if project.track %}<span class="badge neutral">{{ project.track.name }}</span>{% endif %}<span class="badge {% if assignment.status == 'submitted' %}ok{% elif assignment.status == 'in_progress' %}warn{% else %}neutral{% endif %}">{{ assignment.get_status_display }}</span></div></div>
-</div>
+<nav class="strip" aria-label="Your reviews in {{ event.name }}">
+  <a class="label back" href="{% url 'judging:queue' event.slug %}">Your reviews</a>
+  <ol>
+    {% for a in items %}<li><a href="{% url 'judging:review' event.slug a.pk %}" class="{% if a.pk == assignment.pk %}here{% elif a.done %}done{% elif a.filled %}begun{% endif %}"{% if a.pk == assignment.pk %} aria-current="step"{% endif %} title="{{ a.project.title }}"><span class="sr-only">{{ forloop.counter }}. {{ a.project.title }}, {% if a.done %}submitted{% elif a.filled %}started{% else %}not started{% endif %}</span></a></li>{% endfor %}
+  </ol>
+  <span class="label tnum">{{ done }} of {{ total }} submitted</span>
+</nav>
 
-<div class="grid cols-2">
-  <div class="stack">
-    <div class="card">
-      <h3>Links</h3>
-      <table>
-        {% if project.repo_url %}<tr><td>Repository</td><td><a href="{{ project.repo_url }}" target="_blank" rel="noopener">{{ project.repo_url }}</a></td></tr>{% endif %}
-        {% if project.live_url %}<tr><td>Live</td><td><a href="{{ project.live_url }}" target="_blank" rel="noopener">{{ project.live_url }}</a></td></tr>{% endif %}
-        {% if project.demo_video_url %}<tr><td>Demo</td><td><a href="{{ project.demo_video_url }}" target="_blank" rel="noopener">{{ project.demo_video_url }}</a></td></tr>{% endif %}
-      </table>
-      {% if not project.repo_url and not project.live_url and not project.demo_video_url %}<p class="muted">No links provided.</p>{% endif %}
-      {% if project.tech_tags %}<div class="tags" style="margin-top:.5rem">{% for t in project.tech_tags %}<span>{{ t }}</span>{% endfor %}</div>{% endif %}
+<div class="page-head tall review-head">
+  <div>
+    <div class="eyebrow">Review {{ pos }} of {{ total }} · {{ event.name }}</div>
+    <h1 class="display-2">{{ project.title }}</h1>
+    {% if project.tagline %}<p class="lede">{{ project.tagline }}</p>{% endif %}
+    <div class="row byline">
+      <span>by <strong>{{ project.team.name }}</strong></span>
+      {% if project.track %}<span class="label">{{ project.track.name }}</span>{% endif %}
+      <span class="badge {% if assignment.status == 'submitted' %}ok{% elif assignment.status == 'in_progress' %}warn{% else %}neutral{% endif %}" id="status">{{ assignment.get_status_display }}</span>
     </div>
-    {% if project.thumbnail_url %}<img class="thumb" src="{{ project.thumbnail_url }}" alt="">{% endif %}
-    <div class="card"><h3>Description</h3>{% if project.description %}{{ project.description|linebreaks }}{% else %}<p class="muted">No description.</p>{% endif %}</div>
-    {% if answers %}<div class="card"><h3>Organizer questions</h3>{% for a in answers %}<p><strong>{{ a.question.prompt }}</strong><br>{{ a.value|default:"—"|linebreaksbr }}</p>{% endfor %}</div>{% endif %}
   </div>
-
-  <div class="sticky-side">
-    <form method="post" class="card" id="scoreform">
-      {% csrf_token %}
-      <h3>{{ rubric.name }}</h3>
-      {% if rubric.instructions %}<p class="muted">{{ rubric.instructions }}</p>{% endif %}
-      {% for c in criteria %}
-      <div class="score-row">
-        <div><strong>{{ c.name }}</strong> <small class="muted">×{{ c.weight }}</small>{% if c.description %}<div class="desc">{{ c.description }}</div>{% endif %}</div>
-        <div class="scale" role="radiogroup" aria-label="{{ c.name }}">
-          {% for v in scale %}<label><input type="radio" name="score_{{ c.key }}" value="{{ v }}" {% for cid, val in existing.items %}{% if cid == c.id and val == v %}checked{% endif %}{% endfor %} {% if not judging_open or assignment.status == 'submitted' %}disabled{% endif %}><span>{{ v }}</span></label>{% endfor %}
-        </div>
-      </div>
-      {% endfor %}
-      <div class="field" style="margin-top:1rem"><label for="comment">Feedback to the team <small class="muted">(optional)</small></label><textarea id="comment" name="comment" rows="4" {% if not judging_open or assignment.status == 'submitted' %}readonly{% endif %}>{{ assignment.comment }}</textarea></div>
-      {% if assignment.status == 'submitted' %}
-        <p class="muted">Submitted {{ assignment.submitted_at|date:"Y-m-d H:i" }} UTC. Ask an organizer if something needs changing.</p>
-      {% elif not judging_open %}
-        <p class="muted">Judging is closed for this event.</p>
-      {% else %}
-        <div class="row"><button class="btn primary" type="submit" name="submit">Submit review</button><button class="btn" type="submit" name="save">Save draft</button></div>
-        <p class="muted" style="margin:.75rem 0 0"><span class="kbd">1</span>–<span class="kbd">{{ rubric.scale_max }}</span> score the focused row · <span class="kbd">Tab</span> next row · submit moves you to the next project</p>
-      {% endif %}
-    </form>
+  <div class="actions">
+    {% if previous %}<a class="btn" href="{% url 'judging:review' event.slug previous.pk %}" rel="prev">Previous</a>{% else %}<span class="btn" aria-disabled="true">Previous</span>{% endif %}
+    {% if following %}<a class="btn" href="{% url 'judging:review' event.slug following.pk %}" rel="next">Next</a>{% else %}<span class="btn" aria-disabled="true">Next</span>{% endif %}
   </div>
 </div>
+
+<div class="review-grid">
+  <section class="dossier" aria-label="The project">
+    <div class="card">
+      <h3>Open it</h3>
+      {% if project.repo_url or project.live_url or project.demo_video_url %}
+      <dl class="links">
+        {% if project.repo_url %}<dt class="label">Repository</dt><dd><a href="{{ project.repo_url }}" target="_blank" rel="noopener">{{ project.repo_url }}</a></dd>{% endif %}
+        {% if project.live_url %}<dt class="label">Live</dt><dd><a href="{{ project.live_url }}" target="_blank" rel="noopener">{{ project.live_url }}</a></dd>{% endif %}
+        {% if project.demo_video_url %}<dt class="label">Demo video</dt><dd><a href="{{ project.demo_video_url }}" target="_blank" rel="noopener">{{ project.demo_video_url }}</a></dd>{% endif %}
+      </dl>
+      {% else %}<p class="muted">The team gave no links.</p>{% endif %}
+      {% if project.tech_tags %}<div class="tags" style="margin-top:var(--s5)">{% for t in project.tech_tags %}<span>{{ t }}</span>{% endfor %}</div>{% endif %}
+    </div>
+    {% if project.thumbnail_url %}<img class="thumb wide" src="{{ project.thumbnail_url }}" alt="">{% endif %}
+    <div class="card">
+      <h3>What the team wrote</h3>
+      {% if project.description %}<div class="prose">{{ project.description|linebreaks }}</div>{% else %}<p class="muted">No description.</p>{% endif %}
+    </div>
+    {% if answers %}<div class="card"><h3>Organizer questions</h3><dl class="qa">{% for a in answers %}<dt>{{ a.question.prompt }}</dt><dd>{{ a.value|default:"No answer"|linebreaksbr }}</dd>{% endfor %}</dl></div>{% endif %}
+  </section>
+
+  <form method="post" class="scoring" id="scoreform" data-save="{% if not locked %}/api/judges/me/assignments/{{ assignment.pk }}/scores{% endif %}" data-min="{{ rubric.scale_min }}" data-max="{{ rubric.scale_max }}">
+    {% csrf_token %}
+    <div class="scoring-head">
+      <h2>{{ rubric.name }}</h2>
+      <span class="label" id="saved" role="status" aria-live="polite"></span>
+    </div>
+    {% if rubric.instructions %}<p class="muted">{{ rubric.instructions }}</p>{% endif %}
+
+    {% if assignment.status == 'submitted' %}
+      <p class="notice">Submitted {{ assignment.submitted_at|date:"Y-m-d H:i" }} UTC. A submitted review is closed; ask an organizer if something needs changing.</p>
+    {% elif judging_not_started %}
+      <p class="notice">Judging opens {{ judging_starts|date:"Y-m-d H:i" }} UTC. You can read the project now and score it then.</p>
+    {% elif not judging_open %}
+      <p class="notice">Judging has closed for this event. This review was not submitted.</p>
+    {% endif %}
+
+    {% for c in criteria %}
+    <div class="score-row" data-weight="{{ c.weight|stringformat:'s' }}">
+      <div id="c-{{ c.key }}"><strong>{{ c.name }}</strong><small class="label">Weight {{ c.weight|floatformat:"-2" }}</small>{% if c.description %}<span class="desc">{{ c.description }}</span>{% endif %}</div>
+      <div class="scale" role="radiogroup" aria-labelledby="c-{{ c.key }}">
+        {% for v in scale %}<label><input type="radio" name="score_{{ c.key }}" value="{{ v }}"{% if c.chosen == v %} checked{% endif %}{% if locked %} disabled{% endif %}><span>{{ v }}</span></label>{% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+
+    <div class="own">
+      <span class="label">Your score for this project</span>
+      <b class="tnum" id="own">{% if own_score is not None %}{{ own_score|floatformat:2 }}{% else %}n/a{% endif %}</b>
+      <span class="label">weighted, of {{ rubric.scale_max }}</span>
+    </div>
+
+    <div class="field">
+      <label for="comment">Feedback to the team <span class="muted">optional, shown to them without your name once results are published</span></label>
+      <textarea id="comment" name="comment" rows="5" maxlength="10000"{% if locked %} readonly{% endif %}>{{ assignment.comment }}</textarea>
+    </div>
+
+    {% if not locked %}
+    <div class="row spread">
+      <div class="row"><button class="btn primary" type="submit" name="submit">Submit and next</button><button class="btn" type="submit" name="save">Save draft</button></div>
+      <p class="keys"><kbd>{{ rubric.scale_min }}</kbd> to <kbd>{{ rubric.scale_max }}</kbd> score the row and move on · <kbd>Tab</kbd> next row · <kbd>Enter</kbd> submit</p>
+    </div>
+    {% endif %}
+  </form>
+</div>
 {% endblock %}
-{% block scripts %}
-<script>
-// Keyboard scoring: with a row's radio focused, press a digit to pick it.
-document.querySelectorAll('.scale').forEach(function (group) {
-  group.addEventListener('keydown', function (e) {
-    var v = parseInt(e.key, 10);
-    if (isNaN(v)) return;
-    var input = group.querySelector('input[value="' + v + '"]');
-    if (input && !input.disabled) { input.checked = true; input.focus(); e.preventDefault(); }
-  });
-});
-</script>
-{% endblock %}
+{% block scripts %}{% if not locked %}<script src="{% static 'js/review.js' %}" defer></script>{% endif %}{% endblock %}

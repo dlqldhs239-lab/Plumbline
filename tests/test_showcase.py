@@ -221,4 +221,7 @@ class ScriptRuleTests(SimpleTestCase):
         for path in (STATIC / "js").glob("*.js"):
             text = path.read_text(encoding="utf-8")
             self.assertEqual(re.findall(r"#[0-9A-Fa-f]{6}\b|rgba?\(", text), [], path.name)
-            self.assertEqual(re.findall(r"https?://|fetch\(|XMLHttpRequest|import\(", text), [], path.name)
+            self.assertEqual(re.findall(r"https?://|XMLHttpRequest|import\(|eval\(|innerHTML", text), [], path.name)
+            # One script talks to the server, and only to the address the page gave it.
+            if path.name != "review.js":
+                self.assertNotIn("fetch(", text, path.name)
