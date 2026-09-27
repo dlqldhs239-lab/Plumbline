@@ -15,6 +15,7 @@ from events import services as event_services
 from events.models import EventRole, Project, Role
 from judging import services as judging_services
 from judging.models import JudgeAssignment
+from plumbline.inputs import site_url
 
 from .auth import auth_optional, auth_required
 from .organizer_schemas import (
@@ -108,7 +109,7 @@ def judge_sign_in_link(request, slug: str, judge_ref: str):
     judge = _resolve_judge(judge_ref)
     role = get_object_or_404(EventRole, event=event, user=judge, role=Role.JUDGE)
     raw = event_services.issue_judge_link(role, request.user)
-    return {"email": judge.email, "url": request.build_absolute_uri(f"/accounts/claim/{raw}/")}
+    return {"email": judge.email, "url": site_url(request, f"/accounts/claim/{raw}/")}
 
 
 # --- rubric ------------------------------------------------------------------
@@ -228,8 +229,7 @@ def issue_ballot_links(request, slug: str, payload: BallotLinksIn):
     event = _event(slug)
     created = community_services.create_email_voters(event, request.user, payload.emails)
     return [
-        {"email": v.email, "url": request.build_absolute_uri(f"/events/{event.slug}/ballot/{v.ballot_token}/")}
-        for v in created
+        {"email": v.email, "url": site_url(request, f"/events/{event.slug}/ballot/{v.ballot_token}/")} for v in created
     ]
 
 

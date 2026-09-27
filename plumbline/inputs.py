@@ -53,6 +53,17 @@ def as_int(value, label: str, minimum: int | None = None, maximum: int | None = 
     return number
 
 
+def site_url(request, path: str = "/") -> str:
+    """The address of a page as it should be printed for someone else:
+    on a certificate, in a sign-in link, in an embed. Built from
+    PLUMBLINE_SITE_URL when it is set, so that a request arriving with a
+    forged Host header cannot put its own name on a certificate."""
+    base = (settings.PLUMBLINE_SITE_URL or "").rstrip("/")
+    if base:
+        return base + (path if path.startswith("/") else "/" + path)
+    return request.build_absolute_uri(path)
+
+
 def client_ip(request) -> str:
     """The address the request came from.
 

@@ -74,6 +74,7 @@ class ImportOut(Schema):
     ready: bool
     imported: dict | None = None
     ignored_columns: list[str] = []
+    warnings: list[str] = []
     rows: list[ImportRow]
 
 
@@ -199,6 +200,7 @@ def import_csv(request, slug: str, payload: ImportIn):
         "ready": checked["ready"],
         "imported": made,
         "ignored_columns": checked["ignored_columns"],
+        "warnings": checked["warnings"],
         "rows": [
             {"line": r["line"], "what": r["what"], "ok": r["ok"], "problems": r["problems"], "notes": r["notes"]}
             for r in checked["rows"]

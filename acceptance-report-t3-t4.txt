@@ -1,7 +1,7 @@
 Plumbline probes for T3 and T4
 portal: http://localhost:8080
 
-T4  import: dry run reads and writes nothing ...... PASS
+T4  import: a dry run creates no project .......... PASS
 T4  import: one bad row stops the whole file ...... PASS
 T4  import: seven projects arrive, public ......... PASS
 T4  import: refused to a participant .............. PASS
@@ -15,7 +15,8 @@ T3  the quadratic budget holds (4 + 9 > 9) ........ PASS
 T3  the ballot remembers the vote ................. PASS
 T3  no vote without a voter ....................... PASS
 T3  the tally is closed to voters ................. PASS
-T3  the organizer sees the tally and the flags .... PASS
+T3  the organizer sees the tally .................. PASS
+T3  and the integrity flags beside it ............. PASS
 T3  a signed-in visitor can comment ............... PASS
 T3  the same comment twice is refused ............. PASS
 T3  no comment without an account ................. PASS
@@ -25,13 +26,14 @@ T3  a hidden comment leaves the public list ....... PASS
 T3  results are hidden before publication ......... PASS
 T3  votes are in the audit trail .................. PASS
 T3  the audit trail is for organizers ............. PASS
+T4  records: refused before publication ........... PASS
 T3  results are public once published ............. PASS
 T4  OpenAPI document is served .................... PASS
 T4  API reference needs no network ................ PASS
 T4  webhook: created, secret shown once ........... PASS
 T4  webhook: secret is masked afterwards .......... PASS
 T4  webhook: an internal address is refused ....... PASS
-T4  webhook: a delivery is recorded with its outcome ... PASS
+T4  webhook: an attempt is recorded, sent or failed ... PASS
 T4  webhook: closed to judges ..................... PASS
 T4  records: issued after publication ............. PASS
 T4  records: issuing twice issues nothing new ..... PASS
@@ -44,14 +46,16 @@ T4  records: only organizers withdraw ............. PASS
 T4  records: a withdrawn record says so ........... PASS
 T4  certificate page is served .................... PASS
 T4  embed: the gallery may sit in a frame ......... PASS
-T4  embed: no other page may ...................... PASS
-T4  export: projects.csv .......................... PASS
-T4  export: assignments.csv ....................... PASS
-T4  export: scores.csv ............................ PASS
-T4  export: results.csv ........................... PASS
-T4  export: calibration.csv ....................... PASS
-T4  export: audit.csv ............................. PASS
+T4  embed: the gallery page may not ............... PASS
+T4  embed: the results page may not ............... PASS
+T4  embed: the sign-in page may not ............... PASS
+T4  export: projects.csv, columns and rows ........ PASS
+T4  export: assignments.csv, columns and rows ..... PASS
+T4  export: scores.csv, columns and rows .......... PASS
+T4  export: results.csv, columns and rows ......... PASS
+T4  export: calibration.csv, columns and rows ..... PASS
+T4  export: audit.csv, columns and rows ........... PASS
 T4  export: refused to a participant .............. PASS
 
-T3: 21 of 21 probes passed
-T4: 30 of 30 probes passed
+T3: 22 of 22 probes passed
+T4: 33 of 33 probes passed

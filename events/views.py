@@ -14,7 +14,7 @@ from judging import export as export_services
 from judging import services as judging_services
 from judging import showcase
 from judging.models import JudgeAssignment, JudgeCalibration, ProjectResult
-from plumbline.inputs import as_id, id_or_404
+from plumbline.inputs import as_id, id_or_404, site_url
 
 from . import services
 from .forms import AssignForm, CriterionFormSet, EventForm, JudgeInviteForm, ProjectForm, TeamForm
@@ -325,6 +325,8 @@ def team_detail(request, slug, pk):
     if not member and not is_organizer(request.user, event):
         raise PermissionDenied("You are not on this team.")
     invites = [i for i in team.invites.all() if i.is_valid()]
+    for i in invites:
+        i.address = site_url(request, i.get_absolute_url())
     return render(
         request,
         "events/team_detail.html",
@@ -681,7 +683,7 @@ def organize_judges(request, slug):
             return redirect("organize_judges", slug=slug)
         # Shown in this response only. The link is a credential, so it is
         # never written to the session or anywhere else it could be read later.
-        fresh_link = {"email": role.user.email, "url": request.build_absolute_uri(f"/accounts/claim/{raw}/")}
+        fresh_link = {"email": role.user.email, "url": site_url(request, f"/accounts/claim/{raw}/")}
         form = JudgeInviteForm(event=event)
     elif request.method == "POST" and request.POST.get("remove"):
         role = get_object_or_404(EventRole, pk=id_or_404(request.POST["remove"]), event=event, role=Role.JUDGE)

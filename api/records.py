@@ -7,6 +7,7 @@ from datetime import datetime
 from django.shortcuts import get_object_or_404
 from ninja import Schema
 
+from plumbline.inputs import site_url
 from records import services
 from records.models import Record
 
@@ -34,6 +35,7 @@ class IssueIn(Schema):
 class IssueOut(Schema):
     issued: int
     standing: int
+    withdrawn: int = 0
     teams: int
     judges: int
 
@@ -54,16 +56,18 @@ class RevokeIn(Schema):
 
 
 def record_out(request, rec: Record) -> dict:
+    state = services.state_of(rec)["state"]
     return {
         "serial": rec.serial,
         "kind": rec.kind,
-        "state": services.state_of(rec)["state"],
+        "state": state,
         "issued_at": rec.issued_at,
         "revoked_at": rec.revoked_at,
         "revoke_reason": rec.revoke_reason,
-        "url": request.build_absolute_uri(rec.get_absolute_url()),
-        "payload": rec.payload,
-        "signature": rec.signature,
+        "url": site_url(request, rec.get_absolute_url()),
+        # A record that does not stand at present keeps its contents to itself.
+        "payload": rec.payload if state != "suspended" else {"serial": rec.serial},
+        "signature": rec.signature if state != "suspended" else "",
     }
 
 
@@ -113,5 +117,5 @@ def get_record(request, serial: str):
 )
 def revoke_record(request, slug: str, serial: str, payload: RevokeIn):
     event = _event(slug)
-    rec = get_object_or_404(Record, serial=serial, event=event)
+    rec = get_object_or_404(Record, serial=serial.strip().upper()[:20], event=event)
     return record_out(request, services.revoke(rec, request.user, payload.reason))

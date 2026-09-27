@@ -145,6 +145,11 @@ PLUMBLINE_SAMPLE_SECRETS = SECRET_KEY == DEFAULT_SECRET_KEY or (
     PLUMBLINE_SEEDED and PLUMBLINE_SEED_SECRET == DEFAULT_SEED_SECRET
 )
 PLUMBLINE_SITE_NAME = os.environ.get("PLUMBLINE_SITE_NAME", "Plumbline")
+# The public address, with scheme, no trailing slash. Links the portal prints
+# for other people (certificates, sign-in links, ballot links, embeds) are
+# built from it. Empty means "whatever address the request came to", which
+# is right on a laptop and wrong behind anything that lets Host through.
+PLUMBLINE_SITE_URL = os.environ.get("PLUMBLINE_SITE_URL", "").strip()
 
 # Webhooks. Deliveries run in a background thread after the transaction
 # commits, so a slow receiver never slows a judge down. Set ASYNC to 0 to

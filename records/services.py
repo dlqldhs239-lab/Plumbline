@@ -17,6 +17,7 @@ from events.models import Event, TeamMembership
 from events.permissions import is_organizer
 from judging.models import JudgeAssignment
 from judging.services import ensure_rubric, placed
+from plumbline.inputs import as_int
 
 from .models import Record, new_serial
 
@@ -51,13 +52,20 @@ def check(payload, signature) -> dict:
     unknown. A document is only genuine if the signature fits AND the record
     exists here: a signature alone would also fit a record from another
     installation that happens to share the secret."""
+    not_a_record = {"state": "unknown", "says": "That is not a record: it needs a payload and a signature."}
     if not isinstance(payload, dict) or not isinstance(signature, str):
-        return {"state": "unknown", "says": "That is not a record: it needs a payload and a signature."}
-    good = hmac.compare_digest(sign(payload), signature.strip().lower())
-    found = Record.objects.filter(serial=str(payload.get("serial", ""))[:20]).first()
+        return not_a_record
+    try:
+        expected = sign(payload).encode("ascii")
+        given = signature.strip().lower().encode("utf-8", "replace")
+    except (TypeError, ValueError, RecursionError, UnicodeError):
+        return not_a_record
+    good = hmac.compare_digest(expected, given)
+    serial = payload.get("serial")
+    found = Record.objects.filter(serial=serial.strip().upper()[:20]).first() if isinstance(serial, str) else None
     if found is None:
         return {"state": "unknown", "says": "No record with that number was issued here."}
-    if not good or found.payload != payload:
+    if not good or found.payload != payload or canonical(found.payload) != canonical(payload):
         return {
             "state": "altered",
             "says": "The signature does not fit this document. Something in it was changed after it was issued.",
@@ -69,7 +77,24 @@ def check(payload, signature) -> dict:
             "says": f"This record was issued here and later withdrawn ({found.revoke_reason or 'no reason given'}).",
             "record": found,
         }
+    resting = why_not_standing(found)
+    if resting:
+        return {"state": "suspended", "says": resting, "record": found}
     return {"state": "genuine", "says": "Issued here, unchanged, and standing.", "record": found}
+
+
+def why_not_standing(rec: Record) -> str:
+    """A record of a place rests on results that are published and on a
+    project that is in them. If either is no longer so, the record is not
+    withdrawn, because nobody decided that, but it does not stand either."""
+    if rec.kind == Record.Kind.JUDGE:
+        return ""
+    if not rec.event.results_published:
+        return "The results this record rests on are not published at present."
+    project = rec.project
+    if project is None or not project.is_public or project.duplicate_of_id:
+        return "The project this record names is not in the published results at present."
+    return ""
 
 
 def state_of(rec: Record) -> dict:
@@ -138,10 +163,10 @@ def issue_for_event(event: Event, actor, places: int = 3) -> dict:
         raise PermissionDenied("Only organizers can issue records.")
     if not event.results_published:
         raise ValidationError("Publish the results first. A record states a place, and places are not final before.")
-    if not 0 <= int(places) <= 100:
-        raise ValidationError("Placements can be issued for the first 0 to 100 places.")
+    places = as_int(places, "Placements", 0, 100)
     rubric = ensure_rubric(event)
-    out = {"issued": 0, "standing": 0, "teams": 0, "judges": 0}
+    out = {"issued": 0, "standing": 0, "teams": 0, "judges": 0, "withdrawn": 0}
+    owed: set[int] = set()
     members: dict[int, list] = {}
     for m in TeamMembership.objects.filter(team__event=event).select_related("user"):
         members.setdefault(m.team_id, []).append(m.user)
@@ -151,7 +176,7 @@ def issue_for_event(event: Event, actor, places: int = 3) -> dict:
             continue
         project = row.project
         out["teams"] += 1
-        kind = Record.Kind.PLACEMENT if row.place <= int(places) else Record.Kind.PARTICIPATION
+        kind = Record.Kind.PLACEMENT if row.place <= places else Record.Kind.PARTICIPATION
         for user in members.get(project.team_id, []):
             facts = {"team": project.team.name, "project": project.title}
             if project.track_id:
@@ -163,7 +188,8 @@ def issue_for_event(event: Event, actor, places: int = 3) -> dict:
                     score=f"{row.adjusted_mean:.3f} / {rubric.scale_max}.00",
                     reviews=row.review_count,
                 )
-            _, created = _issue(kind, event, user, actor, subject=project, **facts)
+            rec, created = _issue(kind, event, user, actor, subject=project, **facts)
+            owed.add(rec.pk)
             out["issued" if created else "standing"] += 1
 
     done = (
@@ -177,8 +203,15 @@ def issue_for_event(event: Event, actor, places: int = 3) -> dict:
     for d in done:
         out["judges"] += 1
         # A judge's record says that they judged and how much. Never what they scored.
-        _, created = _issue(Record.Kind.JUDGE, event, judges[d["judge_id"]], actor, reviews=d["n"])
+        rec, created = _issue(Record.Kind.JUDGE, event, judges[d["judge_id"]], actor, reviews=d["n"])
+        owed.add(rec.pk)
         out["issued" if created else "standing"] += 1
+
+    # What stood before and is owed no longer: the project was hidden or
+    # withdrawn, the member left the team, the judge's reviews were removed.
+    # Without this, two teams could each hold a standing record of first place.
+    stale = Record.objects.filter(event=event, revoked_at__isnull=True).exclude(pk__in=owed)
+    out["withdrawn"] = stale.update(revoked_at=timezone.now(), revoke_reason="no longer in the published results")
 
     audit("records.issue", actor=actor, event=event, detail=out)
     return out

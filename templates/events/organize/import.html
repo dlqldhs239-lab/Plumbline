@@ -14,6 +14,7 @@
   <section>
     {% if checked %}
     <h2 class="rule">{% if checked.ready %}Ready: {{ checked.total }} row{{ checked.total|pluralize }}{% elif not checked.total %}No rows{% else %}{{ checked.bad }} of {{ checked.total }} row{{ checked.total|pluralize }} need another look{% endif %}</h2>
+    {% for w in checked.warnings %}<p class="notice">{{ w }}</p>{% endfor %}
     {% if checked.ignored_columns %}<p class="notice">Columns that are not used and will be left out: {{ checked.ignored_columns|join:", " }}.</p>{% endif %}
     {% if checked.rows %}
     <div class="table-wrap scroll">

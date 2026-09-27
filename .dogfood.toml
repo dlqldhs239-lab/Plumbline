@@ -6,7 +6,7 @@ base_url = "http://localhost:8080"
 
 [tiers]
 # run.py has probes for T1 and T2 and will print T3 and T4 as "claimed but not
-# verified". They are verified by tools/verify_tiers.py, which makes 51
+# verified". They are verified by tools/verify_tiers.py, which makes 55
 # requests in the same manner; its output is acceptance-report-t3-t4.txt.
 claimed = ["T1", "T2", "T3", "T4"]
 pitch = "A self-hosted submission and judging portal whose role isolation is enforced at the API and whose judge normalization is documented and proven on the fixtures."

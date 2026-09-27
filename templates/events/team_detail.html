@@ -14,7 +14,7 @@
       <p class="muted">Submissions have closed; teams are frozen.</p>
     {% else %}
       {% for i in invites %}
-        <pre>{{ request.scheme }}://{{ request.get_host }}{{ i.get_absolute_url }}</pre>
+        <pre>{{ i.address }}</pre>
         <small class="muted">{{ i.uses }}/{{ i.max_uses }} used · expires {{ i.expires_at|date:"Y-m-d H:i" }} UTC</small>
       {% empty %}<p class="muted">No active invite link.</p>{% endfor %}
       <form method="post" action="{% url 'team_invite' event.slug team.pk %}" style="margin-top:.75rem">{% csrf_token %}<button class="btn" type="submit">Generate invite link</button></form>

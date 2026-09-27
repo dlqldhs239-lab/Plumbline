@@ -202,7 +202,7 @@ class ImportTests(Fresh):
     def test_conflicts_inside_the_file_and_with_the_event(self):
         text = "team,title,members\nA,One,ana@example.org\nB,Two,ana@example.org\nA,One,\n"
         plan = importer.plan(self.ev, self.organizer, text, "projects")
-        self.assertIn("already on team A", plan["rows"][1]["problems"][0])
+        self.assertIn("on another team earlier in this file", plan["rows"][1]["problems"][0])
         self.assertIn("earlier line", plan["rows"][2]["problems"][0])
         importer.apply(self.ev, self.organizer, "team,title\nA,One\n", "projects")
         again = importer.plan(self.ev, self.organizer, "team,title\na,one\n", "projects")

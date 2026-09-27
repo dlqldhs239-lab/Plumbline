@@ -25,6 +25,7 @@ from .permissions import is_organizer
 
 MAX_ROWS = 2000
 MAX_BYTES = 2_000_000
+MAX_CELL = 20_000
 
 PROJECT_COLUMNS = (
     "team",
@@ -73,37 +74,68 @@ def _split(value: str) -> list[str]:
 
 
 def _read(text: str, kind: str) -> tuple[list[dict], list[str]]:
+    """Rows as dictionaries, read by position so that a repeated or empty
+    header cell cannot shift one column's values into another."""
     if kind not in COLUMNS:
         raise ValidationError("Import either projects or judges.")
     if len(text.encode("utf-8", "ignore")) > MAX_BYTES:
         raise ValidationError("The file is larger than 2 MB. Split it.")
     text = text.lstrip("﻿")
+    if "\x00" in text:
+        raise ValidationError("The file is not text.")
     # The separator is whichever of comma, semicolon and tab the header line
     # uses most. Spreadsheets in many countries write semicolons.
     header = text.strip().splitlines()[0] if text.strip() else ""
-    delimiter = max(",;	", key=header.count)
-    reader = csv.DictReader(io.StringIO(text), delimiter=delimiter)
-    if not reader.fieldnames:
+    delimiter = max(",;\t", key=header.count)
+    csv.field_size_limit(MAX_BYTES)
+    rows, names = [], None
+    try:
+        for cells in csv.reader(io.StringIO(text), delimiter=delimiter):
+            if not any((c or "").strip() for c in cells):
+                continue
+            if any(len(c) > MAX_CELL for c in cells):
+                raise ValidationError(f"A cell is longer than {MAX_CELL} characters.")
+            if names is None:
+                names = [(c or "").strip().lower().replace(" ", "_") for c in cells]
+                continue
+            if len(cells) > len(names) and any(c.strip() for c in cells[len(names) :]):
+                raise ValidationError(
+                    f"Line {len(rows) + 2} has more cells than the first line has columns. "
+                    "A value with a comma in it needs quotes around it."
+                )
+            rows.append({n: (cells[i].strip() if i < len(cells) else "") for i, n in enumerate(names) if n})
+            if len(rows) > MAX_ROWS:
+                raise ValidationError(f"More than {MAX_ROWS} rows. Split the file.")
+    except csv.Error as e:
+        raise ValidationError(f"The file could not be read as CSV: {e}") from None
+    if names is None:
         raise ValidationError("The file is empty.")
-    names = [(n or "").strip().lower().replace(" ", "_") for n in reader.fieldnames]
-    missing = [c for c in REQUIRED[kind] if c not in names]
+    named = [n for n in names if n]
+    repeated = sorted({n for n in named if named.count(n) > 1})
+    if repeated:
+        raise ValidationError(f"The first line names a column twice: {', '.join(repeated)}.")
+    missing = [c for c in REQUIRED[kind] if c not in named]
     if missing:
         raise ValidationError(
             f"The first line must name the columns. Missing: {', '.join(missing)}. "
             f"Known columns: {', '.join(COLUMNS[kind])}."
         )
-    ignored = [n for n in names if n and n not in COLUMNS[kind]]
-    rows = []
-    try:
-        for raw in reader:
-            row = {k: (v or "").strip() for k, v in zip(names, raw.values(), strict=False) if k and isinstance(v, str)}
-            if any(row.values()):
-                rows.append(row)
-            if len(rows) > MAX_ROWS:
-                raise ValidationError(f"More than {MAX_ROWS} rows. Split the file.")
-    except csv.Error as e:
-        raise ValidationError(f"The file could not be read as CSV: {e}") from None
+    ignored = [n for n in named if n not in COLUMNS[kind]]
+    if any(not n for n in names):
+        ignored.append("a column without a name")
     return rows, ignored
+
+
+def _email(value: str, problems: list[str]) -> bool:
+    try:
+        validate_email(value)
+    except ValidationError:
+        problems.append(f"'{value[:60]}' is not an email address")
+        return False
+    if len(value) > 254:
+        problems.append("an email address is longer than 254 characters")
+        return False
+    return True
 
 
 def plan(event: Event, user, text: str, kind: str) -> dict:
@@ -113,22 +145,40 @@ def plan(event: Event, user, text: str, kind: str) -> dict:
     rows, ignored = _read(text, kind)
     tracks = {t.name.strip().lower(): t for t in event.tracks.all()}
     User = get_user_model()
-    out = []
-    seen = set()
-    member_team: dict[str, str] = {}
+    warnings = []
+    if kind == "projects":
+        if event.results_published:
+            warnings.append("The results of this event are published. Imported projects will not be in them.")
+        elif event.submissions_closed():
+            warnings.append("Submissions have closed. Imported projects arrive as submitted now, after the deadline.")
+        required = event.custom_questions.filter(required=True).count()
+        if required:
+            warnings.append(
+                f"The submission form has {required} required question{'s' if required != 1 else ''} of your own. "
+                "Imported projects arrive without answers to them."
+            )
+
+    teams_by_name: dict[str, list[Team]] = {}
+    for t in Team.objects.filter(event=event):
+        teams_by_name.setdefault(t.name.lower(), []).append(t)
+    member_of = {
+        (e or "").lower(): (team_id, name)
+        for e, team_id, name in TeamMembership.objects.filter(team__event=event).values_list(
+            "user__email", "team_id", "team__name"
+        )
+        if e
+    }
+    roles: dict[str, set[str]] = {}
+    for e, role in EventRole.objects.filter(event=event).values_list("user__email", "role"):
+        if e:
+            roles.setdefault(e.lower(), set()).add(role)
     existing_titles = {
-        (t.lower(), n.lower()) for t, n in Project.objects.filter(event=event).values_list("team__name", "title")
+        (team_id, title.lower())
+        for team_id, title in Project.objects.filter(event=event).values_list("team_id", "title")
     }
-    existing_members = {
-        e.lower(): t
-        for e, t in TeamMembership.objects.filter(team__event=event).values_list("user__email", "team__name")
-        if e
-    }
-    existing_judges = set(
-        e.lower()
-        for e in EventRole.objects.filter(event=event, role=Role.JUDGE).values_list("user__email", flat=True)
-        if e
-    )
+
+    out, seen = [], set()
+    placed_in: dict[str, str] = {}  # member -> team name, inside this file
     for n, row in enumerate(rows, start=2):  # line 1 is the header
         problems, notes = [], []
         if kind == "projects":
@@ -143,10 +193,16 @@ def plan(event: Event, user, text: str, kind: str) -> dict:
                 problems.append("title longer than 200 characters")
             if len(row.get("tagline", "")) > 300:
                 problems.append("tagline longer than 300 characters")
+            matches = teams_by_name.get(team.lower(), [])
+            if len(matches) > 1:
+                problems.append(f"{len(matches)} teams in this event are called '{team}'; rename one of them first")
+            found = matches[0] if len(matches) == 1 else None
+            if found is not None:
+                notes.append(f"joins the existing team {found.name}")
             key = (team.lower(), title.lower())
             if team and title and key in seen:
                 problems.append("the same team and title appear on an earlier line")
-            if team and title and key in existing_titles:
+            if found is not None and (found.id, title.lower()) in existing_titles:
                 problems.append("this team already has a project with this title in the event")
             seen.add(key)
             track = row.get("track", "")
@@ -166,38 +222,39 @@ def plan(event: Event, user, text: str, kind: str) -> dict:
             tags = _split(row.get("tags", ""))
             if len(tags) > 20 or any(len(t) > 40 for t in tags):
                 problems.append("at most 20 tags, each at most 40 characters")
-            members = [m.lower() for m in _split(row.get("members", ""))]
+            members = list(dict.fromkeys(m.lower() for m in _split(row.get("members", ""))))
+            new_people = known = 0
             for m in members:
-                try:
-                    validate_email(m)
-                except ValidationError:
-                    problems.append(f"'{m}' is not an email address")
+                if not _email(m, problems):
                     continue
-                other = member_team.get(m) or existing_members.get(m)
-                if other and other.lower() != team.lower():
-                    problems.append(f"{m} is already on team {other}")
-                member_team.setdefault(m, team)
-            new_people = [m for m in members if not User.objects.filter(email__iexact=m).exists()]
+                on_team = member_of.get(m)
+                if on_team and (found is None or on_team[0] != found.id):
+                    problems.append(f"{m} is already on team {on_team[1]}")
+                elif placed_in.get(m, team.lower()) != team.lower():
+                    problems.append(f"{m} is on another team earlier in this file")
+                placed_in.setdefault(m, team.lower())
+                held = roles.get(m, set())
+                if Role.JUDGE in held:
+                    problems.append(f"{m} is a judge of this event and cannot be on a team in it")
+                if Role.ORGANIZER in held:
+                    problems.append(f"{m} is an organizer of this event")
+                person = User.objects.filter(email__iexact=m).order_by("id").first()
+                if person is None:
+                    new_people += 1
+                elif person.is_staff or person.is_superuser:
+                    problems.append(f"{m} is a staff account; add staff to teams by hand")
+                else:
+                    known += 1
             if new_people:
-                notes.append(f"{len(new_people)} new account{'s' if len(new_people) != 1 else ''}")
+                notes.append(f"{new_people} new account{'s' if new_people != 1 else ''}")
+            if known:
+                notes.append(f"{known} existing account{'s' if known != 1 else ''} will be added to the team")
             if not members:
                 notes.append("no members listed")
-            out.append(
-                {
-                    "line": n,
-                    "what": f"{title} by {team}",
-                    "problems": problems,
-                    "notes": notes,
-                    "row": row,
-                    "ok": not problems,
-                }
-            )
+            what = f"{title} by {team}"
         else:
             email = row.get("email", "").lower()
-            try:
-                validate_email(email)
-            except ValidationError:
-                problems.append("not an email address")
+            _email(email, problems)
             if email in seen:
                 problems.append("the same address appears on an earlier line")
             seen.add(email)
@@ -206,20 +263,16 @@ def plan(event: Event, user, text: str, kind: str) -> dict:
             for t in _split(row.get("tracks", "")):
                 if t.lower() not in tracks:
                     problems.append(f"no track called '{t}' in this event")
-            if email in existing_judges:
+            if email in member_of:
+                problems.append(f"{email} is on team {member_of[email][1]} in this event and cannot judge it")
+            if Role.JUDGE in roles.get(email, set()):
                 notes.append("already a judge here: tracks will be updated")
             elif email and not User.objects.filter(email__iexact=email).exists():
                 notes.append("new account")
-            out.append(
-                {
-                    "line": n,
-                    "what": row.get("name") or email,
-                    "problems": problems,
-                    "notes": notes,
-                    "row": row,
-                    "ok": not problems,
-                }
-            )
+            elif email:
+                notes.append("existing account")
+            what = row.get("name") or email
+        out.append({"line": n, "what": what, "problems": problems, "notes": notes, "row": row, "ok": not problems})
     bad = sum(1 for r in out if not r["ok"])
     return {
         "kind": kind,
@@ -228,6 +281,7 @@ def plan(event: Event, user, text: str, kind: str) -> dict:
         "bad": bad,
         "ready": bool(out) and bad == 0,
         "ignored_columns": ignored,
+        "warnings": warnings,
     }
 
 
@@ -246,7 +300,7 @@ def apply(event: Event, user, text: str, kind: str) -> dict:
     User = get_user_model()
     made = {"projects": 0, "teams": 0, "accounts": 0, "judges": 0}
 
-    def account(email: str, name: str = ""):
+    def account(email: str):
         found = User.objects.filter(email__iexact=email).order_by("id").first()
         if found:
             return found
@@ -256,21 +310,19 @@ def apply(event: Event, user, text: str, kind: str) -> dict:
             username, i = f"{base}{i}", i + 1
         person = User(username=username, email=email)
         person.set_unusable_password()
-        if name:
-            first, _, last = name.partition(" ")
-            person.first_name, person.last_name = first[:150], last[:150]
         person.save()
         made["accounts"] += 1
         return person
 
     if kind == "judges":
+        before = User.objects.count()
         for r in checked["rows"]:
             row = r["row"]
             services.add_judge(
                 event, user, row["email"], row.get("name", ""), _track_list(event, row.get("tracks", ""))
             )
             made["judges"] += 1
-        made["accounts"] = 0  # add_judge creates them; counted by the audit entries it writes
+        made["accounts"] = User.objects.count() - before
     else:
         tracks = {t.name.strip().lower(): t for t in event.tracks.all()}
         teams = {t.name.lower(): t for t in Team.objects.filter(event=event)}
@@ -278,16 +330,17 @@ def apply(event: Event, user, text: str, kind: str) -> dict:
             row = r["row"]
             team = teams.get(row["team"].lower())
             if team is None:
-                team = Team.objects.create(event=event, name=row["team"], created_by=user)
+                team = Team(event=event, name=row["team"], created_by=user)
+                team.full_clean(exclude=["external_id"])
+                team.save()
                 teams[row["team"].lower()] = team
                 made["teams"] += 1
-            for n, email in enumerate(m.lower() for m in _split(row.get("members", ""))):
+            for email in dict.fromkeys(m.lower() for m in _split(row.get("members", ""))):
                 person = account(email)
-                role = (
-                    TeamMembership.MemberRole.OWNER
-                    if n == 0 and not team.memberships.exists()
-                    else TeamMembership.MemberRole.MEMBER
-                )
+                if TeamMembership.objects.filter(team__event=event, user=person).exclude(team=team).exists():
+                    raise ValidationError(f"{email} is already on another team in this event; nothing was imported.")
+                first = not team.memberships.exists()
+                role = TeamMembership.MemberRole.OWNER if first else TeamMembership.MemberRole.MEMBER
                 TeamMembership.objects.get_or_create(team=team, user=person, defaults={"role": role})
                 EventRole.objects.get_or_create(event=event, user=person, role=Role.PARTICIPANT)
             project = Project(event=event, team=team, created_by=user)

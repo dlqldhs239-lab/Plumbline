@@ -52,7 +52,7 @@ the same function as the API.
 ## 4. We claim all four tiers, and wrote the probes the checker lacks
 
 **Chosen.** `.dogfood.toml` claims T1 to T4. The official checker verifies
-T1 and T2. `tools/verify_tiers.py` verifies T3 and T4 with 51 probes written
+T1 and T2. `tools/verify_tiers.py` verifies T3 and T4 with 55 probes written
 in the checker's manner, and its output is committed beside the official
 report.
 

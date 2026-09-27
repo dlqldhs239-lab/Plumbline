@@ -22,9 +22,9 @@
   <div class="stack loose">
     {% if result %}
     <section class="card verdict-card {{ result.state }}" role="status">
-      <h3><span class="badge {% if result.state == 'genuine' %}ok{% elif result.state == 'revoked' %}warn{% else %}bad{% endif %}">{% if result.state == 'genuine' %}Genuine{% elif result.state == 'revoked' %}Withdrawn{% elif result.state == 'altered' %}Altered{% else %}Not found{% endif %}</span></h3>
+      <h3><span class="badge {% if result.state == 'genuine' %}ok{% elif result.state == 'revoked' or result.state == 'suspended' %}warn{% else %}bad{% endif %}">{% if result.state == 'genuine' %}Genuine{% elif result.state == 'revoked' %}Withdrawn{% elif result.state == 'suspended' %}Not standing at present{% elif result.state == 'altered' %}Altered{% else %}Not found{% endif %}</span></h3>
       <p>{{ result.says }}</p>
-      {% if result.record and result.state != 'altered' %}
+      {% if result.record and result.state != 'altered' and result.state != 'suspended' %}
       <table>
         <tr><td>Record</td><td class="num">{{ result.record.serial }}</td></tr>
         <tr><td>Issued to</td><td class="num">{{ result.record.payload.recipient }}</td></tr>

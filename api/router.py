@@ -24,7 +24,7 @@ from events.permissions import can_view_project, is_admin, is_organizer, roles_f
 from judging import export as export_services
 from judging import services as judging_services
 from judging.models import JudgeAssignment
-from plumbline.inputs import as_id
+from plumbline.inputs import as_id, site_url
 
 from .auth import auth_optional, auth_required
 from .schemas import (
@@ -194,7 +194,7 @@ def create_invite(request, slug: str, team_id: int, max_uses: int = 10, ttl_hour
     invite = event_services.create_invite(team, request.user, max_uses=max_uses, ttl_hours=ttl_hours)
     return {
         "token": invite.token,
-        "url": request.build_absolute_uri(invite.get_absolute_url()),
+        "url": site_url(request, invite.get_absolute_url()),
         "expires_at": invite.expires_at,
     }
 
@@ -249,11 +249,13 @@ def create_project(request, slug: str, payload: ProjectIn):
             else f"Submissions for {event.name} open at {event.submissions_open_at:%Y-%m-%d %H:%M} UTC."
         )
     team = _resolve_team(request, event, payload.team_id)
-    data = payload.dict(exclude={"team_id", "track_id", "submit"})
+    data = payload.dict(exclude={"team_id", "track_id", "submit", "answers"})
     data["track"] = payload.track_id
     # One unit: if submit=true is refused, no draft is left behind either.
     with transaction.atomic():
         project = event_services.create_project(event, team, request.user, data)
+        if payload.answers:
+            event_services.set_answers(project, request.user, payload.answers)
         if payload.submit:
             event_services.submit_project(project, request.user)
     return 201, project_out(project)
@@ -281,11 +283,13 @@ def get_project(request, slug: str, project_id: int):
 def update_project(request, slug: str, project_id: int, payload: ProjectIn):
     event = _event(slug)
     project = get_object_or_404(Project.objects.select_related("team", "track", "event"), pk=project_id, event=event)
-    data = payload.dict(exclude_unset=True, exclude={"team_id", "track_id", "submit"})
+    data = payload.dict(exclude_unset=True, exclude={"team_id", "track_id", "submit", "answers"})
     if "track_id" in payload.dict(exclude_unset=True):
         data["track"] = payload.track_id
     with transaction.atomic():
         project = event_services.update_project(project, request.user, data)
+        if payload.answers:
+            event_services.set_answers(project, request.user, payload.answers)
         if payload.submit:
             event_services.submit_project(project, request.user)
     return project_out(project)

@@ -5,17 +5,35 @@ from __future__ import annotations
 
 import csv
 import io
+import json
+import re
 
 from events.models import Event, Project, TeamMembership
 
 from .models import JudgeAssignment, JudgeCalibration, ProjectResult
 from .services import ensure_rubric
 
+RUNS_AS_FORMULA = ("=", "+", "-", "@", "\t", "\r")
+PLAIN_NUMBER = re.compile(r"^[+-]?[0-9]+([.,][0-9]+)?$")
+
+
+def safe_cell(value):
+    """A team may call itself =HYPERLINK(...). An organizer opening the export
+    in a spreadsheet must see that as text, not have it run. Cells that would
+    start a formula get a leading apostrophe, which spreadsheets show as
+    nothing and treat as "this is text". Numbers are left alone."""
+    if isinstance(value, str) and value.startswith(RUNS_AS_FORMULA) and not PLAIN_NUMBER.match(value):
+        return "'" + value
+    if isinstance(value, (dict, list)):
+        return safe_cell(json.dumps(value, ensure_ascii=False, default=str))
+    return value
+
 
 def to_csv(rows: list[list]) -> str:
     buf = io.StringIO()
     writer = csv.writer(buf, lineterminator="\n")
-    writer.writerows(rows)
+    for n, row in enumerate(rows):
+        writer.writerow(row if n == 0 else [safe_cell(c) for c in row])
     return buf.getvalue()
 
 

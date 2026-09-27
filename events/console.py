@@ -8,7 +8,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.clickjacking import xframe_options_exempt
 
 from judging import services as judging_services
-from plumbline.inputs import id_or_404
+from plumbline.inputs import id_or_404, site_url
 
 from . import extras, importer
 from .models import CustomQuestion, Event, Prize, Project
@@ -177,5 +177,5 @@ def embed(request, slug, what):
         if track_id:
             qs = qs.filter(track_id=track_id)
         context["projects"] = qs.order_by("-submitted_at", "id")[:limit]
-    context["origin"] = request.build_absolute_uri("/").rstrip("/")
+    context["origin"] = site_url(request, "/").rstrip("/")
     return render(request, "events/embed.html", context)

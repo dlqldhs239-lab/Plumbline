@@ -190,7 +190,10 @@ class ProjectForm(forms.ModelForm):
         if q.kind == CustomQuestion.Kind.URL:
             return forms.URLField(**common)
         if q.kind == CustomQuestion.Kind.CHOICE:
-            return forms.ChoiceField(choices=[(c, c) for c in q.choices], **common)
+            choices = [(c, c) for c in q.choices]
+            if not q.required:
+                choices = [("", "No answer"), *choices]
+            return forms.ChoiceField(choices=choices, **common)
         if q.kind == CustomQuestion.Kind.CHECKBOX:
             return forms.BooleanField(**{**common, "required": False})
         return forms.CharField(**common)

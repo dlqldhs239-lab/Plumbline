@@ -78,6 +78,9 @@ class ProjectIn(Schema):
     live_url: str = ""
     tech_tags: list[str] = []
     track_id: int | None = None
+    # Answers to the organizer's own questions, keyed by question id
+    # (GET /events/{slug}/questions lists them).
+    answers: dict[str, str | bool | None] = {}
     submit: bool = False
 
 

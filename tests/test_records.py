@@ -64,7 +64,7 @@ class IssuedTests(Issued):
         event_services.set_hidden(first.project, self.organizer, True)
         judging.recompute_results(self.event, self.organizer)
         services.issue_for_event(self.event, self.organizer, places=3)
-        # The hidden project's records stay as they were; the new leader's say place 1.
+        # The hidden project's records are withdrawn; the new leader's say place 1.
         new_first = judging.placed(self.event)[0]
         standing = Record.objects.filter(project=new_first.project, revoked_at__isnull=True)
         self.assertEqual({r.payload["place"] for r in standing}, {1})

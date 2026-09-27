@@ -121,7 +121,7 @@ def main(argv: list[str]) -> int:
     status2, listed, _ = portal.call("GET", f"{e}/projects", "organizer")
     rep.check(
         "T4",
-        "import: dry run reads and writes nothing",
+        "import: a dry run creates no project",
         status == 200 and dry["ready"] and dry["total"] == 7 and listed == [],
         f"{status} {dry}",
     )
@@ -177,12 +177,10 @@ def main(argv: list[str]) -> int:
     status, summary, _ = portal.call("GET", f"{e}/votes/summary", "participant")
     rep.check("T3", "the tally is closed to voters", status == 403, str(status))
     status, summary, _ = portal.call("GET", f"{e}/votes/summary", "organizer")
-    rep.check(
-        "T3",
-        "the organizer sees the tally and the flags",
-        status == 200 and summary["ballots"] == 2,
-        f"{status} {summary}",
-    )
+    counted = status == 200 and summary["tally"].get(str(pid), {}).get("votes") == 2
+    rep.check("T3", "the organizer sees the tally", counted, f"{status} {summary}")
+    flags = status == 200 and {"flagged", "voided", "shared_ips"} <= set(summary)
+    rep.check("T3", "and the integrity flags beside it", flags, f"{status}")
 
     # ---- T3: comments ----------------------------------------------------------
     text = f"Probe comment {slug[-6:]}"
@@ -231,6 +229,8 @@ def main(argv: list[str]) -> int:
     )
     status, _, _ = portal.call("GET", f"{e}/audit", "participant")
     rep.check("T3", "the audit trail is for organizers", status == 403, str(status))
+    status, early, _ = portal.call("POST", f"{e}/records/issue", "organizer", {"places": 1})
+    rep.check("T4", "records: refused before publication", status == 400, f"{status} {early}")
     portal.call("POST", f"{e}/results/publish", "organizer")
     status, results, _ = portal.call("GET", f"{e}/results")
     ok = status == 200 and results and results[0]["adjusted_mean"] is not None
@@ -271,7 +271,7 @@ def main(argv: list[str]) -> int:
     rep.check("T4", "webhook: an internal address is refused", status == 400, str(status))
     status, delivery, _ = portal.call("POST", f"{e}/webhooks/{hook.get('id', 0)}/ping", "organizer")
     ok = status == 200 and delivery["attempts"] == 1 and delivery["status"] in ("ok", "failed")
-    rep.check("T4", "webhook: a delivery is recorded with its outcome", ok, f"{status} {delivery}")
+    rep.check("T4", "webhook: an attempt is recorded, sent or failed", ok, f"{status} {delivery}")
     status, _, _ = portal.call("GET", f"{e}/webhooks", "judge_a")
     rep.check("T4", "webhook: closed to judges", status == 403, str(status))
 
@@ -336,11 +336,28 @@ def main(argv: list[str]) -> int:
     rep.check(
         "T4", "embed: the gallery may sit in a frame", status == 200 and framed and "Probe" in str(page), str(status)
     )
-    status, _, got = portal.call("GET", f"/events/{slug}/gallery/")
-    rep.check("T4", "embed: no other page may", {k.title(): v for k, v in got.items()}.get("X-Frame-Options") == "DENY")
-    for kind in ("projects", "assignments", "scores", "results", "calibration", "audit"):
+    others = (
+        ("the gallery page", f"/events/{slug}/gallery/"),
+        ("the results page", f"/events/{slug}/results/"),
+        ("the sign-in page", "/accounts/login/"),
+    )
+    for label, path in others:
+        status, _, got = portal.call("GET", path)
+        denied = {k.title(): v for k, v in got.items()}.get("X-Frame-Options") == "DENY"
+        rep.check("T4", f"embed: {label} may not", status == 200 and denied, str(status))
+    expected = {
+        "projects": ("title", 7),
+        "assignments": ("judge", 1),
+        "scores": ("functionality", 1),
+        "results": ("adjusted_mean", 7),
+        "calibration": ("shrink_weight", 1),
+        "audit": ("action", 10),
+    }
+    for kind, (column, at_least) in expected.items():
         status, text, _ = portal.call("GET", f"{e}/export/{kind}.csv", "organizer")
-        rep.check("T4", f"export: {kind}.csv", status == 200 and "," in str(text).splitlines()[0], str(status))
+        lines = str(text).splitlines()
+        ok = status == 200 and column in lines[0].split(",") and len(lines) - 1 >= at_least
+        rep.check("T4", f"export: {kind}.csv, columns and rows", ok, f"{status}, {len(lines) - 1} rows")
     status, _, _ = portal.call("GET", f"{e}/export/scores.csv", "participant")
     rep.check("T4", "export: refused to a participant", status == 403, str(status))
 

@@ -172,6 +172,11 @@ def submit_project(project: Project, user) -> Project:
         raise PermissionDenied("You are not a member of this project's team.")
     if not project.title.strip():
         raise ValidationError("A title is required before submitting.")
+    unanswered = missing_answers(project)
+    if unanswered and not is_organizer(user, project.event):
+        raise ValidationError(
+            "The organizers ask every team to answer before submitting: " + "; ".join(q.prompt for q in unanswered)
+        )
     # Two teammates pressing submit at once must not both get through.
     Team.objects.select_for_update().filter(pk=project.team_id).first()
     already = (
@@ -189,6 +194,46 @@ def submit_project(project: Project, user) -> Project:
     twins = flag_lookalikes(project)
     record("project.submit", actor=user, event=project.event, target=project, detail={"lookalikes": twins})
     return project
+
+
+def missing_answers(project: Project) -> list:
+    """The organizer's required questions this project has not answered."""
+    from .models import CustomQuestion
+
+    answered = set(project.answers.exclude(value="").values_list("question_id", flat=True))
+    return [q for q in CustomQuestion.objects.filter(event=project.event, required=True) if q.id not in answered]
+
+
+@transaction.atomic
+def set_answers(project: Project, user, answers: dict) -> int:
+    """Store answers to the organizer's questions, keyed by question id.
+    Each is checked against the kind of its question."""
+    from .models import CustomAnswer, CustomQuestion
+
+    _require_open_for_edit(project.event, user)
+    if not is_team_member(user, project) and not is_organizer(user, project.event):
+        raise PermissionDenied("You are not a member of this project's team.")
+    questions = {q.id: q for q in CustomQuestion.objects.filter(event=project.event)}
+    saved = 0
+    for key, raw in (answers or {}).items():
+        q = questions.get(as_id(key) or 0)
+        if q is None:
+            raise ValidationError(f"There is no question {str(key)[:20]} on this event's form.")
+        if isinstance(raw, bool):
+            value = "True" if raw else ""
+        else:
+            value = str(raw if raw is not None else "").strip()
+        if len(value) > 5000:
+            raise ValidationError(f"{q.prompt}: the answer is longer than 5,000 characters.")
+        if value and q.kind == CustomQuestion.Kind.CHOICE and value not in (q.choices or []):
+            raise ValidationError(f"{q.prompt}: choose one of {', '.join(q.choices or [])}.")
+        if value and q.kind == CustomQuestion.Kind.URL:
+            value = _web_address(value, q.prompt)
+        if q.kind == CustomQuestion.Kind.CHECKBOX:
+            value = "True" if value.lower() in ("true", "1", "yes", "on") else ""
+        CustomAnswer.objects.update_or_create(project=project, question=q, defaults={"value": value})
+        saved += 1
+    return saved
 
 
 def lookalikes(project: Project):

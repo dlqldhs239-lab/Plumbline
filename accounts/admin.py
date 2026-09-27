@@ -1,5 +1,7 @@
 from django.contrib import admin, messages
 
+from plumbline.inputs import site_url
+
 from .models import ApiToken, SignInLink
 
 
@@ -26,5 +28,5 @@ class SignInLinkAdmin(admin.ModelAdmin):
     def save_model(self, request, obj, form, change):
         link, raw = SignInLink.issue(obj.user, created_by=request.user)
         obj.pk = link.pk
-        url = request.build_absolute_uri(f"/accounts/claim/{raw}/")
+        url = site_url(request, f"/accounts/claim/{raw}/")
         messages.warning(request, f"Sign-in link for {obj.user}: {url} (shown once; works once, for seven days)")

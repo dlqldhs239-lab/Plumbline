@@ -8,7 +8,7 @@ from django.views.decorators.http import require_POST
 from events.models import Event, Project
 from events.permissions import is_organizer
 from judging import export as export_services
-from plumbline.inputs import id_or_404
+from plumbline.inputs import id_or_404, site_url
 
 from . import services
 from .models import Comment, Voter
@@ -152,9 +152,7 @@ def export_ballot_links(request, slug):
         raise PermissionDenied("Organizer role required.")
     rows = [["email", "ballot_url", "voided"]]
     for v in Voter.objects.filter(event=event, kind=Voter.Kind.EMAIL).order_by("email"):
-        rows.append(
-            [v.email, request.build_absolute_uri(f"/events/{event.slug}/ballot/{v.ballot_token}/"), bool(v.voided_at)]
-        )
+        rows.append([v.email, site_url(request, f"/events/{event.slug}/ballot/{v.ballot_token}/"), bool(v.voided_at)])
     response = HttpResponse(export_services.to_csv(rows), content_type="text/csv; charset=utf-8")
     response["Content-Disposition"] = f'attachment; filename="{event.slug}-ballot-links.csv"'
     return response

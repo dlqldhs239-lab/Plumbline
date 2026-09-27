@@ -1,18 +1,21 @@
 {% extends "base.html" %}
-{% block title %}{{ p.recipient }} · {{ event.name }} · {{ rec.serial }}{% endblock %}
+{% block title %}{% if not withheld %}{{ p.recipient }} · {{ event.name }} · {% endif %}{{ rec.serial }}{% endblock %}
 {% block content %}
 <div class="sheet-bar">
   <div class="verdict {{ state.state }}" role="status">
-    <span class="badge {% if state.state == 'genuine' %}ok{% elif state.state == 'revoked' %}warn{% else %}bad{% endif %}">{% if state.state == 'genuine' %}Genuine{% elif state.state == 'revoked' %}Withdrawn{% else %}Not valid{% endif %}</span>
+    <span class="badge {% if state.state == 'genuine' %}ok{% elif state.state == 'revoked' or state.state == 'suspended' %}warn{% else %}bad{% endif %}">{% if state.state == 'genuine' %}Genuine{% elif state.state == 'revoked' %}Withdrawn{% elif state.state == 'suspended' %}Not standing at present{% else %}Not valid{% endif %}</span>
     <span>{{ state.says }}</span>
   </div>
   <div class="actions">
-    <button class="btn" type="button" onclick="window.print()">Print or save as PDF</button>
-    <a class="btn" href="{% url 'record_json' rec.serial %}">Signed record, JSON</a>
+    {% if not withheld %}<button class="btn" type="button" onclick="window.print()">Print or save as PDF</button>
+    <a class="btn" href="{% url 'record_json' rec.serial %}">Signed record, JSON</a>{% endif %}
     <a class="btn" href="{% url 'verify' %}">Check another</a>
   </div>
 </div>
 
+{% if withheld %}
+<div class="empty"><strong>{{ rec.serial }}</strong>This record was issued here. What it says is not shown while it does not stand.</div>
+{% else %}
 <article class="sheet{% if state.state != 'genuine' %} void{% endif %}" aria-label="Certificate">
   <header>
     <span class="label">{{ p.issuer }} · {% if rec.kind == 'placement' %}record of placement{% elif rec.kind == 'judge' %}record of judging{% else %}record of participation{% endif %}</span>
@@ -49,5 +52,6 @@
   </dl>
 </article>
 
+{% endif %}
 <p class="help sheet-note">The number and the address above let anyone confirm this record with the portal that issued it. The signed JSON holds the same statement; if one character of it is changed, the check fails.</p>
 {% endblock %}

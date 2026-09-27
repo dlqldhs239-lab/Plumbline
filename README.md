@@ -112,7 +112,7 @@ with their agreement. Method and tests in [JUDGING.md](JUDGING.md), section
 | tier | verified by | report |
 |---|---|---|
 | T1, T2 | the official `checker/run.py`, 7 probes | `acceptance-report.txt` |
-| T3, T4 | `tools/verify_tiers.py`, 51 probes in the same manner | `acceptance-report-t3-t4.txt` |
+| T3, T4 | `tools/verify_tiers.py`, 55 probes in the same manner | `acceptance-report-t3-t4.txt` |
 
 The official checker has probes for T1 and T2 only, so it prints T3 and T4
 as *claimed but not verified*. That line is true of the checker, not of the
@@ -175,6 +175,7 @@ Copy `.env.example` to `.env` and set:
 | `CSRF_TRUSTED_ORIGINS` | `http://localhost:8080,…` | your origin, with scheme |
 | `DJANGO_DEBUG` | `0` | leave it |
 | `PLUMBLINE_SITE_NAME` | `Plumbline` | shown in the header |
+| `PLUMBLINE_SITE_URL` | empty | your public address, such as `https://judging.example.org`; printed on certificates and in the links you send |
 | `PLUMBLINE_ANON_WRITE_RATE` | `20` | anonymous writes per minute per address |
 | `PLUMBLINE_TRUST_PROXY` | `0` | set `1` only behind a proxy you run; see below |
 | `PLUMBLINE_WEBHOOK_ALLOW_PRIVATE` | `0` | set `1` if webhook receivers live on your own network |
@@ -205,7 +206,7 @@ pip install -r requirements.txt
 python manage.py migrate && python manage.py createcachetable
 python manage.py seed_fixtures fixtures.json
 python manage.py runserver 8080
-python manage.py test tests            # 254 tests, 3 to 10 minutes
+python manage.py test tests            # 309 tests, 4 to 10 minutes
 python manage.py normalization_report sample-hack-2026 > docs/normalization-proof.md
 ```
 

@@ -9,10 +9,22 @@ from django.views.decorators.http import require_POST
 
 from events.models import Event
 from events.permissions import is_organizer
-from plumbline.inputs import as_int
+from plumbline.inputs import as_int, site_url
 
 from . import services
 from .models import Record
+
+
+def _no_repeats(pairs):
+    """A key written twice in JSON keeps its last value when read, so a
+    document could show one place to the eye and carry another to the check.
+    Such a document is refused."""
+    out = {}
+    for key, value in pairs:
+        if key in out:
+            raise ValueError("a key is repeated")
+        out[key] = value
+    return out
 
 
 def _find(serial: str) -> Record:
@@ -32,13 +44,18 @@ def record_detail(request, serial):
             "p": rec.payload,
             "event": rec.event,
             "state": state,
-            "address": request.build_absolute_uri(rec.get_absolute_url()),
+            # While a record does not stand, what it says is not shown either:
+            # it may name a place in results that are not public.
+            "withheld": state["state"] == "suspended",
+            "address": site_url(request, rec.get_absolute_url()),
         },
     )
 
 
 def record_json(request, serial):
     rec = _find(serial)
+    if services.state_of(rec)["state"] == "suspended":
+        raise PermissionDenied("This record does not stand at present.")
     response = JsonResponse(services.document(rec), json_dumps_params={"indent": 2, "ensure_ascii": False})
     response["Content-Disposition"] = f'attachment; filename="{rec.serial}.json"'
     return response
@@ -51,9 +68,9 @@ def verify(request):
         entered = (request.POST.get("document") or "").strip()[:20000]
         if entered.startswith("{"):
             try:
-                doc = json.loads(entered)
+                doc = json.loads(entered, object_pairs_hook=_no_repeats)
                 result = services.check(doc.get("payload"), doc.get("signature"))
-            except (ValueError, AttributeError):
+            except (ValueError, AttributeError, RecursionError):
                 result = {"state": "unknown", "says": "That is not a readable document."}
         elif entered:
             rec = Record.objects.filter(serial=entered.upper()[:20]).first()
@@ -78,13 +95,16 @@ def organize_records(request, slug):
                 messages.success(
                     request,
                     f"{out['issued']} record{'s' if out['issued'] != 1 else ''} issued for {out['teams']} "
-                    f"teams and {out['judges']} judges. {out['standing']} already stood.",
+                    f"teams and {out['judges']} judges. {out['standing']} already stood."
+                    + (f" {out['withdrawn']} withdrawn: no longer in the results." if out["withdrawn"] else ""),
                 )
         except ValidationError as e:
             messages.error(request, "; ".join(e.messages))
         return redirect("organize_records", slug=slug)
-    records = list(event.records.select_related("recipient", "project").order_by("kind", "revoked_at", "id"))
-    standing = [r for r in records if not r.is_revoked]
+    records = list(event.records.select_related("recipient", "project", "event").order_by("kind", "revoked_at", "id"))
+    for r in records:
+        r.resting = "" if r.is_revoked else services.why_not_standing(r)
+    standing = [r for r in records if not r.is_revoked and not r.resting]
     return render(
         request,
         "events/organize/records.html",
@@ -106,7 +126,7 @@ def organize_records(request, slug):
 @require_POST
 def organize_record_revoke(request, slug, serial):
     event = get_object_or_404(Event, slug=slug)
-    rec = get_object_or_404(Record, serial=serial, event=event)
+    rec = get_object_or_404(Record, serial=serial.strip().upper()[:20], event=event)
     try:
         services.revoke(rec, request.user, request.POST.get("reason", ""))
         messages.info(request, f"{rec.serial} withdrawn. Anyone who checks it is told so.")

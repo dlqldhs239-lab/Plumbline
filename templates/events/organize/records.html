@@ -31,7 +31,7 @@
         <td>{{ r.payload.recipient }}<br><small>{{ r.recipient.email }}</small></td>
         <td>{% if r.kind == 'judge' %}{{ r.payload.reviews }} review{{ r.payload.reviews|pluralize }}{% else %}{{ r.payload.project }}<br><small>{{ r.payload.team }}</small>{% endif %}</td>
         <td>{% if r.kind == 'placement' %}Place {{ r.payload.place }} of {{ r.payload.of }}{% else %}{{ r.get_kind_display }}{% endif %}</td>
-        <td>{% if r.is_revoked %}<span class="badge warn">Withdrawn</span><br><small>{{ r.revoke_reason }}</small>{% else %}<span class="badge ok">Standing</span>{% endif %}</td>
+        <td>{% if r.is_revoked %}<span class="badge warn">Withdrawn</span><br><small>{{ r.revoke_reason }}</small>{% elif r.resting %}<span class="badge warn">Not standing</span><br><small>{{ r.resting }}</small>{% else %}<span class="badge ok">Standing</span>{% endif %}</td>
         <td style="text-align:right">{% if not r.is_revoked %}<form method="post" action="{% url 'organize_record_revoke' event.slug r.serial %}" class="row revoke">{% csrf_token %}<label class="sr-only" for="why-{{ r.pk }}">Reason for withdrawing {{ r.serial }}</label><input type="text" id="why-{{ r.pk }}" name="reason" placeholder="Reason" maxlength="200" required><button class="btn small danger" type="submit" data-confirm="Withdraw for good">Withdraw</button></form>{% endif %}</td>
       </tr>
       {% endfor %}

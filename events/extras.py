@@ -108,6 +108,8 @@ def _choices(value) -> list[str]:
     out = []
     for item in value or []:
         text = str(item).strip()
+        if "\n" in text or "\r" in text:
+            raise ValidationError("A choice is one line.")
         if text and text not in out:
             out.append(text)
     if len(out) > MAX_CHOICES or any(len(c) > 120 for c in out):
@@ -133,7 +135,15 @@ def save_question(event: Event, user, data: dict, question: CustomQuestion | Non
     question.prompt = _text(data.get("prompt"), "The question", 300, required=True)
     question.help_text = _text(data.get("help_text"), "The hint", 300)
     question.required = bool(data.get("required")) and kind != CustomQuestion.Kind.CHECKBOX
-    question.choices = _choices(data.get("choices")) if kind == CustomQuestion.Kind.CHOICE else []
+    choices = _choices(data.get("choices")) if kind == CustomQuestion.Kind.CHOICE else []
+    if not creating and question.kind == CustomQuestion.Kind.CHOICE:
+        given = set(question.answers.exclude(value="").values_list("value", flat=True))
+        gone = sorted(given - set(choices))
+        if gone:
+            raise ValidationError(
+                "Teams have chosen " + ", ".join(gone) + ". A choice that was chosen cannot be removed or renamed."
+            )
+    question.choices = choices
     if kind == CustomQuestion.Kind.CHOICE and len(question.choices) < 2:
         raise ValidationError("A choice question needs at least two choices, one per line.")
     if data.get("order") not in (None, ""):

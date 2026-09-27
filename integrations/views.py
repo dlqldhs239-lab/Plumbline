@@ -5,7 +5,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 
 from events.models import Event
 from events.permissions import is_organizer
-from plumbline.inputs import id_or_404
+from plumbline.inputs import id_or_404, site_url
 
 from . import services
 from .models import Webhook, WebhookDelivery
@@ -65,6 +65,6 @@ def organize_integrations(request, slug):
             "hooks": hooks,
             "deliveries": deliveries,
             "known_actions": actions,
-            "embed_base": request.build_absolute_uri(f"/events/{event.slug}/embed/"),
+            "embed_base": site_url(request, f"/events/{event.slug}/embed/"),
         },
     )
