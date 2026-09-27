@@ -1,17 +1,22 @@
-{% load static %}<!doctype html>
-<html lang="en">
+{% load static plumbline %}<!doctype html>
+<html lang="en" data-mode="{% theme_mode event %}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}{{ SITE_NAME }}{% endblock %}</title>
+  <link rel="preload" href="{% static 'fonts/Archivo.woff2' %}" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="{% static 'css/plumbline.css' %}">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cline x1='16' y1='2' x2='16' y2='22' stroke='%230f4c5c' stroke-width='3'/%3E%3Ccircle cx='16' cy='25' r='5' fill='%230f4c5c'/%3E%3C/svg%3E">
+  {% theme_style event %}
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23080C18'/%3E%3Cline x1='16' y1='3' x2='16' y2='21' stroke='%2300E5D0' stroke-width='2'/%3E%3Crect x='12' y='19' width='8' height='8' fill='%2300E5D0' transform='rotate(45 16 23)'/%3E%3C/svg%3E">
+  {% block head %}{% endblock %}
 </head>
 <body>
+<a class="btn small" href="#main" style="position:absolute;left:-999px;top:8px" onfocus="this.style.left='8px'" onblur="this.style.left='-999px'">Skip to content</a>
 <header class="topbar">
   <div class="inner">
-    <a class="brand" href="{% url 'home' %}"><span class="plumb"></span>{{ SITE_NAME }}</a>
-    <nav class="nav">
+    <a class="brand" href="{% url 'home' %}"><span class="plumb" aria-hidden="true"></span>{{ SITE_NAME }}</a>
+    <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="nav">Menu</button>
+    <nav class="nav" id="nav" aria-label="Main">
       <a href="{% url 'home' %}">Events</a>
       {% if user.is_authenticated %}
         <a href="{% url 'dashboard' %}">Dashboard</a>
@@ -19,7 +24,7 @@
         <a href="{% url 'event_create' %}">New event</a>
         {% if user.is_staff %}<a href="{% url 'admin:index' %}">Admin</a>{% endif %}
         <a href="{% url 'accounts:tokens' %}">API</a>
-        <form method="post" action="{% url 'accounts:logout' %}" class="inline">{% csrf_token %}<button type="submit" title="{{ user.email }}">Sign out ({{ user.username }})</button></form>
+        <form method="post" action="{% url 'accounts:logout' %}" class="inline">{% csrf_token %}<button type="submit" title="{{ user.email }}">Sign out · {{ user.username }}</button></form>
       {% else %}
         <a href="/api/docs">API</a>
         <a href="{% url 'accounts:login' %}?next={{ request.path }}">Sign in</a>
@@ -28,13 +33,19 @@
     </nav>
   </div>
 </header>
-<main class="{% block main_class %}{% endblock %}">
+<main id="main" class="{% block main_class %}{% endblock %}">
   {% if messages %}
-    <ul class="messages">{% for m in messages %}<li class="{{ m.tags }}">{{ m }}</li>{% endfor %}</ul>
+    <ul class="messages" role="status">{% for m in messages %}<li class="{{ m.tags }}">{{ m }}</li>{% endfor %}</ul>
   {% endif %}
   {% block content %}{% endblock %}
 </main>
-<footer>{{ SITE_NAME }} · self-hosted hackathon judging · <a href="/api/docs">API docs</a></footer>
+<footer class="site"><div class="inner"><span>{{ SITE_NAME }} · self-hosted judging</span><span><a href="/api/docs">API</a> · <a href="{% url 'styleguide' %}">Design system</a> · MIT</span></div></footer>
+<script>
+(function () {
+  var t = document.querySelector('.nav-toggle'), n = document.getElementById('nav');
+  if (t && n) t.addEventListener('click', function () { var o = n.classList.toggle('open'); t.setAttribute('aria-expanded', o); });
+})();
+</script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

@@ -579,3 +579,31 @@ def organize_export(request, slug, kind):
     response = HttpResponse(export_services.to_csv(rows), content_type="text/csv; charset=utf-8")
     response["Content-Disposition"] = f'attachment; filename="{filename}"'
     return response
+
+
+def styleguide(request):
+    """The design system on one page: tokens, type, controls, tables, states.
+    Public, because a fork should be able to see what it is inheriting."""
+    from . import theme
+
+    presets = []
+    for key, (label, ground, ink, accent, signal) in theme.PRESETS.items():
+        presets.append(
+            {
+                "key": key,
+                "label": label,
+                "colours": [ground, ink, accent, signal],
+                "mode": theme.mode_of(ground),
+                "ink": round(theme.contrast(ink, ground), 1),
+                "accent": round(theme.contrast(accent, ground), 1),
+                "signal": round(theme.contrast(signal, ground), 1),
+                "problems": theme.check(ground, ink, accent, signal),
+            }
+        )
+    event = None
+    chosen = request.GET.get("theme")
+    if chosen in theme.PRESETS:
+        event = Event(name="Preview", slug="preview", **theme.preset(chosen))
+    return render(
+        request, "events/styleguide.html", {"presets": presets, "event": event, "chosen": chosen or theme.DEFAULT}
+    )

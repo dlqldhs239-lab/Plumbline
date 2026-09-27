@@ -1,6 +1,7 @@
 from django import forms
 from django.utils.text import slugify
 
+from . import theme
 from .models import CustomQuestion, Event, Project, Team, Track
 
 
@@ -18,6 +19,12 @@ class EventForm(forms.ModelForm):
         required=False,
         widget=forms.Textarea(attrs={"rows": 3, "placeholder": "One track per line"}),
         help_text="One per line. Existing tracks are kept; new lines are added.",
+    )
+    theme_preset = forms.ChoiceField(
+        label="Colour theme",
+        required=False,
+        choices=[("", "Keep the four colours below")] + [(k, v[0]) for k, v in theme.PRESETS.items()],
+        help_text="Pick a preset, or set the four colours yourself. Unreadable combinations are refused.",
     )
 
     class Meta:
@@ -38,8 +45,16 @@ class EventForm(forms.ModelForm):
             "voting_credits",
             "comments_enabled",
             "is_listed",
+            "theme_ground",
+            "theme_ink",
+            "theme_accent",
+            "theme_signal",
         ]
         widgets = {
+            "theme_ground": forms.TextInput(attrs={"type": "color"}),
+            "theme_ink": forms.TextInput(attrs={"type": "color"}),
+            "theme_accent": forms.TextInput(attrs={"type": "color"}),
+            "theme_signal": forms.TextInput(attrs={"type": "color"}),
             "submissions_open_at": DateTimeLocalInput(),
             "submissions_close_at": DateTimeLocalInput(),
             "judging_open_at": DateTimeLocalInput(),
@@ -70,6 +85,10 @@ class EventForm(forms.ModelForm):
 
     def clean(self):
         data = super().clean()
+        if data.get("theme_preset"):
+            data.update(theme.preset(data["theme_preset"]))
+            for field, value in theme.preset(data["theme_preset"]).items():
+                setattr(self.instance, field, value)
         if not data.get("slug"):
             data["slug"] = slugify(data.get("name", ""))
         if data.get("submissions_open_at") and data.get("submissions_close_at"):

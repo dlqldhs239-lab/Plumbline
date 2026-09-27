@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}Design system · {{ SITE_NAME }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <p class="eyebrow">Design system</p>
+    <h1>What every screen is made of</h1>
+    <p>Two typefaces, six colours, one spacing ladder, one easing curve. An event changes four colours and nothing else.</p>
+  </div>
+</div>
+
+<section class="grid12" style="row-gap:var(--s8)">
+
+  <div style="grid-column:1 / 4"><p class="label">01 · Themes</p></div>
+  <div style="grid-column:4 / 13">
+    <p class="lede">Pick one to see this page in it. A theme is refused at save time if any of these ratios falls under 4.5 to 1.</p>
+    <div class="table-wrap" style="margin-top:var(--s5)">
+      <table>
+        <thead><tr><th>Theme</th><th>Ground · ink · accent · signal</th><th class="num">Text</th><th class="num">Accent</th><th class="num">Signal</th><th></th></tr></thead>
+        <tbody>
+        {% for p in presets %}
+          <tr>
+            <td><strong>{{ p.label }}</strong><br><small>{{ p.mode }}</small></td>
+            <td><span class="row" style="gap:0">{% for c in p.colours %}<span title="{{ c }}" style="width:44px;height:28px;background:{{ c }};border:1px solid var(--edge);margin-right:-1px"></span>{% endfor %}</span><small class="mono" style="display:block;margin-top:6px">{{ p.colours|join:" " }}</small></td>
+            <td class="num">{{ p.ink }}</td><td class="num">{{ p.accent }}</td><td class="num">{{ p.signal }}</td>
+            <td>{% if p.key == chosen %}<span class="badge ok">Showing</span>{% else %}<a class="btn small" href="?theme={{ p.key }}">Preview</a>{% endif %}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div style="grid-column:1 / 4"><p class="label">02 · Type</p></div>
+  <div style="grid-column:4 / 13" class="stack">
+    <div><p class="label">Display · Archivo 700, width 66</p><p class="display">Hangs true</p></div>
+    <div><p class="label">Section · Archivo 700, width 68</p><p class="display-2">32 of 40 changed place</p></div>
+    <div><p class="label">Page title</p><h1>Judge assignments</h1></div>
+    <div><p class="label">Heading</p><h2>Voting integrity</h2></div>
+    <div><p class="label">Lede</p><p class="lede">Thirty judges do not agree on what a 3 is. Plumbline measures how far each one leans and sets the ranking straight.</p></div>
+    <div><p class="label">Body · Archivo 400, 14 / 21</p><p style="max-width:62ch">Existing assignments count toward the target, so the run can be repeated after adding judges. Nobody reviews their own team, and a judge restricted to a track never sees another.</p></div>
+    <div><p class="label">Data · JetBrains Mono, tabular</p><p class="mono tnum" style="font-size:20px">4.302 &nbsp; 3.997 &nbsp; 3.423 &nbsp; 2026-09-29 18:00 UTC</p></div>
+  </div>
+
+  <div style="grid-column:1 / 4"><p class="label">03 · Spacing</p></div>
+  <div style="grid-column:4 / 13">
+    <p class="lede">Ten steps from 4 to 256, a 64 times range. Every gap on every screen is one of these.</p>
+    <div class="stack" style="gap:var(--s2);margin-top:var(--s5)">
+      <div class="row"><span class="mono tnum" style="width:48px;color:var(--mute)">4</span><span style="height:12px;width:4px;background:var(--accent)"></span></div>
+      <div class="row"><span class="mono tnum" style="width:48px;color:var(--mute)">8</span><span style="height:12px;width:8px;background:var(--accent)"></span></div>
+      <div class="row"><span class="mono tnum" style="width:48px;color:var(--mute)">12</span><span style="height:12px;width:12px;background:var(--accent)"></span></div>
+      <div class="row"><span class="mono tnum" style="width:48px;color:var(--mute)">16</span><span style="height:12px;width:16px;background:var(--accent)"></span></div>
+      <div class="row"><span class="mono tnum" style="width:48px;color:var(--mute)">24</span><span style="height:12px;width:24px;background:var(--accent)"></span></div>
+      <div class="row"><span class="mono tnum" style="width:48px;color:var(--mute)">40</span><span style="height:12px;width:40px;background:var(--accent)"></span></div>
+      <div class="row"><span class="mono tnum" style="width:48px;color:var(--mute)">64</span><span style="height:12px;width:64px;background:var(--accent)"></span></div>
+      <div class="row"><span class="mono tnum" style="width:48px;color:var(--mute)">100</span><span style="height:12px;width:100px;background:var(--accent)"></span></div>
+      <div class="row"><span class="mono tnum" style="width:48px;color:var(--mute)">160</span><span style="height:12px;width:160px;background:var(--accent)"></span></div>
+      <div class="row"><span class="mono tnum" style="width:48px;color:var(--mute)">256</span><span style="height:12px;width:256px;background:var(--accent)"></span></div>
+    </div>
+  </div>
+
+  <div style="grid-column:1 / 4"><p class="label">04 · Controls</p></div>
+  <div style="grid-column:4 / 13" class="stack">
+    <div class="row"><button class="btn primary" type="button">Submit review</button><button class="btn" type="button">Save draft</button><button class="btn danger" type="button">Withdraw</button><button class="btn" type="button" disabled>Disabled</button><button class="btn small" type="button">Small</button></div>
+    <div class="grid cols-2">
+      <div>
+        <div class="field"><label for="sg1">Project title</label><input id="sg1" type="text" value="Salt Ledger"></div>
+        <div class="field"><label for="sg2">Track</label><select id="sg2"><option>Data and analytics</option><option>Security</option></select><div class="help">Judges restricted to a track only see projects in it.</div></div>
+        <div class="field checkbox"><input id="sg3" type="checkbox" checked><label for="sg3">Show on the public home page</label></div>
+      </div>
+      <div>
+        <div class="field"><label for="sg4">Repository</label><input id="sg4" type="url" value="not a url" aria-invalid="true" style="border-color:var(--signal)"><ul class="errorlist"><li>Enter a full address, starting with https://</li></ul></div>
+        <div class="field"><label for="sg5">Feedback to the team</label><textarea id="sg5" rows="3" placeholder="What worked, what to fix first"></textarea></div>
+      </div>
+    </div>
+  </div>
+
+  <div style="grid-column:1 / 4"><p class="label">05 · Scoring rod</p></div>
+  <div style="grid-column:4 / 13">
+    <div class="score-row"><div><strong>Functionality</strong><small class="mono">Weight 1.00</small></div><div class="scale" role="radiogroup" aria-label="Functionality">{% for v in "12345" %}<label><input type="radio" name="sg_f" value="{{ v }}" {% if v == "4" %}checked{% endif %}><span>{{ v }}</span></label>{% endfor %}</div></div>
+    <div class="score-row"><div><strong>Quality</strong><small class="mono">Weight 2.00</small></div><div class="scale" role="radiogroup" aria-label="Quality">{% for v in "12345" %}<label><input type="radio" name="sg_q" value="{{ v }}"><span>{{ v }}</span></label>{% endfor %}</div></div>
+    <p class="muted" style="margin-top:var(--s4)"><kbd>1</kbd>–<kbd>5</kbd> score the focused row · <kbd>Tab</kbd> next row · <kbd>Enter</kbd> submit</p>
+  </div>
+
+  <div style="grid-column:1 / 4"><p class="label">06 · Data</p></div>
+  <div style="grid-column:4 / 13" class="stack">
+    <div class="stats">
+      <div class="stat"><div class="n">40</div><div class="l">Submitted projects</div></div>
+      <div class="stat"><div class="n">30</div><div class="l">Judges</div></div>
+      <div class="stat"><div class="n">122 <small>/ 126</small></div><div class="l">Reviews counted</div></div>
+      <div class="stat"><div class="n">1</div><div class="l">Flagged duplicate</div></div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th class="num">Rank</th><th>Project</th><th>Track</th><th class="num">Raw</th><th>Correction</th><th class="num">Score</th><th>State</th></tr></thead>
+        <tbody>
+          <tr><td class="num">1</td><td><a href="#">Iron Switch</a></td><td>Open hardware</td><td class="num">4.333</td><td><div class="gauge" style="--d:0"><i></i></div></td><td class="num"><strong>4.302</strong></td><td><span class="badge ok">Counted</span></td></tr>
+          <tr><td class="num">3</td><td><a href="#">Slow Trail</a></td><td>Developer tools</td><td class="num">4.000</td><td><div class="gauge up" style="--d:3"><i></i></div></td><td class="num"><strong>4.079</strong></td><td><span class="badge ok">Counted</span></td></tr>
+          <tr><td class="num">29</td><td><a href="#">Small Relay</a></td><td>Health</td><td class="num">3.667</td><td><div class="gauge down" style="--d:-17"><i></i></div></td><td class="num"><strong>3.423</strong></td><td><span class="badge warn">One flat review</span></td></tr>
+          <tr class="dim"><td class="num">—</td><td>Dry Harbour</td><td>Accessibility</td><td class="num">3.333</td><td></td><td class="num">—</td><td><span class="badge neutral">Duplicate of #7</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="row"><span class="badge ok">Submitted</span><span class="badge warn">In progress</span><span class="badge bad">Voided</span><span class="badge neutral">Not started</span><span class="tags"><span>django</span><span>postgres</span></span></div>
+    <div><div class="row spread"><span class="label">Amara Silva</span><span class="label">6 / 6</span></div><div class="bar" style="margin-top:var(--s2)"><span style="width:100%"></span></div></div>
+    <div><div class="row spread"><span class="label">Diego Herrera</span><span class="label">7 / 11</span></div><div class="bar" style="margin-top:var(--s2)"><span style="width:64%"></span></div></div>
+  </div>
+
+  <div style="grid-column:1 / 4"><p class="label">07 · States</p></div>
+  <div style="grid-column:4 / 13" class="stack">
+    <ul class="messages" style="margin:0"><li class="success">Review of Salt Ledger submitted.</li><li class="warning">Scores exist, so the criteria are locked.</li><li class="error">Submissions closed at 2026-03-01 18:00 UTC.</li></ul>
+    <div class="empty"><strong>Nothing assigned yet</strong>An organizer assigns projects once submissions close. You will see them here.<br><a class="btn" href="#">Back to the event</a></div>
+    <div class="phase"><span class="past">Upcoming</span><span class="past">Submissions</span><span class="on">Judging</span><span>Results</span></div>
+  </div>
+</section>
+{% endblock %}

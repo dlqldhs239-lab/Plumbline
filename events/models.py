@@ -46,6 +46,14 @@ class Event(models.Model):
     reviews_per_project = models.PositiveSmallIntegerField(default=3)
     is_listed = models.BooleanField(default=True, help_text="Show on the public home page")
 
+    # Four colours; the stylesheet derives the rest. Checked for contrast on save.
+    theme_ground = models.CharField("Background", max_length=7, default="#080C18")
+    theme_ink = models.CharField("Text", max_length=7, default="#E9EEFF")
+    theme_accent = models.CharField("Accent", max_length=7, default="#00E5D0")
+    theme_signal = models.CharField(
+        "Signal", max_length=7, default="#FF3D6E", help_text="Warnings and downward movement"
+    )
+
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
     )
@@ -60,6 +68,22 @@ class Event(models.Model):
 
     def get_absolute_url(self) -> str:
         return reverse("event_detail", args=[self.slug])
+
+    def clean(self):
+        from . import theme
+
+        theme.validate(self.theme_ground, self.theme_ink, self.theme_accent, self.theme_signal)
+
+    @property
+    def theme_mode(self) -> str:
+        from . import theme
+
+        return theme.mode_of(self.theme_ground)
+
+    def theme_variables(self) -> dict[str, str]:
+        from . import theme
+
+        return theme.css_variables(self.theme_ground, self.theme_ink, self.theme_accent, self.theme_signal)
 
     # --- lifecycle -----------------------------------------------------
     def submissions_open(self, now=None) -> bool:

@@ -20,6 +20,10 @@ class EventPatch(Schema):
     voting_credits: int | None = None
     comments_enabled: bool | None = None
     is_listed: bool | None = None
+    theme_ground: str | None = None
+    theme_ink: str | None = None
+    theme_accent: str | None = None
+    theme_signal: str | None = None
 
 
 class JudgeIn(Schema):

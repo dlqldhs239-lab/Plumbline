@@ -216,6 +216,10 @@ EVENT_FIELDS = (
     "voting_credits",
     "comments_enabled",
     "is_listed",
+    "theme_ground",
+    "theme_ink",
+    "theme_accent",
+    "theme_signal",
 )
 
 
