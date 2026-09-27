@@ -60,5 +60,11 @@ def organize_integrations(request, slug):
     return render(
         request,
         "events/organize/integrations.html",
-        {"event": event, "hooks": hooks, "deliveries": deliveries, "known_actions": actions},
+        {
+            "event": event,
+            "hooks": hooks,
+            "deliveries": deliveries,
+            "known_actions": actions,
+            "embed_base": request.build_absolute_uri(f"/events/{event.slug}/embed/"),
+        },
     )

@@ -1,6 +1,7 @@
 from django.contrib import admin
 from django.urls import include, path
 
+import api.extras  # noqa: F401  (registers prizes, questions and import)
 import api.integrations  # noqa: F401  (registers the webhook endpoints)
 import api.organizer  # noqa: F401  (registers the organizer endpoints on the API)
 import api.records  # noqa: F401  (registers the record endpoints)

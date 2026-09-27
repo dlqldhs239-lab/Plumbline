@@ -81,7 +81,7 @@ from everyone but organizers until published, randomised ballot order that is
 stable per voter, rate limits shared across workers, duplicate-ballot flagging
 by address, and voidable ballots that are never deleted.
 
-**Partial T4.** Every UI action is also an API call with a published OpenAPI
+**T4 Stretch.** Every UI action is also an API call with a published OpenAPI
 schema and bearer tokens. Data leaves as CSV (projects, assignments, scores,
 results, calibration, votes, audit) and, for a full migration, `pg_dump`.
 Webhooks subscribe to an event's audit stream: signed with HMAC-SHA256, sent
@@ -99,22 +99,43 @@ replaced, so there is never more than one to believe.
 
 ## Tier claim
 
-`.dogfood.toml` claims **T1 and T2**, which is exactly what `run.py` verifies.
-T3 is implemented in full but the checker has no T3 probes, so it is not
-listed there; claiming a tier the receipt cannot show felt like the wrong
-side of "claim your tiers honestly". To verify T3 yourself:
+`.dogfood.toml` claims **T1, T2, T3 and T4**.
 
-- run `python manage.py test tests.test_community` (14 tests: access modes,
-  quadratic budget, random-but-stable order, hidden tallies, flagging, rate
-  limits, voiding, comments and moderation), or
-- as the organizer, open *Settings*, set *Community voting* to *Anyone with
-  the link* and a voting window, then open `/events/sample-hack-2026/ballot/`
-  in a private window and the *Voting* tab in the console.
+| tier | verified by | report |
+|---|---|---|
+| T1, T2 | the official `checker/run.py`, 7 probes | `acceptance-report.txt` |
+| T3, T4 | `tools/verify_tiers.py`, 51 probes in the same manner | `acceptance-report-t3-t4.txt` |
+
+The official checker has probes for T1 and T2 only, so it prints T3 and T4
+as *claimed but not verified*. That line is true of the checker, not of the
+portal. Rather than ask for the two upper tiers to be taken on trust, the
+repository carries a second program that does for them what `run.py` does
+for the lower two: it reads the same `.dogfood.toml`, uses the same four
+headers, makes requests to the running portal, and prints PASS or FAIL.
+It needs only the standard library.
+
+```sh
+python checker/run.py .dogfood.toml --fixtures fixtures.json
+python tools/verify_tiers.py .dogfood.toml
+```
+
+What each upper tier asks for, and where it is:
+
+| asked for | where |
+|---|---|
+| T3 community voting: email gated, link based or authenticated | Settings, *Who may vote*; `/events/<slug>/ballot/` |
+| T3 project comments | project page; `POST /api/events/<slug>/projects/<id>/comments` |
+| T3 results hidden during the voting window | 403 on the page and the API until published |
+| T3 randomized project ordering on ballots | per voter, stable across reloads |
+| T3 anti abuse: rate limits, duplicate detection, audit trail | [docs/THREAT-MODEL.md](docs/THREAT-MODEL.md); console, *Voting* and *Audit log* |
+| T4 REST API and webhooks | `/api/docs`; console, *Integrations* |
+| T4 certificate and record generation | console, *Records*; `/records/<number>/` |
+| T4 signed, publicly verifiable judge participation records | `/verify/`; `POST /api/records/check` |
+| T4 embeddable gallery widget | `/events/<slug>/embed/gallery/`; snippet in *Integrations* |
+| T4 bulk import and export | console, *Settings*, *Import*; `POST /api/events/<slug>/import`; CSV exports |
 
 ## What it does not do yet
 
-- An embeddable gallery widget (the rest of T4).
-- Bulk import beyond the fixture format; export is CSV and `pg_dump`.
 - File uploads: thumbnails and gallery images are URLs.
 - Outbound email. Judges and ballot links are created by the organizer and
   distributed with whatever mail tool they already use.
@@ -177,7 +198,7 @@ pip install -r requirements.txt
 python manage.py migrate && python manage.py createcachetable
 python manage.py seed_fixtures fixtures.json
 python manage.py runserver 8080
-python manage.py test tests            # 180 tests, 3 to 10 minutes
+python manage.py test tests            # 254 tests, 3 to 10 minutes
 python manage.py normalization_report sample-hack-2026 > docs/normalization-proof.md
 ```
 

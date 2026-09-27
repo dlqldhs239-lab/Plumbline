@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views
+from . import console, views
 
 urlpatterns = [
     path("", views.home, name="home"),
@@ -37,4 +37,8 @@ urlpatterns = [
     path("events/<slug:slug>/organize/results/", views.organize_results, name="organize_results"),
     path("events/<slug:slug>/organize/audit/", views.organize_audit, name="organize_audit"),
     path("events/<slug:slug>/organize/export/<str:kind>.csv", views.organize_export, name="organize_export"),
+    path("events/<slug:slug>/organize/prizes/", console.organize_prizes, name="organize_prizes"),
+    path("events/<slug:slug>/organize/questions/", console.organize_questions, name="organize_questions"),
+    path("events/<slug:slug>/organize/import/", console.organize_import, name="organize_import"),
+    path("events/<slug:slug>/embed/<str:what>/", console.embed, name="embed"),
 ]

@@ -28,7 +28,16 @@ expected = "sha256=" + hex(hmac_sha256(secret, raw_body))</pre>
   </div>
 </div>
 
-<div class="card" style="margin-top:1rem">
+<div class="card" style="margin-top:var(--s7)" id="embed">
+  <h3>On your own site</h3>
+  <p class="muted">The gallery and, once published, the standings can sit in a frame on the event's site. They show public data only, wear this event's colours, and every link opens the portal in a new tab. Add <code>?limit=6</code> for fewer, <code>?track=</code> with a track's number for one track.</p>
+  <div class="grid cols-2">
+    <div><span class="label">Gallery</span><pre>&lt;iframe src="{{ embed_base }}gallery/" title="{{ event.name }} projects" loading="lazy" style="width:100%;height:720px;border:0"&gt;&lt;/iframe&gt;</pre></div>
+    <div><span class="label">Standings</span><pre>&lt;iframe src="{{ embed_base }}results/" title="{{ event.name }} results" loading="lazy" style="width:100%;height:720px;border:0"&gt;&lt;/iframe&gt;</pre></div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:var(--s7)">
   <h3>Webhooks</h3>
   <div class="table-wrap">
   <table>

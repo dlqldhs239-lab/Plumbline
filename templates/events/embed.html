@@ -1,0 +1,43 @@
+{% load static plumbline %}<!doctype html>
+<html lang="en" data-mode="{% theme_mode event %}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>{{ event.name }} · {% if what == 'results' %}results{% else %}projects{% endif %}</title>
+  <base target="_blank">
+  <link rel="stylesheet" href="{% static 'css/plumbline.css' %}">
+  {% theme_style event %}
+</head>
+<body class="embed">
+<main>
+  <div class="embed-head">
+    <span class="label">{{ event.name }} · {% if what == 'results' %}results{% else %}projects{% endif %}</span>
+    <a class="label" href="{{ origin }}{% if what == 'results' %}{% url 'results' event.slug %}{% else %}{% url 'gallery' event.slug %}{% endif %}" rel="noopener">See all</a>
+  </div>
+  {% if what == 'results' %}
+    {% if rows is None %}
+    <div class="empty"><strong>Not published yet</strong>The standings appear here when the organizers publish them.</div>
+    {% elif rows %}
+    <table class="standings">
+      <thead><tr><th class="num">Place</th><th>Project</th><th class="num">Judges</th><th class="num">Adjusted / {{ scale_max }}.00</th></tr></thead>
+      <tbody>{% for r in rows %}<tr><td class="num"><strong>{{ r.place }}</strong></td><td><a href="{{ origin }}{{ r.project.get_absolute_url }}" rel="noopener">{{ r.project.title }}</a><br><small>{{ r.project.team.name }}</small></td><td class="num">{{ r.review_count }}</td><td class="num"><strong>{{ r.adjusted_mean|floatformat:3 }}</strong></td></tr>{% endfor %}</tbody>
+    </table>
+    {% else %}<div class="empty"><strong>Nothing to show</strong>No project has been ranked.</div>{% endif %}
+  {% else %}
+    {% if projects %}
+    <div class="grid cols-3 gallery">
+      {% for p in projects %}
+      <a class="project" href="{{ origin }}{{ p.get_absolute_url }}" rel="noopener">
+        {% if p.thumbnail_url %}<img class="thumb" src="{{ p.thumbnail_url }}" alt="" loading="lazy">{% else %}<div class="cover" style="{{ p.title|cover_style }}" aria-hidden="true"><b>{{ p.title }}</b></div>{% endif %}
+        <h3{% if not p.thumbnail_url %} class="sr-only"{% endif %}>{{ p.title }}</h3>
+        <p class="by"><span>{{ p.team.name }}</span>{% if p.track %}<span class="label">{{ p.track.name }}</span>{% endif %}</p>
+        {% if p.tagline %}<p>{{ p.tagline }}</p>{% endif %}
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}<div class="empty"><strong>No projects yet</strong>Submitted projects appear here.</div>{% endif %}
+  {% endif %}
+</main>
+</body>
+</html>

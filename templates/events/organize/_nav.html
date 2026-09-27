@@ -13,5 +13,13 @@
   <a class="{% if on == 'voting' %}on{% endif %}"{% if on == 'voting' %} aria-current="page"{% endif %} href="{% url 'organize_voting' event.slug %}">Voting</a>
   <a class="{% if on == 'integrations' %}on{% endif %}"{% if on == 'integrations' %} aria-current="page"{% endif %} href="{% url 'organize_integrations' event.slug %}">Integrations</a>
   <a class="{% if on == 'audit' %}on{% endif %}"{% if on == 'audit' %} aria-current="page"{% endif %} href="{% url 'organize_audit' event.slug %}">Audit log</a>
-  <a class="{% if on == 'settings' %}on{% endif %}"{% if on == 'settings' %} aria-current="page"{% endif %} href="{% url 'organize_settings' event.slug %}">Settings</a>
+  <a class="{% if on == 'settings' or on == 'prizes' or on == 'questions' or on == 'import' %}on{% endif %}"{% if on == 'settings' %} aria-current="page"{% endif %} href="{% url 'organize_settings' event.slug %}">Settings</a>
 </nav>
+{% if on == 'settings' or on == 'prizes' or on == 'questions' or on == 'import' %}
+<nav class="subnav second" aria-label="Settings">
+  <a class="{% if on == 'settings' %}on{% endif %}" href="{% url 'organize_settings' event.slug %}">The event</a>
+  <a class="{% if on == 'prizes' %}on{% endif %}"{% if on == 'prizes' %} aria-current="page"{% endif %} href="{% url 'organize_prizes' event.slug %}">Prizes</a>
+  <a class="{% if on == 'questions' %}on{% endif %}"{% if on == 'questions' %} aria-current="page"{% endif %} href="{% url 'organize_questions' event.slug %}">Form questions</a>
+  <a class="{% if on == 'import' %}on{% endif %}"{% if on == 'import' %} aria-current="page"{% endif %} href="{% url 'organize_import' event.slug %}">Import</a>
+</nav>
+{% endif %}

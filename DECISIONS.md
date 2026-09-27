@@ -49,16 +49,25 @@ reviewer has one place to read.
 logged only one field. An independent review found it; it now goes through
 the same function as the API.
 
-## 4. We claim T1 and T2, and built T3
+## 4. We claim all four tiers, and wrote the probes the checker lacks
 
-**Chosen.** `.dogfood.toml` claims the two tiers the checker can verify.
-Community voting, comments and result publication are built and tested, and
-the README says how to verify them by hand.
+**Chosen.** `.dogfood.toml` claims T1 to T4. The official checker verifies
+T1 and T2. `tools/verify_tiers.py` verifies T3 and T4 with 51 probes written
+in the checker's manner, and its output is committed beside the official
+report.
 
-**Turned down.** Claiming T3.
+**Turned down.** Claiming only T1 and T2, which is what we did for the first
+eighteen hours. The reasoning then: the acceptance report is the claim, and
+a tier the report cannot show is a tier we are asking to be believed about.
 
-**Why.** The acceptance report is the claim. A tier the report cannot show
-is a tier we are asking to be believed about.
+**Why we changed.** The rules say teams are judged on the tiers they claim.
+Leaving out two tiers that are built, tested and documented would understate
+the work as surely as claiming unbuilt ones would overstate it. The honest
+answer to "the checker cannot see it" was to make it visible to a program,
+not to stay silent about it.
+
+**Cost.** The official report now ends with "claimed but not verified: T3
+T4". The README says why in its first screen.
 
 ## 5. Scores are corrected in two steps, and both can be read
 

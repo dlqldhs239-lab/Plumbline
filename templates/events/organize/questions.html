@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% load plumbline %}
+{% block title %}Form questions · {{ event.name }}{% endblock %}
+{% block content %}
+{% include "events/organize/_nav.html" with on="questions" %}
+<div class="page-head">
+  <div><h1>Form questions</h1><small>Questions of your own on the submission form, after the standard fields. Answers are shown on the project page and to the judges.</small></div>
+</div>
+<div class="grid split wide">
+  <section>
+    <h2 class="rule">On the form <span class="label tnum">{{ questions|length }}</span></h2>
+    {% if questions %}
+    <div class="table-wrap">
+    <table>
+      <thead><tr><th class="num">Order</th><th>Question</th><th>Kind</th><th class="num">Answered</th><th></th></tr></thead>
+      <tbody>
+      {% for q in questions %}
+      <tr>
+        <td class="num">{{ q.order }}</td>
+        <td><strong>{{ q.prompt }}</strong>{% if q.required %} <span class="badge warn">required</span>{% endif %}{% if q.help_text %}<br><small>{{ q.help_text }}</small>{% endif %}{% if q.choices %}<br><small>{{ q.choices|join:" · " }}</small>{% endif %}</td>
+        <td>{{ q.get_kind_display }}</td>
+        <td class="num">{{ q.answered }}</td>
+        <td style="white-space:nowrap;text-align:right">
+          <a class="btn small" href="?edit={{ q.pk }}#form">Edit</a>
+          <form method="post" class="inline">{% csrf_token %}<input type="hidden" name="action" value="delete"><input type="hidden" name="question" value="{{ q.pk }}"><button class="btn small danger" type="submit" data-confirm="{% if q.answered %}Remove with {{ q.answered }} answer{{ q.answered|pluralize }}{% else %}Remove for good{% endif %}">Remove</button></form>
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <div class="empty"><strong>No questions of your own</strong>The form asks for a title, a description, a track and links. Add what else you need to know.</div>
+    {% endif %}
+  </section>
+
+  <aside>
+    <form method="post" class="card box" id="form">
+      {% csrf_token %}
+      <h3>{% if editing %}Edit the question{% else %}Add a question{% endif %}</h3>
+      {% if editing %}<input type="hidden" name="question" value="{{ editing.pk }}">{% endif %}
+      <div class="field"><label for="prompt">Question <span class="muted" aria-hidden="true">*</span></label><input type="text" id="prompt" name="prompt" maxlength="300" required value="{% if entered %}{{ entered.prompt }}{% else %}{{ editing.prompt|default:'' }}{% endif %}"></div>
+      <div class="field"><label for="help_text">Hint under the field</label><input type="text" id="help_text" name="help_text" maxlength="300" value="{% if entered %}{{ entered.help_text }}{% else %}{{ editing.help_text|default:'' }}{% endif %}"></div>
+      <div class="field"><label for="kind">Kind of answer</label>
+        <select id="kind" name="kind">{% for value, label in kinds %}<option value="{{ value }}"{% if entered.kind == value %} selected{% elif not entered and editing.kind == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+      </div>
+      <div class="field"><label for="choices">Choices</label><textarea id="choices" name="choices" rows="4" placeholder="One per line">{% if entered %}{{ entered.choices }}{% else %}{{ editing.choices|lines }}{% endif %}</textarea><div class="help">Only for a single-choice question.</div></div>
+      <div class="field checkbox"><input type="checkbox" id="required" name="required" value="1"{% if entered.required %} checked{% elif not entered and editing.required %} checked{% endif %}><label for="required">A team cannot submit without answering</label></div>
+      <div class="field"><label for="order">Order</label><input type="number" id="order" name="order" min="0" max="1000" value="{% if entered %}{{ entered.order }}{% elif editing %}{{ editing.order }}{% endif %}"><div class="help">Lower comes first. Empty puts it last.</div></div>
+      <div class="row"><button class="btn primary" type="submit">{% if editing %}Save{% else %}Add question{% endif %}</button>{% if editing %}<a class="btn" href="{% url 'organize_questions' event.slug %}">Cancel</a>{% endif %}</div>
+    </form>
+    {% if projects %}<p class="help">{{ projects }} project{{ projects|pluralize:" has,s have" }} been created in this event. A question added now reaches teams the next time they edit; one marked required will stop them saving until they answer.</p>{% endif %}
+  </aside>
+</div>
+{% endblock %}

@@ -75,7 +75,6 @@
   <div class="form-foot">
     <button class="btn primary" type="submit">{% if creating %}Create event{% else %}Save settings{% endif %}</button>
     {% if not creating %}<a class="btn" href="{% url 'organize_dashboard' event.slug %}">Cancel</a>{% endif %}
-    {% if not creating and user.is_staff %}<span class="muted">Prizes and organizer questions are edited in the <a href="{% url 'admin:events_event_change' event.pk %}">admin</a>.</span>{% endif %}
   </div>
 </form>
 {% endblock %}

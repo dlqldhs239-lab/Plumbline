@@ -42,6 +42,12 @@ def cover_style(title):
 
 
 @register.filter
+def lines(value):
+    """A list as text, one item per line, for a textarea."""
+    return "\n".join(str(v) for v in (value or []))
+
+
+@register.filter
 def initials(value):
     words = [w for w in re.split(r"\s+", str(value or "").strip()) if w]
     return "".join(w[0] for w in words[:2]).upper() or "—"

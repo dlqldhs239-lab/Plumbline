@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Prizes · {{ event.name }}{% endblock %}
+{% block content %}
+{% include "events/organize/_nav.html" with on="prizes" %}
+<div class="page-head">
+  <div><h1>Prizes</h1><small>Shown on the event's public page, in the order below.</small></div>
+</div>
+<div class="grid split wide">
+  <section>
+    <h2 class="rule">Prizes <span class="label tnum">{{ prizes|length }}</span></h2>
+    {% if prizes %}
+    <div class="table-wrap">
+    <table>
+      <thead><tr><th class="num">Order</th><th>Prize</th><th>Track</th><th class="num">Amount</th><th></th></tr></thead>
+      <tbody>
+      {% for p in prizes %}
+      <tr>
+        <td class="num">{{ p.order }}</td>
+        <td><strong>{{ p.name }}</strong>{% if p.description %}<br><small>{{ p.description }}</small>{% endif %}</td>
+        <td>{{ p.track.name|default:"Every track" }}</td>
+        <td class="num">{% if p.amount is not None %}{{ p.amount|floatformat:"-2" }} {{ p.currency }}{% endif %}</td>
+        <td style="white-space:nowrap;text-align:right">
+          <a class="btn small" href="?edit={{ p.pk }}#form">Edit</a>
+          <form method="post" class="inline">{% csrf_token %}<input type="hidden" name="action" value="delete"><input type="hidden" name="prize" value="{{ p.pk }}"><button class="btn small danger" type="submit" data-confirm="Remove for good">Remove</button></form>
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <div class="empty"><strong>No prizes yet</strong>Add the first one with the form.</div>
+    {% endif %}
+  </section>
+
+  <aside>
+    <form method="post" class="card box" id="form">
+      {% csrf_token %}
+      <h3>{% if editing %}Edit {{ editing.name }}{% else %}Add a prize{% endif %}</h3>
+      {% if editing %}<input type="hidden" name="prize" value="{{ editing.pk }}">{% endif %}
+      <div class="field"><label for="name">Name <span class="muted" aria-hidden="true">*</span></label><input type="text" id="name" name="name" maxlength="120" required value="{% if entered %}{{ entered.name }}{% else %}{{ editing.name|default:'' }}{% endif %}"></div>
+      <div class="field"><label for="description">What it is</label><textarea id="description" name="description" rows="3" maxlength="2000">{% if entered %}{{ entered.description }}{% else %}{{ editing.description|default:'' }}{% endif %}</textarea></div>
+      <div class="grid cols-2" style="row-gap:0">
+        <div class="field"><label for="amount">Amount</label><input type="text" inputmode="decimal" id="amount" name="amount" value="{% if entered %}{{ entered.amount }}{% elif editing.amount is not None %}{{ editing.amount|floatformat:'-2' }}{% endif %}"><div class="help">Leave empty for a prize that is not money.</div></div>
+        <div class="field"><label for="currency">Currency</label><input type="text" id="currency" name="currency" maxlength="3" value="{% if entered %}{{ entered.currency }}{% else %}{{ editing.currency|default:'USD' }}{% endif %}"></div>
+      </div>
+      <div class="field"><label for="track">Track</label>
+        <select id="track" name="track"><option value="">Every track</option>{% for t in event.tracks.all %}<option value="{{ t.pk }}"{% if editing.track_id == t.pk %} selected{% endif %}>{{ t.name }}</option>{% endfor %}</select>
+      </div>
+      <div class="field"><label for="order">Order</label><input type="number" id="order" name="order" min="0" max="1000" value="{% if entered %}{{ entered.order }}{% elif editing %}{{ editing.order }}{% endif %}"><div class="help">Lower comes first. Empty puts it last.</div></div>
+      <div class="row"><button class="btn primary" type="submit">{% if editing %}Save{% else %}Add prize{% endif %}</button>{% if editing %}<a class="btn" href="{% url 'organize_prizes' event.slug %}">Cancel</a>{% endif %}</div>
+    </form>
+  </aside>
+</div>
+{% endblock %}

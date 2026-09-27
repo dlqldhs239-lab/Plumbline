@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Import · {{ event.name }}{% endblock %}
+{% block content %}
+{% include "events/organize/_nav.html" with on="import" %}
+<div class="page-head">
+  <div><h1>Import</h1><small>Bring projects with their teams, or judges, from a spreadsheet. The file is checked first and nothing is written until you say so.</small></div>
+  <div class="actions">
+    <a class="btn{% if kind == 'projects' %} primary{% endif %}" href="?kind=projects">Projects</a>
+    <a class="btn{% if kind == 'judges' %} primary{% endif %}" href="?kind=judges">Judges</a>
+  </div>
+</div>
+
+<div class="grid split wide">
+  <section>
+    {% if checked %}
+    <h2 class="rule">{% if checked.ready %}Ready: {{ checked.total }} row{{ checked.total|pluralize }}{% elif not checked.total %}No rows{% else %}{{ checked.bad }} of {{ checked.total }} row{{ checked.total|pluralize }} need another look{% endif %}</h2>
+    {% if checked.ignored_columns %}<p class="notice">Columns that are not used and will be left out: {{ checked.ignored_columns|join:", " }}.</p>{% endif %}
+    {% if checked.rows %}
+    <div class="table-wrap scroll">
+    <table>
+      <thead><tr><th class="num">Line</th><th>{% if kind == 'judges' %}Judge{% else %}Project{% endif %}</th><th>State</th><th>What was found</th></tr></thead>
+      <tbody>
+      {% for r in checked.rows %}
+      <tr>
+        <td class="num">{{ r.line }}</td>
+        <td>{{ r.what }}</td>
+        <td><span class="badge {% if r.ok %}ok{% else %}bad{% endif %}">{% if r.ok %}Ready{% else %}Problem{% endif %}</span></td>
+        <td>{% for p in r.problems %}<span class="move down">{{ p }}</span>{% if not forloop.last %}; {% endif %}{% endfor %}{% if r.problems and r.notes %}<br>{% endif %}<small>{{ r.notes|join:"; " }}</small></td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    <form method="post" style="margin-top:var(--s5)">
+      {% csrf_token %}<input type="hidden" name="kind" value="{{ kind }}"><input type="hidden" name="action" value="apply">
+      <textarea name="text" hidden>{{ text }}</textarea>
+      <div class="row">
+        <button class="btn primary" type="submit"{% if not checked.ready %} disabled{% endif %}>Import {{ checked.total }} row{{ checked.total|pluralize }}</button>
+        <a class="btn" href="?kind={{ kind }}">Start over</a>
+        {% if not checked.ready %}<span class="muted">Correct the file and check it again. Nothing is imported while a row has a problem.</span>{% endif %}
+      </div>
+    </form>
+    {% endif %}
+    {% else %}
+    <form method="post" enctype="multipart/form-data" class="card flat">
+      {% csrf_token %}<input type="hidden" name="kind" value="{{ kind }}">
+      <div class="field"><label for="file">A CSV file</label><input type="file" id="file" name="file" accept=".csv,text/csv"></div>
+      <div class="field"><label for="text">Or paste it</label><textarea id="text" name="text" rows="10" spellcheck="false" placeholder="{{ columns|join:',' }}">{{ text }}</textarea></div>
+      <button class="btn primary" type="submit">Check the file</button>
+    </form>
+    {% endif %}
+  </section>
+
+  <aside class="stack loose">
+    <section class="card">
+      <h3>The columns</h3>
+      <p class="muted">The first line names them, in any order. {% if kind == 'projects' %}<strong>team</strong> and <strong>title</strong> are needed; the rest may be empty.{% else %}<strong>email</strong> is needed.{% endif %}</p>
+      <div class="tags">{% for c in columns %}<span>{{ c }}</span>{% endfor %}</div>
+      <p class="help">{% if kind == 'projects' %}Members and tags are separated by semicolons. Track is the track's name as it is written in this event.{% else %}Tracks are separated by semicolons. Leave empty for a judge who may see every track.{% endif %}</p>
+      <a class="btn" href="?kind={{ kind }}&amp;template=1">Download a template</a>
+    </section>
+    <section class="card">
+      <h3>What happens</h3>
+      <p class="muted">{% if kind == 'projects' %}Teams that do not exist are created. People who have no account get one without a password; they get in with a sign-in link from an administrator. Projects arrive as submitted.{% else %}Judges who have no account get one without a password. Create their sign-in links on the Judges page and send them yourself.{% endif %} One problem anywhere stops the whole import, so the event is never left half filled.</p>
+    </section>
+  </aside>
+</div>
+{% endblock %}

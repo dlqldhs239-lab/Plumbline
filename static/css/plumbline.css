@@ -216,7 +216,9 @@ a.card:hover { border-top-color: var(--accent); }
 .stats .stat { border-top: 1px solid var(--edge); }
 
 /* -------------------------------------------------------------- tables */
-.table-wrap { overflow-x: auto; }
+/* positioned, so that visually hidden labels inside a wide table scroll with it and do not widen the page */
+.table-wrap { overflow-x: auto; position: relative; }
+form.card > h3 { margin-bottom: var(--s4); }
 table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 th { text-align: left; color: var(--mute); font-size: 10.5px; padding: 0 var(--s3) var(--s3); border-bottom: 1px solid var(--edge); white-space: nowrap; vertical-align: bottom; }
 td { padding: var(--s3); border-bottom: 1px solid var(--line); vertical-align: top; }
@@ -691,6 +693,15 @@ form.revoke input { min-height: 30px; width: 150px; padding: var(--s1) var(--s2)
   form.revoke { flex-wrap: wrap; }
   form.revoke input { min-height: 44px; width: 100%; }
 }
+
+.subnav.second { margin-top: calc(var(--s6) * -1 + var(--s2)); gap: var(--s5); border-bottom: 0; }
+.subnav.second a { font-size: 12.5px; padding: var(--s3) 0; }
+body.embed { min-height: 0; }
+body.embed main { padding: var(--s4); max-width: none; }
+.embed-head { display: flex; justify-content: space-between; gap: var(--s4); padding-bottom: var(--s3); margin-bottom: var(--s5); border-bottom: 1px solid var(--edge); }
+.embed-head a { color: var(--ink); text-decoration: underline; text-decoration-color: var(--edge); text-underline-offset: 3px; }
+input[type="file"] { width: 100%; min-height: var(--control); padding: var(--s2) 0; color: var(--ink-2); font: 400 13px/1.4 var(--sans); }
+input[type="file"]::file-selector-button { min-height: 30px; margin-right: var(--s3); padding: 0 var(--s3); border: 1px solid var(--edge); background: transparent; color: var(--ink); font: 600 12px/1 var(--sans); cursor: pointer; }
 
 /* drawings arrive once, left to right */
 html.js [data-reveal] { clip-path: inset(-40px 100% -40px -40px); transition: clip-path var(--t-move) var(--ease); }
