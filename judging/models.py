@@ -117,6 +117,9 @@ class ProjectResult(models.Model):
     adjusted_mean = models.FloatField(null=True, blank=True)
     rank = models.PositiveIntegerField(null=True, blank=True)
     criterion_means = models.JSONField(default=list, blank=True)
+    # The constant this row was computed with, so the page can say what was
+    # done and the console can tell when the setting has moved on.
+    jury_k = models.FloatField(null=True, blank=True)
     community_score = models.FloatField(null=True, blank=True)
     method = models.CharField(max_length=60, blank=True)
     computed_at = models.DateTimeField(auto_now=True)

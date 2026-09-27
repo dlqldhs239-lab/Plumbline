@@ -9,6 +9,7 @@
   <a class="{% if on == 'rubric' %}on{% endif %}"{% if on == 'rubric' %} aria-current="page"{% endif %} href="{% url 'organize_rubric' event.slug %}">Rubric</a>
   <a class="{% if on == 'assignments' %}on{% endif %}"{% if on == 'assignments' %} aria-current="page"{% endif %} href="{% url 'organize_assignments' event.slug %}">Assignments</a>
   <a class="{% if on == 'results' %}on{% endif %}"{% if on == 'results' %} aria-current="page"{% endif %} href="{% url 'organize_results' event.slug %}">Results</a>
+  <a class="{% if on == 'records' %}on{% endif %}"{% if on == 'records' %} aria-current="page"{% endif %} href="{% url 'organize_records' event.slug %}">Records</a>
   <a class="{% if on == 'voting' %}on{% endif %}"{% if on == 'voting' %} aria-current="page"{% endif %} href="{% url 'organize_voting' event.slug %}">Voting</a>
   <a class="{% if on == 'integrations' %}on{% endif %}"{% if on == 'integrations' %} aria-current="page"{% endif %} href="{% url 'organize_integrations' event.slug %}">Integrations</a>
   <a class="{% if on == 'audit' %}on{% endif %}"{% if on == 'audit' %} aria-current="page"{% endif %} href="{% url 'organize_audit' event.slug %}">Audit log</a>

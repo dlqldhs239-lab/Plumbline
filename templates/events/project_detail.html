@@ -75,7 +75,7 @@
 
   <div class="stack loose">
     {% if not project.thumbnail_url %}<div class="cover rail" style="{{ project.title|cover_style }}" aria-hidden="true"><b>{{ project.title }}</b>{% if project.track %}<i>{{ project.track.name }}</i>{% endif %}</div>{% endif %}
-    {% if result and result.rank %}
+    {% if result and result.place %}
     <section class="card result" id="result">
       <h3>Result{% if not event.results_published %} <span class="badge warn">Not published</span>{% endif %}</h3>
       <div class="score">
@@ -83,10 +83,10 @@
         <span class="label">adjusted / {{ rubric.scale_max }}.00 · {{ result.review_count }} judge{{ result.review_count|pluralize }}</span>
       </div>
       <table>
-        <tr><td>Place</td><td class="num"><strong>{{ result.rank }}</strong> of {{ ranked }}</td></tr>
+        <tr><td>Place</td><td class="num"><strong>{{ result.place }}</strong> of {{ ranked }}</td></tr>
         {% if in_track %}<tr><td>In {{ project.track.name }}</td><td class="num"><strong>{{ in_track.rank }}</strong> of {{ in_track.of }}</td></tr>{% endif %}
-        <tr><td>Raw mean</td><td class="num">{{ result.raw_mean|floatformat:3 }} <small>place {{ result.rank_raw }}</small></td></tr>
-        <tr><td>Judges set true</td><td class="num">{{ result.normalized_mean|floatformat:3 }} <small>place {{ result.rank_normalized }}</small></td></tr>
+        <tr><td>Raw mean</td><td class="num">{{ result.raw_mean|floatformat:3 }} <small>place {{ result.place_raw }}</small></td></tr>
+        <tr><td>Judges set true</td><td class="num">{{ result.normalized_mean|floatformat:3 }}</td></tr>
       </table>
       <p class="help"><a href="{% url 'results' event.slug %}#method">How the score is made</a></p>
     </section>

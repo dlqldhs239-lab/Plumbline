@@ -43,7 +43,7 @@
 <div class="legend" aria-hidden="true">
   <div><i class="lean"></i><span class="label">Lean: generous or harsh</span></div>
   <div><i class="len"></i><span class="label">Length: reviews given</span></div>
-  <div><i class="flat"></i><span class="label">Dashed: every mark the same</span></div>
+  <div><i class="flat"></i><span class="label">Dashed: every score the same</span></div>
   <div><i class="true"></i><span class="label">Vertical: counted</span></div>
 </div>
 
@@ -58,19 +58,19 @@
     <li>
       <span class="label">01 · Raw mean</span>
       <b class="tnum">{{ r.raw_mean|floatformat:3 }}</b>
-      <span class="place">{{ r.rank_raw }} of {{ case.projects }}</span>
+      <span class="place">{{ case.from_rank }} of {{ case.projects }}</span>
       <p>The mean of {{ r.review_count }} review{{ r.review_count|pluralize }}, as marked.</p>
     </li>
     <li>
       <span class="label">02 · Judges set true</span>
       <b class="tnum">{{ r.normalized_mean|floatformat:3 }}</b>
-      <span class="place">{{ r.rank_normalized }} of {{ case.projects }}</span>
+      <span class="place">then</span>
       <p>Each mark is read against its judge's own mean and spread.{% if case.kind == "flat" %} Marks from a judge who gave everyone the same count as no opinion.{% endif %}</p>
     </li>
     <li class="final">
       <span class="label">03 · Adjusted for jury size</span>
       <b class="tnum">{{ r.adjusted_mean|floatformat:3 }}</b>
-      <span class="place">{{ r.rank }} of {{ case.projects }}</span>
+      <span class="place">{{ case.to_rank }} of {{ case.projects }}</span>
       <p>A project with few reviews is pulled toward the panel mean. This is the score that ranks.</p>
     </li>
   </ol>

@@ -107,10 +107,20 @@ def review(request, slug, pk):
         rubric = services.ensure_rubric(event)
         values = {c.key: request.POST.get(f"score_{c.key}") for c in rubric.criteria.all()}
         submit = "submit" in request.POST
+        comment = request.POST.get("comment", "")
         try:
-            services.save_scores(assignment, request.user, values, request.POST.get("comment", ""), submit=submit)
+            services.save_scores(assignment, request.user, values, comment, submit=submit)
         except (ValidationError, PermissionDenied) as e:
-            messages.error(request, "; ".join(getattr(e, "messages", [str(e)])))
+            reason = "; ".join(getattr(e, "messages", [str(e)]))
+            if submit:
+                # Not submitted, but nothing the judge entered is thrown away.
+                try:
+                    services.save_scores(assignment, request.user, values, comment, submit=False)
+                    reason += " What you entered is saved as a draft."
+                except (ValidationError, PermissionDenied):
+                    pass
+            messages.error(request, reason)
+            return redirect("judging:review", slug=slug, pk=pk)
         else:
             if submit:
                 messages.success(request, f"Review of {assignment.project.title} submitted.")

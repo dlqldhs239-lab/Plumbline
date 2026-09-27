@@ -252,14 +252,22 @@ def get_own_assignment(judge_user, assignment_id: int, event: Event | None = Non
 
 @transaction.atomic
 def save_scores(
-    assignment: JudgeAssignment, user, values: dict[str, int], comment: str = "", submit: bool = False
+    assignment: JudgeAssignment, user, values: dict[str, int], comment: str | None = "", submit: bool = False
 ) -> JudgeAssignment:
+    """Save a draft or submit. `comment=None` leaves the stored comment alone.
+
+    The row is locked and read again first: a draft saved by the page a moment
+    before the judge pressed Submit can reach the server after the submit
+    did, and must find the review closed."""
     if assignment.judge_id != user.id:
         raise PermissionDenied("You can only score your own assignments.")
+    assignment = JudgeAssignment.objects.select_for_update().select_related("event", "project").get(pk=assignment.pk)
     event = assignment.event
     if not event.judging_open():
         raise PermissionDenied("Judging is not open for this event.")
-    if assignment.status == JudgeAssignment.Status.SUBMITTED and not is_organizer(user, event):
+    if assignment.status == JudgeAssignment.Status.SUBMITTED:
+        # For everyone, organizers included: the page says a submitted review
+        # is closed, and the server agrees with the page.
         raise ValidationError("This review was already submitted.")
     if not assignments_for_judge(user, event).filter(pk=assignment.pk).exists():
         raise PermissionDenied("This project is outside your tracks, or is no longer in the running.")
@@ -278,7 +286,8 @@ def save_scores(
         raise ValidationError("Every criterion needs a score before submitting: " + ", ".join(missing))
     for key, v in cleaned.items():
         Score.objects.update_or_create(assignment=assignment, criterion=criteria[key], defaults={"value": v})
-    assignment.comment = comment or ""
+    if comment is not None:
+        assignment.comment = comment
     if submit:
         assignment.mark_submitted()
     elif assignment.status == JudgeAssignment.Status.PENDING:
@@ -289,7 +298,7 @@ def save_scores(
         actor=user,
         event=event,
         target=assignment,
-        detail={"scores": cleaned, "has_comment": bool(comment)},
+        detail={"scores": cleaned, "has_comment": bool(assignment.comment)},
     )
     return assignment
 
@@ -339,6 +348,7 @@ def recompute_results(event: Event, user) -> dict:
             adjusted_mean=standing.adjusted if standing else None,
             rank=standing.rank if standing else None,
             criterion_means=by_criterion.get(project.id, []),
+            jury_k=result.jury_k,
             community_score=float(community[project.id]["votes"]) if project.id in community else None,
             method=result.method,
         )
@@ -404,6 +414,8 @@ def criterion_means_for_event(event: Event, rubric: Rubric) -> dict[int, list[di
 def publish_results(event: Event, user, publish: bool = True):
     if not is_organizer(user, event):
         raise PermissionDenied("Only organizers can publish results.")
+    if publish and not ProjectResult.objects.filter(event=event, rank__isnull=False).exists():
+        raise ValidationError("There is nothing to publish yet. Compute the results first.")
     event.results_published_at = timezone.now() if publish else None
     event.save(update_fields=["results_published_at", "updated_at"])
     record("results.publish" if publish else "results.unpublish", actor=user, event=event, target=event)
@@ -418,6 +430,33 @@ def standings(event: Event):
         .select_related("project", "project__track", "project__team")
         .order_by(F("rank").asc(nulls_last=True), F("rank_normalized").asc(nulls_last=True), "id")
     )
+
+
+def placed(event: Event, track_id: int | None = None) -> list[ProjectResult]:
+    """The standings as a visitor sees them, each row with its place among
+    the rows shown. A project hidden after the results were computed leaves
+    no gap, and within a track places are counted within that track. Ties
+    share a place. `place_raw` is the same count on the raw order."""
+    rows = list(standings(event))
+    if track_id is not None:
+        rows = [r for r in rows if r.project.track_id == track_id]
+    ranked = [r for r in rows if r.rank]
+    ranks = sorted(r.rank for r in ranked)
+    raws = sorted(r.rank_raw for r in ranked if r.rank_raw)
+    from bisect import bisect_left
+
+    for r in rows:
+        r.place = bisect_left(ranks, r.rank) + 1 if r.rank else None
+        r.place_raw = bisect_left(raws, r.rank_raw) + 1 if r.rank and r.rank_raw else None
+        r.of = len(ranked)
+        r.shift = (r.place_raw - r.place) if r.place and r.place_raw else None
+    return rows
+
+
+def computed_jury_k(event: Event) -> float | None:
+    """The jury-size constant the stored results were computed with."""
+    row = ProjectResult.objects.filter(event=event).exclude(jury_k__isnull=True).first()
+    return row.jury_k if row else None
 
 
 @transaction.atomic

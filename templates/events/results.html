@@ -37,7 +37,7 @@
     <div class="score">
       <b class="tnum">{{ r.adjusted_mean|floatformat:3 }}</b>
       <span class="label">adjusted / {{ rubric.scale_max }}.00 · {{ r.review_count }} judge{{ r.review_count|pluralize }}</span>
-      <span class="label was">raw {{ r.raw_mean|floatformat:3 }}, place {{ r.rank_raw }}</span>
+      <span class="label was">raw {{ r.raw_mean|floatformat:3 }}, place {{ r.place_raw }}</span>
     </div>
   </article>
   {% endfor %}
@@ -56,7 +56,7 @@
     <ol class="slope-col left">
       {% for r in slope.left %}<li><a href="{{ r.project.get_absolute_url }}" data-p="{{ r.project_id }}"><span class="t">{{ r.project.title }}</span><span class="tnum">{{ r.raw_mean|floatformat:3 }}</span></a></li>{% endfor %}
     </ol>
-    <svg viewBox="0 0 {{ slope.width }} {{ slope.height }}" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+    <svg viewBox="0 0 {{ slope.width }} {{ slope.height }}" preserveAspectRatio="none" aria-hidden="true" focusable="false" data-reveal>
       {% for l in slope.lines %}<path class="{{ l.tone }}" d="{{ l.d }}" data-p="{{ l.id }}" vector-effect="non-scaling-stroke"/>{% endfor %}
     </svg>
     <ol class="slope-col right">
@@ -78,7 +78,7 @@
     <tbody>
     {% for r in rows %}
       <tr>
-        <td class="num"><strong>{% if r.rank %}{{ r.place }}{% else %}n/a{% endif %}</strong></td>
+        <td class="num"><strong>{% if r.place %}{{ r.place }}{% else %}n/a{% endif %}</strong></td>
         <td><a href="{{ r.project.get_absolute_url }}">{{ r.project.title }}</a><small class="narrow">{{ r.project.team.name }}</small></td>
         <td class="wide">{{ r.project.team.name }}</td>
         {% if not track %}<td class="wide">{{ r.project.track.name|default:"" }}</td>{% endif %}
@@ -86,7 +86,7 @@
         <td class="num wide">{% if r.raw_mean is not None %}{{ r.raw_mean|floatformat:3 }}{% else %}n/a{% endif %}</td>
         <td class="num wide">{% if r.normalized_mean is not None %}{{ r.normalized_mean|floatformat:3 }}{% else %}n/a{% endif %}</td>
         <td class="num"><strong>{% if r.adjusted_mean is not None %}{{ r.adjusted_mean|floatformat:3 }}{% else %}n/a{% endif %}</strong></td>
-        <td class="num">{% with m=r.moved %}{% if m is None %}{% elif m > 0 %}<span class="move up">+{{ m }}</span>{% elif m < 0 %}<span class="move down">−{% widthratio m -1 1 %}</span>{% else %}<span class="move">0</span>{% endif %}{% endwith %}</td>
+        <td class="num">{% with m=r.shift %}{% if m is None %}{% elif m > 0 %}<span class="move up">+{{ m }}</span>{% elif m < 0 %}<span class="move down">−{% widthratio m -1 1 %}</span>{% else %}<span class="move">0</span>{% endif %}{% endwith %}</td>
         {% if voting %}<td class="num wide">{{ r.community_score|floatformat:0|default:"0" }}</td>{% endif %}
       </tr>
     {% endfor %}
@@ -103,7 +103,7 @@
   </div>
   <ol class="steps quiet">
     <li><span class="label">01 · Raw</span><p>Each judge's marks are combined by the rubric's weights into one score from {{ rubric.scale_min }} to {{ rubric.scale_max }}. The raw mean is the plain average of a project's reviews.</p></li>
-    <li><span class="label">02 · Judges set true</span><p>Each score is read against its judge's own mean and spread, so a four from a judge who gives fours to everyone counts for less than a four from a judge who rarely does. Judges with few reviews are read partly against the panel.{% if facts.flat %} {{ facts.flat }} judge{{ facts.flat|pluralize }} gave every project the same mark; those marks count as no opinion.{% endif %}</p></li>
+    <li><span class="label">02 · Judges set true</span><p>Each score is read against its judge's own mean and spread, so a four from a judge who gives fours to everyone counts for less than a four from a judge who rarely does. Judges with few reviews are read partly against the panel.{% if facts.flat %} {{ facts.flat }} judge{{ facts.flat|pluralize }} gave every project the same score; those scores count as no opinion.{% endif %}</p></li>
     <li><span class="label">03 · Adjusted</span><p>Projects here received between {{ facts.fewest }} and {{ facts.most }} reviews. {% if jury_k %}A project is pulled toward the panel mean as if {{ jury_k|floatformat:"-1" }} more reviews at that mean had been given, so a score resting on two reviews is trusted less than one resting on five.{% else %}The organizers have switched the jury-size adjustment off for this event.{% endif %} This is the score that ranks.</p></li>
   </ol>
   <p class="after">Community votes, where an event has them, are shown beside the judged score and never mixed into it.</p>

@@ -19,6 +19,16 @@ if [ "${PLUMBLINE_SEED:-1}" = "1" ]; then
   fi
 fi
 
+if [ "${DJANGO_SECRET_KEY:-dev-only-change-me-in-production}" = "dev-only-change-me-in-production" ]; then
+  echo "[plumbline] ------------------------------------------------------------"
+  echo "[plumbline] SAMPLE INSTALLATION. The secret key, the seeded accounts"
+  echo "[plumbline] (password: plumbline) and the API tokens above are printed"
+  echo "[plumbline] in the README. Fine on your own machine. Before a real event:"
+  echo "[plumbline]   set DJANGO_SECRET_KEY, set PLUMBLINE_SEED=0, set ALLOWED_HOSTS,"
+  echo "[plumbline]   and change or remove the seeded accounts."
+  echo "[plumbline] ------------------------------------------------------------"
+fi
+
 echo "[plumbline] serving on http://0.0.0.0:8080"
 # Threaded workers, because the portal is reached by browsers directly. A
 # browser opens spare connections and leaves them idle; with the default sync

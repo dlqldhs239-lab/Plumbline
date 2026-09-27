@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Records · {{ event.name }}{% endblock %}
+{% block content %}
+{% include "events/organize/_nav.html" with on="records" %}
+<div class="page-head">
+  <div>
+    <h1>Records</h1>
+    <small>Certificates for teams and participation records for judges. Each is signed, carries a number, and can be checked by anyone at <a href="{% url 'verify' %}">/verify/</a>.</small>
+  </div>
+</div>
+
+<div class="stats">
+  <div class="stat"><div class="n">{{ counts.standing }}</div><div class="l">standing</div></div>
+  <div class="stat"><div class="n">{{ counts.placement }}</div><div class="l">placements</div></div>
+  <div class="stat"><div class="n">{{ counts.participation }}</div><div class="l">participation</div></div>
+  <div class="stat"><div class="n">{{ counts.judge }}</div><div class="l">judging</div></div>
+  <div class="stat"><div class="n">{{ counts.withdrawn }}</div><div class="l">withdrawn</div></div>
+</div>
+
+<div class="grid split wide">
+  <section>
+    <h2 class="rule">Issued <span class="label tnum">{{ records|length }}</span></h2>
+    {% if records %}
+    <div class="table-wrap">
+    <table>
+      <thead><tr><th>Record</th><th>To</th><th>For</th><th>Kind</th><th>State</th><th></th></tr></thead>
+      <tbody>
+      {% for r in records %}
+      <tr class="{% if r.is_revoked %}dim{% endif %}">
+        <td class="mono"><a href="{{ r.get_absolute_url }}">{{ r.serial }}</a></td>
+        <td>{{ r.payload.recipient }}<br><small>{{ r.recipient.email }}</small></td>
+        <td>{% if r.kind == 'judge' %}{{ r.payload.reviews }} review{{ r.payload.reviews|pluralize }}{% else %}{{ r.payload.project }}<br><small>{{ r.payload.team }}</small>{% endif %}</td>
+        <td>{% if r.kind == 'placement' %}Place {{ r.payload.place }} of {{ r.payload.of }}{% else %}{{ r.get_kind_display }}{% endif %}</td>
+        <td>{% if r.is_revoked %}<span class="badge warn">Withdrawn</span><br><small>{{ r.revoke_reason }}</small>{% else %}<span class="badge ok">Standing</span>{% endif %}</td>
+        <td style="text-align:right">{% if not r.is_revoked %}<form method="post" action="{% url 'organize_record_revoke' event.slug r.serial %}" class="row revoke">{% csrf_token %}<label class="sr-only" for="why-{{ r.pk }}">Reason for withdrawing {{ r.serial }}</label><input type="text" id="why-{{ r.pk }}" name="reason" placeholder="Reason" maxlength="200" required><button class="btn small danger" type="submit" data-confirm="Withdraw for good">Withdraw</button></form>{% endif %}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <div class="empty"><strong>Nothing issued yet</strong>{% if event.results_published %}Issue the records on the right.{% else %}Records state a place, so they wait for the results to be published.{% endif %}</div>
+    {% endif %}
+  </section>
+
+  <aside class="stack loose">
+    <section class="card box">
+      <h3>Issue the records</h3>
+      <p class="muted">One for every member of every ranked team, one for every judge who submitted a review. Running it again issues only what is missing; a record whose place has changed since is withdrawn and replaced.</p>
+      {% if event.results_published %}
+      <form method="post">
+        {% csrf_token %}<input type="hidden" name="action" value="issue">
+        <div class="field"><label for="places">Placements for the first</label><input type="number" id="places" name="places" value="3" min="0" max="100" required><div class="help">Teams below that get a record of participation.</div></div>
+        <button class="btn primary" type="submit">Issue</button>
+      </form>
+      {% else %}
+      <p class="notice">The results are not published. <a href="{% url 'organize_results' event.slug %}">Publish them</a> first.</p>
+      {% endif %}
+    </section>
+    <section class="card">
+      <h3>What a record says</h3>
+      <p class="muted">A team member's record names the person, the team, the project and, for a placement, the place, the score and the number of judges. A judge's record says that they judged and how many reviews they submitted, and nothing about the marks they gave.</p>
+    </section>
+  </aside>
+</div>
+{% endblock %}

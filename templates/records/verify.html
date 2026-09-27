@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Check a record · {{ SITE_NAME }}{% endblock %}
+{% block content %}
+<div class="page-head tall">
+  <div>
+    <div class="eyebrow">Records</div>
+    <h1 class="display-2">Check a record</h1>
+    <p class="lede">Certificates issued here carry a number and a signature. Enter the number, or paste the signed JSON, and the portal says whether it issued that record, whether it was changed, and whether it still stands.</p>
+  </div>
+</div>
+
+<div class="grid split wide">
+  <form method="post" class="card flat">
+    {% csrf_token %}
+    <div class="field">
+      <label for="document">Record number or signed JSON</label>
+      <textarea id="document" name="document" rows="8" spellcheck="false" autocomplete="off" placeholder="PL-7K2M-9XQ4-BD3H" required>{{ entered }}</textarea>
+    </div>
+    <button class="btn primary" type="submit">Check</button>
+  </form>
+
+  <div class="stack loose">
+    {% if result %}
+    <section class="card verdict-card {{ result.state }}" role="status">
+      <h3><span class="badge {% if result.state == 'genuine' %}ok{% elif result.state == 'revoked' %}warn{% else %}bad{% endif %}">{% if result.state == 'genuine' %}Genuine{% elif result.state == 'revoked' %}Withdrawn{% elif result.state == 'altered' %}Altered{% else %}Not found{% endif %}</span></h3>
+      <p>{{ result.says }}</p>
+      {% if result.record and result.state != 'altered' %}
+      <table>
+        <tr><td>Record</td><td class="num">{{ result.record.serial }}</td></tr>
+        <tr><td>Issued to</td><td class="num">{{ result.record.payload.recipient }}</td></tr>
+        <tr><td>Event</td><td class="num">{{ result.record.payload.event.name }}</td></tr>
+        <tr><td>Kind</td><td class="num">{{ result.record.get_kind_display }}</td></tr>
+        <tr><td>Issued</td><td class="num">{{ result.record.issued_at|date:"Y-m-d H:i" }} UTC</td></tr>
+      </table>
+      <a class="btn" href="{{ result.record.get_absolute_url }}" style="margin-top:var(--s4)">Open the record</a>
+      {% endif %}
+    </section>
+    {% endif %}
+    <section class="card">
+      <h3>What the check can and cannot say</h3>
+      <p class="muted">It can say that this portal issued the record and that nothing in it changed. It cannot say that the person showing it is the person named in it. The signature is made with a key only this installation holds, so the check has to be asked of this installation.</p>
+    </section>
+  </div>
+</div>
+{% endblock %}

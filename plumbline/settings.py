@@ -19,7 +19,9 @@ def env_bool(name: str, default: bool = False) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
-SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "dev-only-change-me-in-production")
+DEFAULT_SECRET_KEY = "dev-only-change-me-in-production"
+DEFAULT_SEED_SECRET = "dev-seed-secret"
+SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", DEFAULT_SECRET_KEY)
 DEBUG = env_bool("DJANGO_DEBUG", False)
 ALLOWED_HOSTS = [h.strip() for h in os.environ.get("ALLOWED_HOSTS", "*").split(",") if h.strip()]
 CSRF_TRUSTED_ORIGINS = [
@@ -44,6 +46,7 @@ INSTALLED_APPS = [
     "judging",
     "community",
     "integrations",
+    "records",
 ]
 
 MIDDLEWARE = [
@@ -134,7 +137,13 @@ X_FRAME_OPTIONS = "DENY"
 
 # Seeding. PLUMBLINE_SEED_SECRET makes the seeded API tokens reproducible so a
 # committed .dogfood.toml keeps working across `docker compose down && up`.
-PLUMBLINE_SEED_SECRET = os.environ.get("PLUMBLINE_SEED_SECRET", "dev-seed-secret")
+PLUMBLINE_SEED_SECRET = os.environ.get("PLUMBLINE_SEED_SECRET", DEFAULT_SEED_SECRET)
+PLUMBLINE_SEEDED = env_bool("PLUMBLINE_SEED", False)
+# True while the installation still runs on the values printed in the README.
+# Fine for trying the portal on your own machine; not for a real event.
+PLUMBLINE_SAMPLE_SECRETS = SECRET_KEY == DEFAULT_SECRET_KEY or (
+    PLUMBLINE_SEEDED and PLUMBLINE_SEED_SECRET == DEFAULT_SEED_SECRET
+)
 PLUMBLINE_SITE_NAME = os.environ.get("PLUMBLINE_SITE_NAME", "Plumbline")
 
 # Webhooks. Deliveries run in a background thread after the transaction

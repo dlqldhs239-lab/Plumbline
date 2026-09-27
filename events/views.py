@@ -40,6 +40,7 @@ def home(request):
     qs = Event.objects.annotate(
         project_count=Count(
             "projects",
+            distinct=True,
             filter=Q(
                 projects__status=Project.Status.SUBMITTED,
                 projects__is_hidden=False,
@@ -163,13 +164,12 @@ def project_detail(request, slug, pk):
     members = project.team.memberships.select_related("user")
     result, ranked, in_track = None, 0, None
     if event.results_published or is_organizer(request.user, event):
-        standing = judging_services.standings(event)
-        result = standing.filter(project=project).first()
-        if result is not None and result.rank:
-            ranked = standing.filter(rank__isnull=False).count()
+        result = next((r for r in judging_services.placed(event) if r.project_id == project.pk), None)
+        if result is not None and result.place:
+            ranked = result.of
             if project.track_id:
-                peers = standing.filter(project__track_id=project.track_id, rank__isnull=False)
-                in_track = {"rank": peers.filter(rank__lt=result.rank).count() + 1, "of": peers.count()}
+                mine = next(r for r in judging_services.placed(event, project.track_id) if r.project_id == project.pk)
+                in_track = {"rank": mine.place, "of": mine.of}
     organizer = is_organizer(request.user, event)
     member = services.is_team_member(request.user, project)
     breakdown, feedback = None, []
@@ -210,14 +210,13 @@ def results(request, slug):
     event = _event(slug)
     if not event.results_published and not is_organizer(request.user, event):
         return render(request, "events/results_hidden.html", {"event": event}, status=403)
-    everything = list(judging_services.standings(event))
     track = request.GET.get("track") or ""
     track_id = as_id(track)
-    rows = [r for r in everything if r.project.track_id == track_id] if track else everything
+    if track and (track_id is None or not any(t.id == track_id for t in event.tracks.all())):
+        rows = []  # a track that is not one of this event's shows nothing, not the untracked projects
+    else:
+        rows = judging_services.placed(event, track_id if track else None)
     ranked = [r for r in rows if r.rank]
-    for r in ranked:
-        # Within a track the place is counted among that track's projects; ties keep sharing it.
-        r.place = r.rank if not track else 1 + sum(1 for o in ranked if o.rank < r.rank)
     rubric = judging_services.ensure_rubric(event)
     calibration = JudgeCalibration.objects.filter(event=event)
     facts = {
@@ -225,7 +224,7 @@ def results(request, slug):
         "reviews": sum(r.review_count for r in ranked),
         "judges": calibration.count(),
         "flat": calibration.filter(flat=True).count(),
-        "moved": sum(1 for r in ranked if r.rank_raw != r.rank),
+        "moved": sum(1 for r in ranked if r.shift),
         "fewest": min((r.review_count for r in ranked), default=0),
         "most": max((r.review_count for r in ranked), default=0),
     }
@@ -240,7 +239,7 @@ def results(request, slug):
             "slope": showcase.slopegraph(ranked),
             "facts": facts,
             "rubric": rubric,
-            "jury_k": rubric.effective_jury_k(),
+            "jury_k": judging_services.computed_jury_k(event),
             "track": track,
             "track_name": next((t.name for t in event.tracks.all() if t.id == track_id), ""),
             "voting": event.voting_access != "closed",
@@ -274,10 +273,18 @@ def dashboard(request):
     organized = Event.objects.filter(roles__user=user, roles__role=Role.ORGANIZER).distinct()
     if is_admin(user):
         organized = Event.objects.all()
+    from records.models import Record
+
     return render(
         request,
         "events/dashboard.html",
-        {"memberships": memberships, "projects": projects, "judge_stats": judge_stats, "organized": organized},
+        {
+            "memberships": memberships,
+            "projects": projects,
+            "judge_stats": judge_stats,
+            "organized": organized,
+            "records": Record.objects.filter(recipient=user, revoked_at__isnull=True).select_related("event"),
+        },
     )
 
 
@@ -509,9 +516,14 @@ def results_state(event) -> dict:
     )["at"]
     eligible = set(judging_services.eligible_projects(event).values_list("id", flat=True))
     stored = set(ProjectResult.objects.filter(event=event).values_list("project_id", flat=True))
+    used = judging_services.computed_jury_k(event)
+    wanted = judging_services.ensure_rubric(event).effective_jury_k()
+    reset = computed is not None and used is not None and abs(used - wanted) > 1e-9
     return {
         "computed_at": computed,
-        "stale": bool(computed and ((changed and changed > computed) or eligible != stored)),
+        "stale": bool(computed and ((changed and changed > computed) or eligible != stored or reset)),
+        "setting_changed": reset,
+        "used_jury_k": used,
         "never": computed is None,
     }
 
@@ -781,6 +793,9 @@ def organize_results(request, slug):
     _organizer_or_403(request, event)
     if request.method == "POST":
         action = request.POST.get("action")
+        if action == "publish" and not ProjectResult.objects.filter(event=event, rank__isnull=False).exists():
+            messages.error(request, "There is nothing to publish yet. Compute the results first.")
+            return redirect("organize_results", slug=slug)
         if action == "recompute":
             out = judging_services.recompute_results(event, request.user)
             messages.success(
@@ -820,7 +835,7 @@ def organize_results(request, slug):
             "elevation": elevation,
             "state": results_state(event),
             "rubric": rubric,
-            "jury_k": rubric.effective_jury_k(),
+            "jury_k": judging_services.computed_jury_k(event),
             "facts": {
                 "projects": len(ranked),
                 "reviews": sum(r.review_count for r in ranked),

@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}{{ p.recipient }} · {{ event.name }} · {{ rec.serial }}{% endblock %}
+{% block content %}
+<div class="sheet-bar">
+  <div class="verdict {{ state.state }}" role="status">
+    <span class="badge {% if state.state == 'genuine' %}ok{% elif state.state == 'revoked' %}warn{% else %}bad{% endif %}">{% if state.state == 'genuine' %}Genuine{% elif state.state == 'revoked' %}Withdrawn{% else %}Not valid{% endif %}</span>
+    <span>{{ state.says }}</span>
+  </div>
+  <div class="actions">
+    <button class="btn" type="button" onclick="window.print()">Print or save as PDF</button>
+    <a class="btn" href="{% url 'record_json' rec.serial %}">Signed record, JSON</a>
+    <a class="btn" href="{% url 'verify' %}">Check another</a>
+  </div>
+</div>
+
+<article class="sheet{% if state.state != 'genuine' %} void{% endif %}" aria-label="Certificate">
+  <header>
+    <span class="label">{{ p.issuer }} · {% if rec.kind == 'placement' %}record of placement{% elif rec.kind == 'judge' %}record of judging{% else %}record of participation{% endif %}</span>
+    <span class="label tnum">{{ rec.serial }}</span>
+  </header>
+
+  <div class="body">
+    <p class="label">This records that</p>
+    <h1>{{ p.recipient }}</h1>
+    {% if rec.kind == 'placement' %}
+    <p class="lede">of team <strong>{{ p.team }}</strong> placed <strong>{{ p.place }} of {{ p.of }}</strong> in {{ p.event.name }} with <strong>{{ p.project }}</strong>.</p>
+    {% elif rec.kind == 'judge' %}
+    <p class="lede">served as a judge of {{ p.event.name }} and submitted <strong>{{ p.reviews }} review{{ p.reviews|pluralize }}</strong>.</p>
+    {% else %}
+    <p class="lede">of team <strong>{{ p.team }}</strong> took part in {{ p.event.name }} and submitted <strong>{{ p.project }}</strong>.</p>
+    {% endif %}
+    {% if state.state == 'revoked' %}<p class="stamp">Withdrawn {{ rec.revoked_at|date:"Y-m-d" }}</p>{% elif state.state != 'genuine' %}<p class="stamp">Not valid</p>{% endif %}
+  </div>
+
+  <dl class="titleblock">
+    <div class="wide"><dt class="label">Event</dt><dd>{{ p.event.name }}</dd></div>
+    {% if rec.kind == 'placement' %}
+    <div><dt class="label">Place</dt><dd class="tnum">{{ p.place }} of {{ p.of }}</dd></div>
+    <div><dt class="label">Score</dt><dd class="tnum">{{ p.score }}</dd></div>
+    <div><dt class="label">Judges</dt><dd class="tnum">{{ p.reviews }}</dd></div>
+    {% elif rec.kind == 'judge' %}
+    <div><dt class="label">Reviews</dt><dd class="tnum">{{ p.reviews }}</dd></div>
+    {% endif %}
+    {% if p.track %}<div><dt class="label">Track</dt><dd>{{ p.track }}</dd></div>{% endif %}
+    <div><dt class="label">Issued</dt><dd class="tnum">{{ rec.issued_at|date:"Y-m-d" }}</dd></div>
+    <div><dt class="label">Record</dt><dd class="mono serial">{{ rec.serial }}</dd></div>
+    <div class="wide"><dt class="label">Check it at</dt><dd class="mono">{{ address }}</dd></div>
+    <div class="wide"><dt class="label">Signature, {{ p.signed_with }}</dt><dd class="mono sig">{{ rec.signature }}</dd></div>
+  </dl>
+</article>
+
+<p class="help sheet-note">The number and the address above let anyone confirm this record with the portal that issued it. The signed JSON holds the same statement; if one character of it is changed, the check fails.</p>
+{% endblock %}

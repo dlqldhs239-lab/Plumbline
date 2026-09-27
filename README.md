@@ -88,6 +88,15 @@ Webhooks subscribe to an event's audit stream: signed with HMAC-SHA256, sent
 after the change is committed, recorded per delivery and retryable. Invited
 judges get in through a one-time sign-in link the organizer passes on.
 
+**Signed records (T4).** Once results are published the organizer issues a
+record to every member of every ranked team and to every judge who submitted
+a review. Each opens as a certificate that prints on one page, carries a
+number and an HMAC-SHA256 signature, and can be checked by anyone at
+`/verify/` or `POST /api/records/check`: genuine, withdrawn, altered or
+unknown. A judge's record says that they judged and how much, never what
+they scored. A record whose place changed after a recompute is withdrawn and
+replaced, so there is never more than one to believe.
+
 ## Tier claim
 
 `.dogfood.toml` claims **T1 and T2**, which is exactly what `run.py` verifies.
@@ -104,13 +113,25 @@ side of "claim your tiers honestly". To verify T3 yourself:
 
 ## What it does not do yet
 
-- Certificates, signed judge participation records and an embeddable
-  gallery widget (the rest of T4).
+- An embeddable gallery widget (the rest of T4).
 - Bulk import beyond the fixture format; export is CSV and `pg_dump`.
 - File uploads: thumbnails and gallery images are URLs.
 - Outbound email. Judges and ballot links are created by the organizer and
   distributed with whatever mail tool they already use.
 - Pairwise (Gavel-style) judging mode.
+
+## Before a real event
+
+`docker compose up` with no settings is a **sample installation**: the
+secret key, the seeded accounts (password `plumbline`, one of them an
+administrator) and the four API tokens are the ones printed in this README
+and in `.dogfood.toml`. That is what makes the checker work on a fresh
+clone, and it is fine on your own machine. The container says so at start,
+and staff see a notice on every page until it is no longer true.
+
+For a real event set `DJANGO_SECRET_KEY`, `PLUMBLINE_SEED=0` and
+`ALLOWED_HOSTS`, create your own administrator, and remove the seeded
+accounts if the sample was ever loaded.
 
 ## Running it for real
 

@@ -95,7 +95,9 @@ class ReviewStateTests(SeededTestCase):
         self.assertContains(r, "Judging opens")
         self.assertNotContains(r, "Submit and next")
         self.assertContains(self.client.get(f"/judge/{event.slug}/"), "Judging opens")
-        r = self.client.post(f"/judge/{event.slug}/review/{a.pk}/", {"score_functionality": "4", "save": "1"})
+        r = self.client.post(
+            f"/judge/{event.slug}/review/{a.pk}/", {"score_functionality": "4", "save": "1"}, follow=True
+        )
         self.assertContains(r, "Judging is not open")
         self.assertEqual(a.scores.count(), 0)
 

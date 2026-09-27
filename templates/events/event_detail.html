@@ -25,7 +25,7 @@
 </div>
 
 <section class="timeline-block" aria-label="Dates">
-  <div class="timeline" aria-hidden="true">
+  <div class="timeline" aria-hidden="true" data-reveal>
     <div class="rule">{% if timeline.here is not None %}<span class="done" style="width:{{ timeline.here }}%"></span>{% elif timeline.after %}<span class="done" style="width:100%"></span>{% endif %}</div>
     {% for m in timeline.marks %}
     <div class="tick{% if m.past %} past{% endif %}{% if forloop.first %} first{% endif %}{% if forloop.last and not forloop.first %} last{% endif %}{% if m.row %} low{% endif %}" style="left:{{ m.pct }}%">

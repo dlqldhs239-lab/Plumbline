@@ -120,7 +120,7 @@ class ResultsPageTests(Published):
         self.assertContains(page, f"adjusted / 5.00 · {first.review_count} judges")
         self.assertContains(page, "How the score is made")
         self.assertContains(page, "between 2 and 5 reviews")
-        self.assertContains(page, "1 judge gave every project the same mark")
+        self.assertContains(page, "1 judge gave every project the same score")
         html = page.content.decode()
         self.assertEqual(html.count("<path "), 40)
         self.assertEqual(html.count('class="leader"'), 3)

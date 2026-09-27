@@ -18,7 +18,7 @@
     {% endif %}
   </div>
 </div>
-{% if state.stale %}<ul class="messages"><li class="{% if event.results_published %}error{% else %}warning{% endif %}">Reviews or projects changed after these results were computed{% if event.results_published %}, and they are published{% endif %}. Recompute to bring them up to date.</li></ul>{% endif %}
+{% if state.stale %}<ul class="messages"><li class="{% if event.results_published %}error{% else %}warning{% endif %}">{% if state.setting_changed %}The jury-size adjustment was changed after these results were computed with {{ state.used_jury_k|floatformat:"-1" }}{% else %}Reviews or projects changed after these results were computed{% endif %}{% if event.results_published %}, and they are published{% endif %}. Recompute to bring them up to date.</li></ul>{% endif %}
 
 {% if rows %}
 <div class="stats">
@@ -35,10 +35,10 @@
   <div class="block-head inset">
     <span class="label">The panel</span>
     <h2 id="elev-h">How each judge marks</h2>
-    <p>The line across is the panel mean, {{ elevation.datum.value|floatformat:3 }}. Each post is a judge, standing from that line to their own mean; the bracket is their spread. Harshest on the left. {% if elevation.flat %}{{ elevation.flat }} judge{{ elevation.flat|pluralize }} gave every project the same mark and count{{ elevation.flat|pluralize:"s," }} as no opinion. {% endif %}{% if elevation.thin %}{{ elevation.thin }} gave fewer than three reviews and {{ elevation.thin|pluralize:"is,are" }} read mostly against the panel.{% endif %}</p>
+    <p>The line across is the panel mean, {{ elevation.datum.value|floatformat:3 }}. Each post is a judge, standing from that line to their own mean; the bracket is their spread. Harshest on the left. {% if elevation.flat %}{{ elevation.flat }} judge{{ elevation.flat|pluralize }} gave every project the same score and count{{ elevation.flat|pluralize:"s," }} as no opinion. {% endif %}{% if elevation.thin %}{{ elevation.thin }} gave fewer than three reviews and {{ elevation.thin|pluralize:"is,are" }} read mostly against the panel.{% endif %}</p>
   </div>
   <div class="elev-wrap">
-  <svg class="elev" viewBox="0 0 {{ elevation.width }} {{ elevation.height }}" role="img" aria-label="Each judge's mean and spread against the panel mean. The table below has the same figures.">
+  <svg class="elev" data-reveal viewBox="0 0 {{ elevation.width }} {{ elevation.height }}" role="img" aria-label="Each judge's mean and spread against the panel mean. The table below has the same figures.">
     {% for g in elevation.grid %}<line class="grid" x1="{{ elevation.left }}" x2="{{ elevation.right }}" y1="{{ g.y }}" y2="{{ g.y }}"/><text class="axis" x="{{ elevation.left|add:-14 }}" y="{{ g.y|add:4 }}" text-anchor="end">{{ g.value }}</text>{% endfor %}
     <line class="datum" x1="{{ elevation.left|add:-30 }}" x2="{{ elevation.right }}" y1="{{ elevation.datum.y }}" y2="{{ elevation.datum.y }}"/>
     <text class="axis strong" x="{{ elevation.right|add:12 }}" y="{{ elevation.datum.y|add:-2 }}">PANEL MEAN</text><text class="axis strong" x="{{ elevation.right|add:12 }}" y="{{ elevation.datum.y|add:14 }}">{{ elevation.datum.value|floatformat:3 }}</text>
@@ -57,7 +57,7 @@
   <div class="legend flush" aria-hidden="true">
     <div><i class="len"></i><span class="label">Thickness: reviews given</span></div>
     <div><i class="brk"></i><span class="label">Bracket: spread of marks</span></div>
-    <div><i class="flat"></i><span class="label">Dashed: every mark the same</span></div>
+    <div><i class="flat"></i><span class="label">Dashed: every score the same</span></div>
     <div><i class="thin"></i><span class="label">Faint: fewer than three reviews</span></div>
   </div>
 </section>
@@ -69,7 +69,7 @@
     <p class="muted">The figures behind the drawing. Weight is how much a judge's own mean and spread count against the panel's: reviews / (reviews + 3).</p>
     <div class="table-wrap scroll">
     <table><thead><tr><th>Judge</th><th class="num">Reviews</th><th class="num">Mean</th><th class="num">From panel</th><th class="num">Spread</th><th class="num">Weight</th></tr></thead><tbody>
-    {% for c in calibration %}<tr><td>{{ c.judge.get_full_name|default:c.judge.username }}{% if c.flat %} <span class="badge warn">every mark the same</span>{% endif %}</td><td class="num">{{ c.review_count }}</td><td class="num">{{ c.mean|floatformat:2 }}</td><td class="num">{% if c.lean is not None %}<span class="move {% if c.lean > 0.3 %}up{% elif c.lean < -0.3 %}down{% endif %}">{% if c.lean > 0 %}+{% endif %}{{ c.lean|floatformat:2 }}</span>{% endif %}</td><td class="num">{{ c.stdev|floatformat:2 }}</td><td class="num">{{ c.shrink_weight|floatformat:2 }}</td></tr>{% endfor %}
+    {% for c in calibration %}<tr><td>{{ c.judge.get_full_name|default:c.judge.username }}{% if c.flat %} <span class="badge warn">every score the same</span>{% endif %}</td><td class="num">{{ c.review_count }}</td><td class="num">{{ c.mean|floatformat:2 }}</td><td class="num">{% if c.lean is not None %}<span class="move {% if c.lean > 0.3 %}up{% elif c.lean < -0.3 %}down{% endif %}">{% if c.lean > 0 %}+{% endif %}{{ c.lean|floatformat:2 }}</span>{% endif %}</td><td class="num">{{ c.stdev|floatformat:2 }}</td><td class="num">{{ c.shrink_weight|floatformat:2 }}</td></tr>{% endfor %}
     </tbody></table>
     </div>
     <p class="help"><a href="{% url 'organize_export' event.slug 'calibration' %}">Calibration CSV</a> · <a href="{% url 'organize_export' event.slug 'scores' %}">Every score, CSV</a></p>

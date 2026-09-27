@@ -112,7 +112,7 @@
     if (!best) { tip.style.opacity = 0; return; }
     var lean = (best.lean > 0 ? '+' : '') + best.lean.toFixed(2);
     tip.textContent = best.n + ' review' + (best.n === 1 ? '' : 's') + ' · mean ' + best.mean.toFixed(2) +
-      ' · ' + (best.flat ? 'every mark the same' : lean + ' from the panel');
+      ' · ' + (best.flat ? 'every score the same' : lean + ' from the panel');
     tip.style.opacity = 1;
     tip.style.left = Math.max(8, Math.min(W - tip.offsetWidth - 8, best.x + 12)) + 'px';
     tip.style.top = Math.min(H - 40, best.y + 14) + 'px';

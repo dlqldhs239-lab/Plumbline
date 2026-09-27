@@ -11,7 +11,7 @@ from datetime import timedelta
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.core.validators import validate_email
+from django.core.validators import URLValidator, validate_email
 from django.db import transaction
 from django.utils import timezone
 from django.utils.text import slugify
@@ -236,13 +236,45 @@ def set_hidden(project: Project, user, hidden: bool) -> Project:
     return project
 
 
+WEB_ADDRESS = URLValidator(schemes=["http", "https"])
+ADDRESS_FIELDS = {
+    "thumbnail_url": "Cover image",
+    "demo_video_url": "Demo video",
+    "repo_url": "Repository",
+    "live_url": "Live address",
+}
+
+
+def _web_address(value: str, label: str) -> str:
+    """Only http and https. These are printed as links and image sources on
+    public pages; anything else (javascript:, data:, ftp:) is refused."""
+    value = (value or "").strip()
+    if not value:
+        return ""
+    if len(value) > 500:
+        raise ValidationError(f"{label}: the address is longer than 500 characters.")
+    try:
+        WEB_ADDRESS(value)
+    except ValidationError:
+        raise ValidationError(f"{label}: '{value[:60]}' is not an http or https address.") from None
+    return value
+
+
 def _apply(project: Project, data: dict):
     for field in PROJECT_FIELDS:
         if field not in data:
             continue
         value = data[field]
-        if field in ("image_urls", "tech_tags"):
+        if field in ADDRESS_FIELDS:
+            value = _web_address(value, ADDRESS_FIELDS[field])
+        if field == "image_urls":
+            value = [_web_address(v, "Image gallery") for v in _as_list(value)]
+            if len(value) > 12:
+                raise ValidationError("The image gallery holds at most 12 images.")
+        if field == "tech_tags":
             value = _as_list(value)
+            if len(value) > 20 or any(len(t) > 40 for t in value):
+                raise ValidationError("At most 20 tags, each at most 40 characters.")
         if field == "track" and value is not None:
             value = _track_of(project.event, value)
         setattr(project, field, value)
@@ -329,8 +361,12 @@ def _check_event(event: Event):
             raise ValidationError(f"{field} cannot be empty.")
     if event.submissions_close_at <= event.submissions_open_at:
         raise ValidationError("submissions_close_at must be after submissions_open_at.")
-    if event.judging_open_at and event.judging_close_at and event.judging_close_at <= event.judging_open_at:
-        raise ValidationError("judging_close_at must be after judging_open_at.")
+    judging_starts = event.judging_open_at or event.submissions_close_at
+    if event.judging_close_at and event.judging_close_at <= judging_starts:
+        raise ValidationError(
+            "judging_close_at must be after judging opens"
+            + ("." if event.judging_open_at else ", which without judging_open_at is when submissions close.")
+        )
     if event.voting_open_at and event.voting_close_at and event.voting_close_at <= event.voting_open_at:
         raise ValidationError("voting_close_at must be after voting_open_at.")
     event.reviews_per_project = as_int(event.reviews_per_project, "reviews_per_project", 1, MAX_REVIEWS_PER_PROJECT)

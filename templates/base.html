@@ -7,6 +7,7 @@
   <link rel="preload" href="{% static 'fonts/Archivo.woff2' %}" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="{% static 'css/plumbline.css' %}">
   {% theme_style event %}
+  <script>document.documentElement.className += ' js';</script>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23080C18'/%3E%3Cline x1='16' y1='3' x2='16' y2='21' stroke='%2300E5D0' stroke-width='2'/%3E%3Crect x='12' y='19' width='8' height='8' fill='%2300E5D0' transform='rotate(45 16 23)'/%3E%3C/svg%3E">
   {% block head %}{% endblock %}
 </head>
@@ -33,17 +34,28 @@
     {% endwith %}</nav>
   </div>
 </header>
+{% if SAMPLE_SECRETS %}<div class="sample-secrets" role="note"><span class="badge warn">Sample installation</span><span>This portal runs on the secret key, the accounts and the API tokens printed in the README. Anyone who has read it can sign in as you. Before a real event set <code>DJANGO_SECRET_KEY</code> and <code>PLUMBLINE_SEED=0</code>, and change or remove the seeded accounts.</span></div>{% endif %}
 <main id="main" class="{% block main_class %}{% endblock %}">
   {% if messages %}
     <ul class="messages" role="status">{% for m in messages %}<li class="{{ m.tags }}">{{ m }}</li>{% endfor %}</ul>
   {% endif %}
   {% block content %}{% endblock %}
 </main>
-<footer class="site"><div class="inner"><span>{{ SITE_NAME }} · self-hosted judging</span><span><a href="/api/docs">API</a> · <a href="{% url 'styleguide' %}">Design system</a> · MIT</span></div></footer>
+<footer class="site"><div class="inner"><span>{{ SITE_NAME }} · self-hosted judging</span><span><a href="{% url 'verify' %}">Check a record</a> · <a href="/api/docs">API</a> · <a href="{% url 'styleguide' %}">Design system</a> · MIT</span></div></footer>
 <script>
 (function () {
   var t = document.querySelector('.nav-toggle'), n = document.getElementById('nav');
   if (t && n) t.addEventListener('click', function () { var o = n.classList.toggle('open'); t.setAttribute('aria-expanded', o); });
+  // Drawings are wiped in once, when they come into view. Without scripts they are simply there.
+  var drawings = document.querySelectorAll('[data-reveal]');
+  if ('IntersectionObserver' in window) {
+    var seen = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) { if (en.isIntersecting) { en.target.classList.add('seen'); seen.unobserve(en.target); } });
+    }, { threshold: 0.18 });
+    drawings.forEach(function (d) { seen.observe(d); });
+  } else {
+    drawings.forEach(function (d) { d.classList.add('seen'); });
+  }
   // Irreversible buttons ask once more, in place. Without scripts they act on the first click.
   document.addEventListener('click', function (e) {
     var b = e.target.closest('button[data-confirm]');

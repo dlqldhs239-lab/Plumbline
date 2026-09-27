@@ -35,6 +35,13 @@
       <ul class="plain">{% for e in organized %}<li><a href="{% url 'organize_dashboard' e.slug %}">{{ e.name }}</a> <span class="badge neutral">{{ e.phase }}</span></li>{% endfor %}</ul>
     </div>
     {% endif %}
+    {% if records %}
+    <div class="card">
+      <h3>Your records</h3>
+      <p class="muted">Signed by this portal. Each opens as a certificate you can print, and anyone can check it by its number.</p>
+      <table><tbody>{% for r in records %}<tr><td><a href="{{ r.get_absolute_url }}">{{ r.event.name }}</a><br><small>{% if r.kind == 'placement' %}Place {{ r.payload.place }} of {{ r.payload.of }} · {{ r.payload.project }}{% elif r.kind == 'judge' %}Judge · {{ r.payload.reviews }} review{{ r.payload.reviews|pluralize }}{% else %}Took part · {{ r.payload.project }}{% endif %}</small></td><td class="num mono">{{ r.serial }}</td></tr>{% endfor %}</tbody></table>
+    </div>
+    {% endif %}
     <div class="card"><h3>API</h3><p class="muted">Automate anything you can do here with a <a href="{% url 'accounts:tokens' %}">bearer token</a>. Schema at <a href="/api/docs">/api/docs</a>.</p></div>
   </div>
 </div>

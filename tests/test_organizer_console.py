@@ -119,7 +119,7 @@ class ElevationTests(Console):
         page = self.client.get(self.base + "results/")
         html = page.content.decode()
         self.assertEqual(html.count('class="bob"'), 30)
-        self.assertContains(page, "every mark the same")
+        self.assertContains(page, "every score the same")
         self.assertContains(page, "How each judge marks")
         self.assertContains(page, "Largest moves")
         self.assertContains(page, "Small Relay")

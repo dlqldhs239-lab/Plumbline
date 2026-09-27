@@ -13,7 +13,7 @@ from django.db.models import Count
 from events.models import Event
 
 from .models import JudgeCalibration, ProjectResult
-from .services import ensure_rubric, standings
+from .services import ensure_rubric, placed
 
 SMALL = (
     "zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen "
@@ -64,7 +64,11 @@ def featured_event(user=None) -> Event | None:
 def panel(event: Event) -> dict:
     """The judges of an event as the landing page draws them: one entry per
     judge, in a stable order, carrying no name or id."""
-    rows = list(JudgeCalibration.objects.filter(event=event).order_by("judge_id"))
+    rows = [
+        r
+        for r in JudgeCalibration.objects.filter(event=event).order_by("judge_id")
+        if r.mean is not None and r.review_count
+    ]
     reviews = sum(r.review_count for r in rows)
     mean = sum(r.mean * r.review_count for r in rows) / reviews if reviews else None
     judges = [
@@ -76,7 +80,6 @@ def panel(event: Event) -> dict:
             "flat": r.flat,
         }
         for r in rows
-        if r.mean is not None
     ]
     # Interleave generous and harsh so the field does not read as a sorted chart.
     judges.sort(key=lambda j: (j["n"], j["lean"]))
@@ -97,14 +100,13 @@ def case(event: Event) -> dict | None:
     project that mark was holding up. Otherwise the project that moved the
     most between the raw order and the final one.
     """
-    rows = list(standings(event))
-    ranked = [r for r in rows if r.rank and r.rank_raw]
-    if not ranked:
+    ranked = [r for r in placed(event) if r.place and r.place_raw]
+    if not ranked or not panel(event)["judges"]:
         return None
     rubric = ensure_rubric(event)
     total = len(ranked)
-    moved = sum(1 for r in ranked if r.rank != r.rank_raw)
-    biggest = max(ranked, key=lambda r: (abs(r.rank_raw - r.rank), -r.rank))
+    moved = sum(1 for r in ranked if r.shift)
+    biggest = max(ranked, key=lambda r: (abs(r.shift), -r.place))
     out = {
         "event": event,
         "projects": total,
@@ -112,24 +114,27 @@ def case(event: Event) -> dict | None:
         "scale_max": rubric.scale_max,
         "judges": JudgeCalibration.objects.filter(event=event).count(),
         "project": biggest,
-        "from_rank": biggest.rank_raw,
-        "to_rank": biggest.rank,
-        "from_word": ordinal(biggest.rank_raw),
-        "to_word": ordinal(biggest.rank),
+        "from_rank": biggest.place_raw,
+        "to_rank": biggest.place,
+        "from_word": ordinal(biggest.place_raw),
+        "to_word": ordinal(biggest.place),
         "kind": "mover",
     }
     flat = JudgeCalibration.objects.filter(event=event, flat=True).order_by("-review_count").first()
     if flat is not None:
-        from .models import JudgeAssignment
+        from .models import JudgeAssignment, Score
 
         theirs = JudgeAssignment.objects.filter(
             event=event, judge_id=flat.judge_id, status=JudgeAssignment.Status.SUBMITTED
-        ).values_list("project_id", flat=True)
-        held = [r for r in ranked if r.project_id in set(theirs)]
-        if held:
-            worst = max(held, key=lambda r: r.rank - r.rank_raw)
-            if worst.rank > worst.rank_raw:
-                mark = flat.mean
+        )
+        # The headline says "gave everyone a four". That is only true if every
+        # single mark was that number, not merely every weighted total.
+        marks = set(Score.objects.filter(assignment__in=theirs).values_list("value", flat=True))
+        held = [r for r in ranked if r.project_id in set(theirs.values_list("project_id", flat=True))]
+        if held and len(marks) == 1:
+            worst = max(held, key=lambda r: r.place - r.place_raw)
+            if worst.place > worst.place_raw:
+                mark = float(marks.pop())
                 out.update(
                     {
                         "kind": "flat",
@@ -138,10 +143,10 @@ def case(event: Event) -> dict | None:
                         "flat_reviews": flat.review_count,
                         "flat_reviews_word": in_words(flat.review_count),
                         "project": worst,
-                        "from_rank": worst.rank_raw,
-                        "to_rank": worst.rank,
-                        "from_word": ordinal(worst.rank_raw),
-                        "to_word": ordinal(worst.rank),
+                        "from_rank": worst.place_raw,
+                        "to_rank": worst.place,
+                        "from_word": ordinal(worst.place_raw),
+                        "to_word": ordinal(worst.place),
                     }
                 )
     out["judges_word"] = in_words(out["judges"]).capitalize()
@@ -201,7 +206,11 @@ def elevation(event: Event) -> dict | None:
     Judges stand in order of their mean, harshest first."""
     from events.models import EventRole, Role
 
-    rows = [r for r in JudgeCalibration.objects.filter(event=event).select_related("judge") if r.mean is not None]
+    rows = [
+        r
+        for r in JudgeCalibration.objects.filter(event=event).select_related("judge")
+        if r.mean is not None and r.review_count
+    ]
     if len(rows) < 2:
         return None
     rubric = ensure_rubric(event)
@@ -248,7 +257,7 @@ def elevation(event: Event) -> dict | None:
                 "tip": (
                     f"{name}: {r.review_count} review{'s' if r.review_count != 1 else ''}, mean {r.mean:.2f} "
                     f"({lean:+.2f} from the panel), spread {sd:.2f}"
-                    + (". Every mark the same: counts as no opinion." if r.flat else "")
+                    + (". Every score the same: counts as no opinion." if r.flat else "")
                 ),
             }
         )

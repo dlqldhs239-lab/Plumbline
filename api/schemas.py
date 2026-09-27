@@ -83,7 +83,7 @@ class ProjectIn(Schema):
 
 class ScoreValues(Schema):
     scores: dict[str, int]
-    comment: str = ""
+    comment: str | None = None
     submit: bool = False
 
 
