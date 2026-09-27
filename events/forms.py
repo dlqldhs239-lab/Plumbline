@@ -63,9 +63,26 @@ class EventForm(forms.ModelForm):
             "voting_close_at": DateTimeLocalInput(),
             "description": forms.Textarea(attrs={"rows": 6}),
         }
+        labels = {
+            "slug": "Address",
+            "submissions_open_at": "Open",
+            "submissions_close_at": "Close, the deadline",
+            "judging_open_at": "Judging opens",
+            "judging_close_at": "Judging closes",
+            "reviews_per_project": "Reviews each project should get",
+            "voting_access": "Who may vote",
+            "voting_open_at": "Voting opens",
+            "voting_close_at": "Voting closes",
+            "voting_credits": "Credits per voter",
+            "comments_enabled": "Let signed-in people comment on projects",
+            "is_listed": "Show this event on the home page",
+        }
         help_texts = {
-            "slug": "Used in URLs. Leave blank to derive from the name.",
-            "submissions_close_at": "All times are UTC. Submissions are refused the moment this passes.",
+            "slug": "The part of the address after /events/. Leave blank to derive it from the name.",
+            "submissions_close_at": "Submissions are refused the moment this passes.",
+            "reviews_per_project": "Automatic assignment aims for this many; the jury-size adjustment follows it.",
+            "voting_credits": "For quadratic voting: putting n votes on one project costs n squared. 0 means one vote per project.",
+            "is_listed": "",
         }
 
     def __init__(self, *args, **kwargs):
@@ -137,6 +154,18 @@ class ProjectForm(forms.ModelForm):
         model = Project
         fields = ["title", "tagline", "description", "track", "thumbnail_url", "demo_video_url", "repo_url", "live_url"]
         widgets = {"description": forms.Textarea(attrs={"rows": 10})}
+        labels = {
+            "tagline": "One line",
+            "thumbnail_url": "Cover image",
+            "demo_video_url": "Demo video",
+            "repo_url": "Repository",
+            "live_url": "Live address",
+        }
+        help_texts = {
+            "tagline": "What it does, in a sentence. Shown in the gallery.",
+            "thumbnail_url": "An address of an image. Without one the gallery draws a cover from the title.",
+            "repo_url": "Judges open this first.",
+        }
 
     def __init__(self, *args, event: Event, **kwargs):
         super().__init__(*args, **kwargs)
@@ -190,7 +219,7 @@ class ProjectForm(forms.ModelForm):
 
 class JudgeInviteForm(forms.Form):
     email = forms.EmailField(
-        help_text="An account is created if none exists; the judge sets a password via the login page."
+        help_text="An account is created if none exists. Create a sign-in link for them and send it yourself."
     )
     name = forms.CharField(required=False)
     tracks = forms.ModelMultipleChoiceField(

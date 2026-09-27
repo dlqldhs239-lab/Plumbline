@@ -188,3 +188,85 @@ def slopegraph(rows: list[ProjectResult], limit: int = SLOPE_LIMIT) -> dict | No
         "shown": len(shown),
         "total": len([r for r in rows if r.rank]),
     }
+
+
+ELEV_W, ELEV_H = 1200, 420
+ELEV_LEFT, ELEV_RIGHT, ELEV_TOP, ELEV_BOTTOM = 64, 150, 28, 56
+
+
+def elevation(event: Event) -> dict | None:
+    """The panel drawn as an elevation, for organizers. The datum is the panel
+    mean. Each post is a judge: it rises or falls from the datum to that
+    judge's mean, and the bracket is one standard deviation either side.
+    Judges stand in order of their mean, harshest first."""
+    from events.models import EventRole, Role
+
+    rows = [r for r in JudgeCalibration.objects.filter(event=event).select_related("judge") if r.mean is not None]
+    if len(rows) < 2:
+        return None
+    rubric = ensure_rubric(event)
+    reviews = sum(r.review_count for r in rows)
+    datum = sum(r.mean * r.review_count for r in rows) / reviews
+    labels = dict(
+        EventRole.objects.filter(event=event, role=Role.JUDGE)
+        .exclude(external_id="")
+        .values_list("user_id", "external_id")
+    )
+    low = max(rubric.scale_min, min(min(r.mean - (r.stdev or 0) for r in rows), datum) - 0.2)
+    high = min(rubric.scale_max, max(max(r.mean + (r.stdev or 0) for r in rows), datum) + 0.2)
+    span = (high - low) or 1
+    plot_h = ELEV_H - ELEV_TOP - ELEV_BOTTOM
+
+    def y(value: float) -> float:
+        value = max(low, min(high, value))
+        return round(ELEV_TOP + (high - value) / span * plot_h, 1)
+
+    rows.sort(key=lambda r: (r.mean, r.judge_id))
+    step = (ELEV_W - ELEV_LEFT - ELEV_RIGHT - 60) / (len(rows) - 1)
+    most = max(r.review_count for r in rows)
+    posts = []
+    for i, r in enumerate(rows):
+        name = r.judge.get_full_name() or r.judge.username
+        sd = r.stdev or 0.0
+        lean = r.mean - datum
+        posts.append(
+            {
+                "x": round(ELEV_LEFT + 20 + i * step, 1),
+                "y": y(r.mean),
+                "hi": y(r.mean + sd),
+                "lo": y(r.mean - sd),
+                "spread": sd > 0,
+                "flat": r.flat,
+                "thin": r.review_count < 3,
+                "width": round(1 + 2.4 * r.review_count / most, 2),
+                "label": (labels.get(r.judge_id) or name)[-2:] if labels.get(r.judge_id) else str(i + 1),
+                "name": name,
+                "n": r.review_count,
+                "mean": r.mean,
+                "stdev": sd,
+                "lean": lean,
+                "tip": (
+                    f"{name}: {r.review_count} review{'s' if r.review_count != 1 else ''}, mean {r.mean:.2f} "
+                    f"({lean:+.2f} from the panel), spread {sd:.2f}"
+                    + (". Every mark the same: counts as no opinion." if r.flat else "")
+                ),
+            }
+        )
+    first = int(low) if low == int(low) else int(low) + 1
+    grid = [{"value": v, "y": y(v)} for v in range(first, int(high) + 1)]
+    return {
+        "width": ELEV_W,
+        "height": ELEV_H,
+        "left": ELEV_LEFT,
+        "right": ELEV_W - ELEV_RIGHT,
+        "base": ELEV_H - ELEV_BOTTOM + 28,
+        "datum": {"value": datum, "y": y(datum)},
+        "grid": grid,
+        "posts": posts,
+        "judges": len(posts),
+        "flat": sum(1 for q in posts if q["flat"]),
+        "thin": sum(1 for q in posts if q["thin"]),
+        "harshest": posts[0],
+        "kindest": posts[-1],
+        "range": posts[-1]["mean"] - posts[0]["mean"],
+    }

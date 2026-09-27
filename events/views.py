@@ -256,7 +256,14 @@ def results(request, slug):
 def dashboard(request):
     user = request.user
     memberships = TeamMembership.objects.filter(user=user).select_related("team", "team__event")
-    projects = Project.objects.filter(team__memberships__user=user).select_related("event", "team", "track").distinct()
+    projects = list(
+        Project.objects.filter(team__memberships__user=user).select_related("event", "team", "track").distinct()
+    )
+    # A team sees its own place once the organizers have published, never before.
+    published = [p.id for p in projects if p.event.results_published and p.is_public and not p.duplicate_of_id]
+    places = {r.project_id: r for r in ProjectResult.objects.filter(project_id__in=published, rank__isnull=False)}
+    for p in projects:
+        p.standing = places.get(p.id)
     judge_events = Event.objects.filter(roles__user=user, roles__role=Role.JUDGE).distinct()
     judge_stats = []
     for ev in judge_events:
@@ -476,17 +483,117 @@ def organize_dashboard(request, slug):
         )
         .order_by("n_done", "n_assigned", "title")
     )
+    progress = judging_services.progress(event)
     return render(
         request,
         "events/organize/dashboard.html",
         {
             "event": event,
             "counts": counts,
-            "progress": judging_services.progress(event),
+            "progress": progress,
             "per_project": per_project,
+            "attention": attention(event, counts, progress, per_project),
+            "timeline": timeline(event),
             "now": timezone.now(),
         },
     )
+
+
+def results_state(event) -> dict:
+    """Whether the stored results still describe the reviews that are in."""
+    from django.db.models import Max
+
+    computed = ProjectResult.objects.filter(event=event).aggregate(at=Max("computed_at"))["at"]
+    changed = JudgeAssignment.objects.filter(event=event, status=JudgeAssignment.Status.SUBMITTED).aggregate(
+        at=Max("updated_at")
+    )["at"]
+    eligible = set(judging_services.eligible_projects(event).values_list("id", flat=True))
+    stored = set(ProjectResult.objects.filter(event=event).values_list("project_id", flat=True))
+    return {
+        "computed_at": computed,
+        "stale": bool(computed and ((changed and changed > computed) or eligible != stored)),
+        "never": computed is None,
+    }
+
+
+def attention(event, counts, progress, per_project) -> list[dict]:
+    """What an organizer should look at now, most pressing first. Each entry
+    says what is wrong, how much of it, and where to go."""
+    from django.urls import reverse
+
+    out = []
+
+    def add(level, text, url, label):
+        out.append({"level": level, "text": text, "url": reverse(url, args=[event.slug]), "label": label})
+
+    closed = event.submissions_closed()
+    target = event.reviews_per_project
+    if closed and counts["submitted"] and not counts["judges"]:
+        add("bad", "Submissions have closed and the event has no judges.", "organize_judges", "Add judges")
+    if closed and counts["judges"] and counts["submitted"]:
+        unassigned = sum(1 for p in per_project if p.n_assigned == 0)
+        short = sum(1 for p in per_project if 0 < p.n_assigned < target)
+        if unassigned:
+            add(
+                "bad",
+                f"{unassigned} project{'s have' if unassigned != 1 else ' has'} no judge assigned.",
+                "organize_assignments",
+                "Assign",
+            )
+        if short:
+            add(
+                "warn",
+                f"{short} project{'s are' if short != 1 else ' is'} assigned fewer than {target} "
+                f"review{'s' if target != 1 else ''}.",
+                "organize_assignments",
+                "Assign",
+            )
+    idle = [r for r in progress if r["submitted"] == 0 and r["in_progress"] == 0 and r["total"]]
+    if idle and event.judging_open():
+        add(
+            "warn",
+            f"{len(idle)} judge{'s have' if len(idle) != 1 else ' has'} not started: "
+            + ", ".join(r["name"] for r in idle[:4])
+            + (f" and {len(idle) - 4} more" if len(idle) > 4 else "")
+            + ".",
+            "organize_judges",
+            "Judges",
+        )
+    waiting = counts["assignments"] - counts["reviews_done"]
+    if waiting and event.judging_open():
+        add(
+            "neutral",
+            f"{waiting} of {counts['assignments']} reviews are still to come.",
+            "organize_assignments",
+            "Assignments",
+        )
+    if counts["duplicates"]:
+        add(
+            "neutral",
+            f"{counts['duplicates']} submission{'s are' if counts['duplicates'] != 1 else ' is'} marked as a "
+            "duplicate and left out of judging.",
+            "organize_projects",
+            "Projects",
+        )
+    state = results_state(event)
+    if counts["reviews_done"] and state["never"]:
+        add("neutral", "Reviews are in and no results have been computed yet.", "organize_results", "Results")
+    elif state["stale"]:
+        add(
+            "bad" if event.results_published else "warn",
+            "Reviews or projects changed after the results were computed"
+            + (", and those results are published." if event.results_published else "."),
+            "organize_results",
+            "Recompute",
+        )
+    elif counts["reviews_done"] and not waiting and not event.results_published:
+        add(
+            "ok",
+            "Every review is in and the results are computed. They are not published.",
+            "organize_results",
+            "Publish",
+        )
+    return out
 
 
 @login_required
@@ -687,21 +794,40 @@ def organize_results(request, slug):
             judging_services.publish_results(event, request.user, False)
             messages.info(request, "Results hidden again.")
         return redirect("organize_results", slug=slug)
-    rows = ProjectResult.objects.filter(event=event).select_related("project", "project__track", "project__team")
-    calibration = (
-        JudgeCalibration.objects.filter(event=event).select_related("judge").order_by("-flat", "judge__username")
-    )
+    rows = list(ProjectResult.objects.filter(event=event).select_related("project", "project__track", "project__team"))
+    elevation = showcase.elevation(event)
+    calibration = list(JudgeCalibration.objects.filter(event=event).select_related("judge").order_by("mean"))
+    datum = elevation["datum"]["value"] if elevation else None
+    for c in calibration:
+        c.lean = (c.mean - datum) if datum is not None and c.mean is not None else None
     movers = []
     for r in rows:
         if r.rank_raw and r.rank:
             r.delta = r.rank_raw - r.rank  # positive = moved up once judges and jury size are accounted for
             r.delta_abs = abs(r.delta)
             movers.append(r)
-    movers = sorted(movers, key=lambda r: r.delta_abs, reverse=True)[:8]
+    movers = [r for r in sorted(movers, key=lambda r: r.delta_abs, reverse=True)[:8] if r.delta]
+    rubric = judging_services.ensure_rubric(event)
+    ranked = [r for r in rows if r.rank]
     return render(
         request,
         "events/organize/results.html",
-        {"event": event, "rows": rows, "calibration": calibration, "movers": movers},
+        {
+            "event": event,
+            "rows": rows,
+            "calibration": calibration,
+            "movers": movers,
+            "elevation": elevation,
+            "state": results_state(event),
+            "rubric": rubric,
+            "jury_k": rubric.effective_jury_k(),
+            "facts": {
+                "projects": len(ranked),
+                "reviews": sum(r.review_count for r in ranked),
+                "moved": sum(1 for r in ranked if r.rank != r.rank_raw),
+                "unreviewed": len(rows) - len(ranked),
+            },
+        },
     )
 
 

@@ -3,49 +3,100 @@
 {% block content %}
 {% include "events/organize/_nav.html" with on="results" %}
 <div class="page-head">
-  <div><h1>Results</h1><small class="muted">{% if event.results_published %}Published {{ event.results_published_at|date:"Y-m-d H:i" }} UTC{% else %}Not published. Only organizers can see this{% endif %}</small></div>
+  <div>
+    <h1>Results</h1>
+    <small class="mono tnum">{% if state.never %}Nothing computed yet{% else %}Computed {{ state.computed_at|date:"Y-m-d H:i" }} UTC{% endif %} · {% if event.results_published %}published {{ event.results_published_at|date:"Y-m-d H:i" }} UTC{% else %}not published, only organizers see this{% endif %}</small>
+  </div>
   <div class="actions">
-    <form method="post" class="inline">{% csrf_token %}<input type="hidden" name="action" value="recompute"><button class="btn primary" type="submit">Recompute</button></form>
+    <form method="post" class="inline">{% csrf_token %}<input type="hidden" name="action" value="recompute"><button class="btn{% if state.stale or state.never %} primary{% endif %}" type="submit">Recompute</button></form>
     {% if event.results_published %}
-      <form method="post" class="inline">{% csrf_token %}<input type="hidden" name="action" value="unpublish"><button class="btn danger" type="submit">Unpublish</button></form>
+      <form method="post" class="inline">{% csrf_token %}<input type="hidden" name="action" value="unpublish"><button class="btn danger" type="submit" data-confirm="Hide the results">Unpublish</button></form>
+      <a class="btn" href="{% url 'results' event.slug %}">Public page</a>
     {% else %}
-      <form method="post" class="inline">{% csrf_token %}<input type="hidden" name="action" value="publish"><button class="btn" type="submit" {% if not rows %}disabled{% endif %}>Publish</button></form>
+      <form method="post" class="inline">{% csrf_token %}<input type="hidden" name="action" value="publish"><button class="btn{% if rows and not state.stale %} primary{% endif %}" type="submit"{% if not rows %} disabled{% endif %}>Publish</button></form>
+      {% if rows %}<a class="btn" href="{% url 'results' event.slug %}">Preview</a>{% endif %}
     {% endif %}
-    <a class="btn" href="{% url 'organize_export' event.slug 'results' %}">Results CSV</a>
-    <a class="btn" href="{% url 'organize_export' event.slug 'scores' %}">Scores CSV</a>
-    <a class="btn" href="{% url 'organize_export' event.slug 'calibration' %}">Calibration CSV</a>
   </div>
 </div>
+{% if state.stale %}<ul class="messages"><li class="{% if event.results_published %}error{% else %}warning{% endif %}">Reviews or projects changed after these results were computed{% if event.results_published %}, and they are published{% endif %}. Recompute to bring them up to date.</li></ul>{% endif %}
 
 {% if rows %}
-<div class="grid cols-2">
-  <div class="card">
-    <h3>Biggest rank movements</h3>
-    <p class="muted">Where normalization changed the order. A project drawing a harsh judge moves up; one drawing a generous judge moves down.</p>
-    <table><thead><tr><th>Project</th><th class="num">Raw</th><th class="num">Normalized</th><th class="num">Δ</th></tr></thead><tbody>
-    {% for r in movers %}<tr><td>{{ r.project.title }}</td><td class="num">#{{ r.rank_raw }}</td><td class="num">#{{ r.rank_normalized }}</td><td class="num">{% if r.delta > 0 %}<span class="badge ok">▲ {{ r.delta }}</span>{% elif r.delta < 0 %}<span class="badge bad">▼ {{ r.delta_abs }}</span>{% else %}—{% endif %}</td></tr>{% endfor %}
-    </tbody></table>
-  </div>
-  <div class="card">
-    <h3>Judge calibration</h3>
-    <p class="muted">Per-judge mean and spread from the last recompute. <strong>Flat</strong> judges gave every project the same score and contribute no ranking information. Shrink weight is how much the judge's own statistics count versus the panel's (n / (n + 3)).</p>
-    <div class="table-wrap" style="max-height:22rem;overflow:auto">
-    <table><thead><tr><th>Judge</th><th class="num">Reviews</th><th class="num">Mean</th><th class="num">Spread</th><th class="num">Shrink</th></tr></thead><tbody>
-    {% for c in calibration %}<tr class="{% if c.flat %}dim{% endif %}"><td>{{ c.judge.get_full_name|default:c.judge.username }}{% if c.flat %} <span class="badge warn">flat</span>{% endif %}</td><td class="num">{{ c.review_count }}</td><td class="num">{{ c.mean|floatformat:2 }}</td><td class="num">{{ c.stdev|floatformat:2 }}</td><td class="num">{{ c.shrink_weight|floatformat:2 }}</td></tr>{% endfor %}
-    </tbody></table>
-    </div>
-  </div>
+<div class="stats">
+  <div class="stat"><div class="n">{{ facts.projects }}</div><div class="l">projects ranked</div></div>
+  <div class="stat"><div class="n">{{ facts.reviews }}</div><div class="l">reviews counted</div></div>
+  <div class="stat"><div class="n">{{ calibration|length }}</div><div class="l">judges</div></div>
+  <div class="stat"><div class="n">{{ facts.moved }}</div><div class="l">changed place</div></div>
+  <div class="stat"><div class="n">{% if elevation %}{{ elevation.range|floatformat:2 }}{% else %}n/a{% endif %}</div><div class="l">between harshest and kindest mean</div></div>
+  <div class="stat"><div class="n">{{ jury_k|floatformat:"-1" }}</div><div class="l">jury-size adjustment</div></div>
 </div>
 
-<div class="card table-wrap" style="margin-top:1rem">
-<table>
-  <thead><tr><th class="num">Rank</th><th class="num">Raw rank</th><th>Project</th><th>Team</th><th>Track</th><th class="num">Reviews</th><th class="num">Raw mean</th><th class="num">Normalized</th></tr></thead>
-  <tbody>
-  {% for r in rows %}<tr><td class="num"><strong>{{ r.rank_normalized|default:"—" }}</strong></td><td class="num">{{ r.rank_raw|default:"—" }}</td><td><a href="{{ r.project.get_absolute_url }}">{{ r.project.title }}</a></td><td>{{ r.project.team.name }}</td><td>{{ r.project.track.name|default:"" }}</td><td class="num">{{ r.review_count }}</td><td class="num">{{ r.raw_mean|floatformat:3|default:"—" }}</td><td class="num">{{ r.normalized_mean|floatformat:3|default:"—" }}</td></tr>{% endfor %}
-  </tbody>
-</table>
+{% if elevation %}
+<section class="elevation" aria-labelledby="elev-h">
+  <div class="block-head inset">
+    <span class="label">The panel</span>
+    <h2 id="elev-h">How each judge marks</h2>
+    <p>The line across is the panel mean, {{ elevation.datum.value|floatformat:3 }}. Each post is a judge, standing from that line to their own mean; the bracket is their spread. Harshest on the left. {% if elevation.flat %}{{ elevation.flat }} judge{{ elevation.flat|pluralize }} gave every project the same mark and count{{ elevation.flat|pluralize:"s," }} as no opinion. {% endif %}{% if elevation.thin %}{{ elevation.thin }} gave fewer than three reviews and {{ elevation.thin|pluralize:"is,are" }} read mostly against the panel.{% endif %}</p>
+  </div>
+  <div class="elev-wrap">
+  <svg class="elev" viewBox="0 0 {{ elevation.width }} {{ elevation.height }}" role="img" aria-label="Each judge's mean and spread against the panel mean. The table below has the same figures.">
+    {% for g in elevation.grid %}<line class="grid" x1="{{ elevation.left }}" x2="{{ elevation.right }}" y1="{{ g.y }}" y2="{{ g.y }}"/><text class="axis" x="{{ elevation.left|add:-14 }}" y="{{ g.y|add:4 }}" text-anchor="end">{{ g.value }}</text>{% endfor %}
+    <line class="datum" x1="{{ elevation.left|add:-30 }}" x2="{{ elevation.right }}" y1="{{ elevation.datum.y }}" y2="{{ elevation.datum.y }}"/>
+    <text class="axis strong" x="{{ elevation.right|add:12 }}" y="{{ elevation.datum.y|add:-2 }}">PANEL MEAN</text><text class="axis strong" x="{{ elevation.right|add:12 }}" y="{{ elevation.datum.y|add:14 }}">{{ elevation.datum.value|floatformat:3 }}</text>
+    {% for q in elevation.posts %}
+    <g class="post{% if q.flat %} flat{% elif q.thin %} thin{% endif %}">
+      <title>{{ q.tip }}</title>
+      <rect class="hit" x="{{ q.x|add:-14 }}" y="0" width="28" height="{{ elevation.height }}"/>
+      {% if q.spread %}<line class="spread" x1="{{ q.x }}" x2="{{ q.x }}" y1="{{ q.hi }}" y2="{{ q.lo }}"/><line class="cap" x1="{{ q.x|add:-6 }}" x2="{{ q.x|add:6 }}" y1="{{ q.hi }}" y2="{{ q.hi }}"/><line class="cap" x1="{{ q.x|add:-6 }}" x2="{{ q.x|add:6 }}" y1="{{ q.lo }}" y2="{{ q.lo }}"/>{% endif %}
+      <line class="stem" x1="{{ q.x }}" x2="{{ q.x }}" y1="{{ elevation.datum.y }}" y2="{{ q.y }}" style="stroke-width:{{ q.width }}"/>
+      <rect class="bob" x="{{ q.x|add:-4 }}" y="{{ q.y|add:-4 }}" width="8" height="8" transform="rotate(45 {{ q.x }} {{ q.y }})"/>
+      <text class="axis" x="{{ q.x }}" y="{{ elevation.base }}" text-anchor="middle">{{ q.label }}</text>
+    </g>
+    {% endfor %}
+  </svg>
+  </div>
+  <div class="legend flush" aria-hidden="true">
+    <div><i class="len"></i><span class="label">Thickness: reviews given</span></div>
+    <div><i class="brk"></i><span class="label">Bracket: spread of marks</span></div>
+    <div><i class="flat"></i><span class="label">Dashed: every mark the same</span></div>
+    <div><i class="thin"></i><span class="label">Faint: fewer than three reviews</span></div>
+  </div>
+</section>
+{% endif %}
+
+<div class="grid cols-2" style="margin-top:var(--s7)">
+  <section class="card">
+    <h3>Judges</h3>
+    <p class="muted">The figures behind the drawing. Weight is how much a judge's own mean and spread count against the panel's: reviews / (reviews + 3).</p>
+    <div class="table-wrap scroll">
+    <table><thead><tr><th>Judge</th><th class="num">Reviews</th><th class="num">Mean</th><th class="num">From panel</th><th class="num">Spread</th><th class="num">Weight</th></tr></thead><tbody>
+    {% for c in calibration %}<tr><td>{{ c.judge.get_full_name|default:c.judge.username }}{% if c.flat %} <span class="badge warn">every mark the same</span>{% endif %}</td><td class="num">{{ c.review_count }}</td><td class="num">{{ c.mean|floatformat:2 }}</td><td class="num">{% if c.lean is not None %}<span class="move {% if c.lean > 0.3 %}up{% elif c.lean < -0.3 %}down{% endif %}">{% if c.lean > 0 %}+{% endif %}{{ c.lean|floatformat:2 }}</span>{% endif %}</td><td class="num">{{ c.stdev|floatformat:2 }}</td><td class="num">{{ c.shrink_weight|floatformat:2 }}</td></tr>{% endfor %}
+    </tbody></table>
+    </div>
+    <p class="help"><a href="{% url 'organize_export' event.slug 'calibration' %}">Calibration CSV</a> · <a href="{% url 'organize_export' event.slug 'scores' %}">Every score, CSV</a></p>
+  </section>
+  <section class="card">
+    <h3>Largest moves</h3>
+    <p class="muted">Where the order changed most between the raw mean and the final place. A project marked by harsh judges moves up; one marked by generous judges, or resting on few reviews, moves down.</p>
+    {% if movers %}
+    <table><thead><tr><th>Project</th><th class="num">Judges</th><th class="num">Raw place</th><th class="num">Final place</th><th class="num">Moved</th></tr></thead><tbody>
+    {% for r in movers %}<tr><td><a href="{{ r.project.get_absolute_url }}">{{ r.project.title }}</a></td><td class="num">{{ r.review_count }}</td><td class="num">{{ r.rank_raw }}</td><td class="num">{{ r.rank }}</td><td class="num">{% if r.delta > 0 %}<span class="move up">+{{ r.delta }}</span>{% else %}<span class="move down">−{{ r.delta_abs }}</span>{% endif %}</td></tr>{% endfor %}
+    </tbody></table>
+    {% else %}<p class="muted">Nothing changed place.</p>{% endif %}
+  </section>
 </div>
-<p class="muted" style="margin-top:.75rem">Method {{ rows.0.method }}: per-judge z-scores with shrinkage toward the panel, mapped back to the rubric scale. Documented in JUDGING.md.</p>
+
+<section style="margin-top:var(--s7)">
+  <div class="row spread" style="margin-bottom:var(--s4)"><h2 class="rule grow">Standings <span class="label tnum">{{ rows|length }}</span></h2></div>
+  <div class="table-wrap">
+  <table class="standings">
+    <thead><tr><th class="num">Place</th><th>Project</th><th class="wide">Team</th><th class="wide">Track</th><th class="num">Judges</th><th class="num wide">Raw</th><th class="num wide">Raw place</th><th class="num wide">Judges set true</th><th class="num">Adjusted</th><th class="num">Moved</th></tr></thead>
+    <tbody>
+    {% for r in rows %}<tr><td class="num"><strong>{{ r.rank|default:"n/a" }}</strong></td><td><a href="{{ r.project.get_absolute_url }}">{{ r.project.title }}</a><small class="narrow">{{ r.project.team.name }}</small></td><td class="wide">{{ r.project.team.name }}</td><td class="wide">{{ r.project.track.name|default:"" }}</td><td class="num">{{ r.review_count }}</td><td class="num wide">{% if r.raw_mean is not None %}{{ r.raw_mean|floatformat:3 }}{% else %}n/a{% endif %}</td><td class="num wide">{{ r.rank_raw|default:"n/a" }}</td><td class="num wide">{% if r.normalized_mean is not None %}{{ r.normalized_mean|floatformat:3 }}{% else %}n/a{% endif %}</td><td class="num"><strong>{% if r.adjusted_mean is not None %}{{ r.adjusted_mean|floatformat:3 }}{% else %}n/a{% endif %}</strong></td><td class="num">{% with m=r.moved %}{% if m is None %}{% elif m > 0 %}<span class="move up">+{{ m }}</span>{% elif m < 0 %}<span class="move down">−{% widthratio m -1 1 %}</span>{% else %}<span class="move">0</span>{% endif %}{% endwith %}</td></tr>{% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="help">Method {{ rows.0.method }}. <a href="{% url 'organize_export' event.slug 'results' %}">Results CSV</a> · the method, a worked example and the proof on this data are in JUDGING.md and docs/normalization-proof.md. The jury-size adjustment is set on the <a href="{% url 'organize_rubric' event.slug %}#jury">Rubric</a> page.</p>
+</section>
 {% else %}
 <div class="empty"><strong>Nothing computed yet</strong>Press Recompute once judges have submitted reviews. Nothing is published until you say so.</div>
 {% endif %}

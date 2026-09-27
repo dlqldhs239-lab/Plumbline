@@ -59,7 +59,7 @@ class OrganizerPagesTests(SeededTestCase):
             self.assertIn(",", r.content.decode().splitlines()[0])
         r = self.client.post(f"/events/{s}/organize/results/", {"action": "recompute"})
         self.assertEqual(r.status_code, 302)
-        self.assertContains(self.client.get(f"/events/{s}/organize/results/"), "Judge calibration")
+        self.assertContains(self.client.get(f"/events/{s}/organize/results/"), "How each judge marks")
 
     def test_judge_and_participant_cannot_open_console(self):
         for user in (self.judge_a, self.participant):

@@ -1,19 +1,81 @@
 {% extends "base.html" %}
 {% block title %}{% if creating %}New event{% else %}Settings · {{ event.name }}{% endif %}{% endblock %}
-{% block main_class %}narrow{% endblock %}
 {% block content %}
 {% if not creating %}{% include "events/organize/_nav.html" with on="settings" %}{% endif %}
-<h1>{% if creating %}Create an event{% else %}Event settings{% endif %}</h1>
-<p class="muted">All times are UTC. The submission deadline is enforced by the server the moment it passes; extend it here if you need to.</p>
-<div class="card">
-  <form method="post">
-    {% csrf_token %}
-    {% include "includes/form_fields.html" %}
+<div class="page-head">
+  <div>
+    {% if creating %}<div class="eyebrow">New event</div>{% endif %}
+    <h1>{% if creating %}Create an event{% else %}Settings{% endif %}</h1>
+    <small>All times are UTC. {% if creating %}You become the organizer of the event you create.{% else %}Every change here is written to the audit log with its old and new value.{% endif %}</small>
+  </div>
+</div>
+
+<form method="post" class="sections">
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="nonfield">{{ form.non_field_errors|join:" " }}</div>{% endif %}
+  {% if form.errors and not form.non_field_errors %}<div class="nonfield">Some fields need another look. They are marked below.</div>{% endif %}
+
+  <fieldset>
+    <legend><span class="label">01</span>The event</legend>
+    <div class="fields">
+      {% include "includes/field.html" with field=form.name %}
+      {% include "includes/field.html" with field=form.slug %}
+      <div class="span">{% include "includes/field.html" with field=form.tagline %}</div>
+      <div class="span">{% include "includes/field.html" with field=form.description %}</div>
+      {% include "includes/field.html" with field=form.is_listed %}
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend><span class="label">02</span>Submissions</legend>
+    <p class="muted">Teams can create and edit projects between these two moments. The server refuses anything that arrives after the second, whatever the page showed when the team opened it.</p>
+    <div class="fields">
+      {% include "includes/field.html" with field=form.submissions_open_at %}
+      {% include "includes/field.html" with field=form.submissions_close_at %}
+      <div class="span">{% include "includes/field.html" with field=form.tracks_text %}</div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend><span class="label">03</span>Judging</legend>
+    <p class="muted">Leave the opening empty and judging opens when submissions close. Leave the closing empty and it stays open until you publish.</p>
+    <div class="fields">
+      {% include "includes/field.html" with field=form.judging_open_at %}
+      {% include "includes/field.html" with field=form.judging_close_at %}
+      {% include "includes/field.html" with field=form.reviews_per_project %}
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend><span class="label">04</span>Community</legend>
+    <p class="muted">The community vote is shown beside the judged score and never mixed into it.</p>
+    <div class="fields">
+      {% include "includes/field.html" with field=form.voting_access %}
+      {% include "includes/field.html" with field=form.voting_credits %}
+      {% include "includes/field.html" with field=form.voting_open_at %}
+      {% include "includes/field.html" with field=form.voting_close_at %}
+      {% include "includes/field.html" with field=form.comments_enabled %}
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend><span class="label">05</span>Colours</legend>
+    <p class="muted">Every page of this event wears them. Pick a preset or set the four yourself; a combination that would be hard to read is refused, with the reason.</p>
+    <div class="fields">
+      <div class="span">{% include "includes/field.html" with field=form.theme_preset %}</div>
+      <div class="span swatches">
+        {% include "includes/field.html" with field=form.theme_ground %}
+        {% include "includes/field.html" with field=form.theme_ink %}
+        {% include "includes/field.html" with field=form.theme_accent %}
+        {% include "includes/field.html" with field=form.theme_signal %}
+      </div>
+    </div>
+  </fieldset>
+
+  <div class="form-foot">
     <button class="btn primary" type="submit">{% if creating %}Create event{% else %}Save settings{% endif %}</button>
     {% if not creating %}<a class="btn" href="{% url 'organize_dashboard' event.slug %}">Cancel</a>{% endif %}
-  </form>
-</div>
-{% if not creating %}
-<p class="muted" style="margin-top:1rem">Prizes and organizer questions are edited in the <a href="{% url 'admin:events_event_change' event.pk %}">admin</a>.</p>
-{% endif %}
+    {% if not creating and user.is_staff %}<span class="muted">Prizes and organizer questions are edited in the <a href="{% url 'admin:events_event_change' event.pk %}">admin</a>.</span>{% endif %}
+  </div>
+</form>
 {% endblock %}

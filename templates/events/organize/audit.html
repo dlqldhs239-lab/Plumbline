@@ -19,5 +19,5 @@
   </tbody>
 </table>
 </div>
-{% if page.has_other_pages %}<div class="row" style="margin-top:1rem">{% if page.has_previous %}<a class="btn" href="?action={{ action }}&page={{ page.previous_page_number }}">← Newer</a>{% endif %}<small>Page {{ page.number }} of {{ page.paginator.num_pages }}</small>{% if page.has_next %}<a class="btn" href="?action={{ action }}&page={{ page.next_page_number }}">Older →</a>{% endif %}</div>{% endif %}
+{% if page.has_other_pages %}<div class="pager">{% if page.has_previous %}<a class="btn" href="?action={{ action|urlencode }}&page={{ page.previous_page_number }}">Newer</a>{% endif %}<small>Page {{ page.number }} of {{ page.paginator.num_pages }}</small>{% if page.has_next %}<a class="btn" href="?action={{ action|urlencode }}&page={{ page.next_page_number }}">Older</a>{% endif %}</div>{% endif %}
 {% endblock %}

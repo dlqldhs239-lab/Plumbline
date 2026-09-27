@@ -2,44 +2,66 @@
 {% block title %}Organize · {{ event.name }}{% endblock %}
 {% block content %}
 {% include "events/organize/_nav.html" with on="dashboard" %}
-<div class="page-head"><div><h1>{{ event.name }}</h1><small class="muted">Phase: <strong>{{ event.phase }}</strong> · now {{ now|date:"Y-m-d H:i" }} UTC · submissions close {{ event.submissions_close_at|date:"Y-m-d H:i" }} UTC</small></div>
-<div class="actions"><a class="btn" href="{% url 'gallery' event.slug %}">Gallery</a><a class="btn" href="{% url 'organize_export' event.slug 'projects' %}">Export projects CSV</a></div></div>
+<div class="page-head">
+  <div>
+    <h1>{{ event.name }}</h1>
+    <small class="mono tnum">Now {{ now|date:"Y-m-d H:i" }} UTC · submissions {% if event.submissions_closed %}closed{% else %}close{% endif %} {{ event.submissions_close_at|date:"Y-m-d H:i" }} UTC</small>
+  </div>
+  <div class="actions"><a class="btn" href="{{ event.get_absolute_url }}">Public page</a><a class="btn" href="{% url 'gallery' event.slug %}">Gallery</a><a class="btn" href="{% url 'organize_export' event.slug 'projects' %}">Projects CSV</a></div>
+</div>
+
+<section class="attention" aria-labelledby="att-h">
+  <h2 id="att-h" class="rule">Needs you <span class="label tnum">{{ attention|length }}</span></h2>
+  {% if attention %}
+  <ul>
+    {% for a in attention %}
+    <li class="{{ a.level }}"><span class="badge {{ a.level }}">{% if a.level == 'bad' %}Act{% elif a.level == 'warn' %}Check{% elif a.level == 'ok' %}Ready{% else %}Note{% endif %}</span><span>{{ a.text }}</span><a class="btn small" href="{{ a.url }}">{{ a.label }}</a></li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">Nothing is waiting on you.</p>
+  {% endif %}
+</section>
 
 <div class="stats">
   <div class="stat"><div class="n">{{ counts.submitted }}</div><div class="l">submitted projects</div></div>
   <div class="stat"><div class="n">{{ counts.drafts }}</div><div class="l">drafts</div></div>
   <div class="stat"><div class="n">{{ counts.teams }}</div><div class="l">teams</div></div>
   <div class="stat"><div class="n">{{ counts.judges }}</div><div class="l">judges</div></div>
-  <div class="stat"><div class="n">{{ counts.reviews_done }} <small class="muted">/ {{ counts.assignments }}</small></div><div class="l">reviews submitted</div></div>
-  <div class="stat"><div class="n">{{ counts.duplicates }}</div><div class="l">flagged duplicates</div></div>
+  <div class="stat"><div class="n">{{ counts.reviews_done }}<small> / {{ counts.assignments }}</small></div><div class="l">reviews submitted</div></div>
+  <div class="stat"><div class="n">{{ counts.duplicates }}</div><div class="l">marked duplicate</div></div>
   <div class="stat"><div class="n">{{ counts.hidden }}</div><div class="l">hidden</div></div>
 </div>
 
 <div class="grid cols-2">
-  <div class="card">
+  <section class="card">
     <div class="row spread"><h3>Judge progress</h3><a class="btn small" href="{% url 'organize_export' event.slug 'assignments' %}">CSV</a></div>
     {% if progress %}
+    <div class="table-wrap scroll">
     <table>
-      <thead><tr><th>Judge</th><th class="num">Done</th><th class="num">Started</th><th class="num">Not started</th><th style="width:30%"></th></tr></thead>
+      <thead><tr><th>Judge</th><th class="num">Submitted</th><th class="num">Started</th><th class="num">Not started</th><th style="width:30%"><span class="sr-only">Share submitted</span></th></tr></thead>
       <tbody>
       {% for r in progress %}
-        <tr class="{% if r.pct == 100 %}dim{% endif %}"><td>{{ r.name }}</td><td class="num">{{ r.submitted }}/{{ r.total }}</td><td class="num">{{ r.in_progress }}</td><td class="num">{% if r.pending %}<strong>{{ r.pending }}</strong>{% else %}0{% endif %}</td><td><div class="bar"><span style="width:{{ r.pct }}%"></span></div></td></tr>
+        <tr class="{% if r.pct == 100 %}dim{% endif %}"><td>{{ r.name }}</td><td class="num">{{ r.submitted }} of {{ r.total }}</td><td class="num">{{ r.in_progress }}</td><td class="num">{% if r.pending %}<strong>{{ r.pending }}</strong>{% else %}0{% endif %}</td><td><div class="bar"><span style="width:{{ r.pct }}%"></span></div></td></tr>
       {% endfor %}
       </tbody>
     </table>
-    {% else %}<p class="muted">No assignments yet. <a href="{% url 'organize_assignments' event.slug %}">Assign judges →</a></p>{% endif %}
-  </div>
-  <div class="card">
-    <h3>Coverage per project</h3>
-    <p class="muted">Sorted so the least-reviewed projects are on top.</p>
-    <div class="table-wrap" style="max-height:28rem;overflow:auto">
+    </div>
+    {% else %}<div class="empty"><strong>No assignments yet</strong>Judges get their projects from the Assignments page.<br><a class="btn" href="{% url 'organize_assignments' event.slug %}">Assign judges</a></div>{% endif %}
+  </section>
+  <section class="card">
+    <h3>Reviews per project</h3>
+    <p class="muted">The target is {{ event.reviews_per_project }}. The least reviewed are on top.</p>
+    {% if per_project %}
+    <div class="table-wrap scroll">
     <table>
-      <thead><tr><th>Project</th><th>Track</th><th class="num">Done</th><th class="num">Assigned</th></tr></thead>
+      <thead><tr><th>Project</th><th>Track</th><th class="num">Submitted</th><th class="num">Assigned</th></tr></thead>
       <tbody>
       {% for p in per_project %}<tr class="{% if p.n_done >= event.reviews_per_project %}dim{% endif %}"><td><a href="{{ p.get_absolute_url }}">{{ p.title }}</a></td><td>{{ p.track.name|default:"" }}</td><td class="num">{{ p.n_done }}</td><td class="num">{{ p.n_assigned }}</td></tr>{% endfor %}
       </tbody>
     </table>
     </div>
-  </div>
+    {% else %}<div class="empty"><strong>No submitted projects</strong>They appear here as teams submit.</div>{% endif %}
+  </section>
 </div>
 {% endblock %}
