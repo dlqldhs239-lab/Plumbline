@@ -123,7 +123,8 @@ Copy `.env.example` to `.env` and set:
 | `DJANGO_DEBUG` | `0` | leave it |
 | `PLUMBLINE_SITE_NAME` | `Plumbline` | shown in the header |
 | `PLUMBLINE_ANON_WRITE_RATE` | `20` | anonymous writes per minute per address |
-| `GUNICORN_WORKERS` | `2` | |
+| `GUNICORN_WORKERS` | `2` | processes |
+| `GUNICORN_THREADS` | `8` | threads per process; browsers hold idle connections, so keep this above 4 |
 
 Put a TLS-terminating proxy in front of port 8080 and forward
 `X-Forwarded-For` so rate limits and the audit log see real addresses.
