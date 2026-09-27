@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 from typing import Any
 
+from django.core.serializers.json import DjangoJSONEncoder
 from django.db import models
 
 from .middleware import current_request
@@ -15,6 +17,13 @@ def _client_ip(request) -> str | None:
     if forwarded:
         return forwarded.split(",")[0].strip()
     return request.META.get("REMOTE_ADDR")
+
+
+def plain(detail: dict[str, Any] | None) -> dict[str, Any]:
+    """Make a detail dict storable whatever the caller put in it: decimals,
+    datetimes and model instances become their text form. An audit entry
+    must never be the reason a request fails."""
+    return json.loads(json.dumps(detail or {}, cls=DjangoJSONEncoder, default=str))
 
 
 def record(
@@ -37,7 +46,7 @@ def record(
         actor_label=(actor.get_username() if actor else ""),
         event=event,
         action=action,
-        detail=detail or {},
+        detail=plain(detail),
         ip_address=_client_ip(request),
         channel=channel or "system",
     )

@@ -94,6 +94,23 @@ def remove_judge(request, slug: str, judge_ref: str):
     return 204, None
 
 
+@api.post(
+    "/events/{slug}/judges/{judge_ref}/sign-in-link",
+    response={200: BallotLinkOut, 400: ErrorOut, 403: ErrorOut},
+    auth=auth_required,
+    tags=["judging"],
+)
+def judge_sign_in_link(request, slug: str, judge_ref: str):
+    """A one-time link with which an invited judge sets a password. Only for
+    accounts that have never been used; returned once."""
+    event = _event(slug)
+    _require_organizer(request, event)
+    judge = _resolve_judge(judge_ref)
+    role = get_object_or_404(EventRole, event=event, user=judge, role=Role.JUDGE)
+    raw = event_services.issue_judge_link(role, request.user)
+    return {"email": judge.email, "url": request.build_absolute_uri(f"/accounts/claim/{raw}/")}
+
+
 # --- rubric ------------------------------------------------------------------
 
 

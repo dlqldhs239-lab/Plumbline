@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block title %}Not found · {{ SITE_NAME }}{% endblock %}
+{% block content %}
+<div class="page-head"><div><p class="eyebrow">Error 404</p><h1>Nothing at this address</h1></div></div>
+<div class="empty"><strong>The page does not exist</strong>It may have been moved, or the address has a typo in it.<br><a class="btn" href="{% url 'home' %}">Go to events</a></div>
+{% endblock %}

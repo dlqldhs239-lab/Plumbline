@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Set your password · {{ SITE_NAME }}{% endblock %}
+{% block main_class %}narrow{% endblock %}
+{% block content %}
+<h1>Set your password</h1>
+<p>This link signs you in as <strong>{{ account.email|default:account.username }}</strong>. Choose a password and you are in. The link works once.</p>
+<form method="post">
+  {% csrf_token %}
+  {% include "includes/form_fields.html" %}
+  <button class="btn primary" type="submit">Set password and sign in</button>
+</form>
+{% endblock %}

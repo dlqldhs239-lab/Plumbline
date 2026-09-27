@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block title %}Not allowed · {{ SITE_NAME }}{% endblock %}
+{% block content %}
+<div class="page-head"><div><p class="eyebrow">Error 403</p><h1>Not allowed</h1></div></div>
+<div class="empty"><strong>{% if exception and exception != "" %}{{ exception }}{% else %}Your account does not have access to this{% endif %}</strong>{% if user.is_authenticated %}You are signed in as {{ user.username }}. If this is wrong, ask an organizer of the event.{% else %}You are not signed in.{% endif %}<br>{% if user.is_authenticated %}<a class="btn" href="{% url 'dashboard' %}">Go to your dashboard</a>{% else %}<a class="btn" href="{% url 'accounts:login' %}?next={{ request.path }}">Sign in</a>{% endif %}</div>
+{% endblock %}

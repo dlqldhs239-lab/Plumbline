@@ -324,3 +324,50 @@ def progress(event: Event) -> list[dict]:
             }
         )
     return rows
+
+
+def criterion_means(project: Project) -> list[dict]:
+    """Mean of each criterion over the submitted reviews of one project."""
+    rubric = ensure_rubric(project.event)
+    rows = []
+    for criterion in rubric.criteria.all():
+        values = list(
+            Score.objects.filter(
+                criterion=criterion, assignment__project=project, assignment__status=JudgeAssignment.Status.SUBMITTED
+            ).values_list("value", flat=True)
+        )
+        rows.append(
+            {
+                "key": criterion.key,
+                "name": criterion.name,
+                "weight": criterion.weight,
+                "n": len(values),
+                "mean": (sum(values) / len(values)) if values else None,
+                "pct": round(
+                    100 * (sum(values) / len(values) - rubric.scale_min) / max(1, rubric.scale_max - rubric.scale_min)
+                )
+                if values
+                else 0,
+            }
+        )
+    return rows
+
+
+def feedback_for(project: Project) -> list[dict]:
+    """Written feedback for a team, without saying which judge wrote what.
+    Judges are numbered in a stable order that is not the order they were
+    assigned or the order they submitted in."""
+    import hashlib
+
+    reviews = JudgeAssignment.objects.filter(project=project, status=JudgeAssignment.Status.SUBMITTED).prefetch_related(
+        "scores__criterion"
+    )
+    ordered = sorted(reviews, key=lambda a: hashlib.sha256(f"{project.pk}:{a.judge_id}".encode()).hexdigest())
+    return [
+        {
+            "label": f"Judge {i}",
+            "comment": a.comment,
+            "scores": {s.criterion.key: s.value for s in a.scores.all()},
+        }
+        for i, a in enumerate(ordered, start=1)
+    ]

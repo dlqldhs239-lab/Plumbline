@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}Link no longer valid · {{ SITE_NAME }}{% endblock %}
+{% block main_class %}narrow{% endblock %}
+{% block content %}
+<h1>This link no longer works</h1>
+<div class="empty"><strong>Used, replaced or expired</strong>A sign-in link works once and for seven days, and creating a new one cancels the old one. Ask the organizer who invited you for a fresh link.<br><a class="btn" href="{% url 'accounts:login' %}">Sign in with a password</a></div>
+{% endblock %}

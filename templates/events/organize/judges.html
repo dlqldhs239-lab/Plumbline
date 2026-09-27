@@ -2,21 +2,41 @@
 {% block title %}Judges · {{ event.name }}{% endblock %}
 {% block content %}
 {% include "events/organize/_nav.html" with on="judges" %}
-<div class="page-head"><h1>Judges</h1></div>
-<div class="grid cols-2">
+<div class="page-head"><div><h1>Judges</h1><small>{{ rows|length }} judge{{ rows|length|pluralize }}. The portal sends no email: add a judge, create their sign-in link, and send it to them yourself.</small></div></div>
+
+{% if fresh_link %}
+<div class="card box" id="fresh-link" style="margin-bottom:var(--s6)">
+  <h3>Sign-in link for {{ fresh_link.email }}</h3>
+  <p class="muted">Send this to the judge. It works once, for seven days, and is not shown again. Creating another link cancels this one.</p>
+  <pre>{{ fresh_link.url }}</pre>
+</div>
+{% endif %}
+
+<div class="grid split">
   <div class="card">
-    <h3>Invite a judge</h3>
-    <form method="post">{% csrf_token %}{% include "includes/form_fields.html" %}<button class="btn primary" type="submit">Add judge</button></form>
-    <p class="muted" style="margin-top:.75rem">Track-restricted judges only ever see projects in their tracks: in the console, in the API, and in exports of their own scores.</p>
-  </div>
-  <div class="card">
-    <h3>{{ judges|length }} judge{{ judges|length|pluralize }}</h3>
-    <div class="table-wrap" style="max-height:32rem;overflow:auto">
+    <div class="table-wrap">
     <table>
-      <thead><tr><th>Judge</th><th>Tracks</th><th></th></tr></thead>
-      <tbody>{% for r in judges %}<tr><td>{{ r.user.get_full_name|default:r.user.username }}<br><small class="muted">{{ r.user.email }}{% if r.external_id %} · {{ r.external_id }}{% endif %}</small></td><td>{% for t in r.tracks.all %}<span class="badge neutral">{{ t.name }}</span> {% empty %}<small class="muted">all tracks</small>{% endfor %}</td><td><form method="post" class="inline">{% csrf_token %}<input type="hidden" name="remove" value="{{ r.pk }}"><button class="btn small danger" type="submit" title="Refused if the judge has submitted reviews">Remove</button></form></td></tr>{% empty %}<tr><td colspan="3" class="muted">No judges yet.</td></tr>{% endfor %}</tbody>
+      <thead><tr><th>Judge</th><th>Tracks</th><th>Account</th><th></th></tr></thead>
+      <tbody>
+      {% for row in rows %}{% with r=row.role %}
+        <tr>
+          <td>{{ r.user.get_full_name|default:r.user.username }}<br><small>{{ r.user.email }}{% if r.external_id %} · {{ r.external_id }}{% endif %}</small></td>
+          <td>{% for t in r.tracks.all %}<span class="badge neutral">{{ t.name }}</span> {% empty %}<small>All tracks</small>{% endfor %}</td>
+          <td>{% if row.never %}<span class="badge warn">Never signed in</span>{% else %}<span class="badge ok">Active</span>{% endif %}</td>
+          <td style="white-space:nowrap;text-align:right">
+            {% if row.invited %}<form method="post" class="inline">{% csrf_token %}<input type="hidden" name="link" value="{{ r.pk }}"><button class="btn small" type="submit">Create sign-in link</button></form>{% endif %}
+            <form method="post" class="inline">{% csrf_token %}<input type="hidden" name="remove" value="{{ r.pk }}"><button class="btn small danger" type="submit" data-confirm="Remove for good" title="Refused if the judge has submitted reviews">Remove</button></form>
+          </td>
+        </tr>
+      {% endwith %}{% empty %}<tr><td colspan="4"><div class="empty"><strong>No judges yet</strong>Add the first one on the right.</div></td></tr>{% endfor %}
+      </tbody>
     </table>
     </div>
+  </div>
+  <div class="card">
+    <h3>Add a judge</h3>
+    <form method="post">{% csrf_token %}{% include "includes/form_fields.html" %}<button class="btn primary" type="submit">Add judge</button></form>
+    <p class="help">A judge restricted to tracks only ever sees projects in those tracks: in the console, in the API, and in exports of their own scores.</p>
   </div>
 </div>
 {% endblock %}

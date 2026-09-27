@@ -163,6 +163,7 @@ footer.site a:hover { color: var(--ink); }
 .btn.primary:hover { background: var(--ink); color: var(--ground); border-color: var(--ink); }
 .btn.danger { color: var(--signal); border-color: color-mix(in srgb, var(--signal) 60%, var(--ground)); }
 .btn.danger:hover { background: var(--signal); color: var(--ground); border-color: var(--signal); }
+.btn.armed { background: var(--signal); color: var(--ground); border-color: var(--signal); }
 .btn.small { min-height: 30px; padding: 0 var(--s3); font-size: 12px; }
 .btn[disabled], .btn[aria-disabled="true"] { opacity: .4; cursor: not-allowed; pointer-events: none; }
 
@@ -236,6 +237,9 @@ td .btn.small { margin: -4px 0; }
 .badge a { color: inherit; }
 .tags { display: flex; gap: var(--s2); flex-wrap: wrap; }
 .tags span { font-size: 10px; color: var(--ink-2); border: 1px solid var(--line); padding: 4px 6px; }
+
+.review { padding: var(--s4) 0; border-top: 1px solid var(--line); }
+.review p { margin-top: var(--s2); white-space: pre-wrap; }
 
 .messages { list-style: none; margin: 0 0 var(--s5); padding: 0; display: flex; flex-direction: column; gap: var(--s2); }
 .messages li { margin: 0; padding: var(--s3) var(--s4); border-left: 2px solid var(--accent); background: var(--accent-wash); color: var(--ink); overflow-wrap: anywhere; }

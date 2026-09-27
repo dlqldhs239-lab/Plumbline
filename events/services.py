@@ -6,6 +6,8 @@ enforces the rule it is named after and writes an audit entry.
 
 from __future__ import annotations
 
+from datetime import timedelta
+
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.utils import timezone
@@ -49,7 +51,7 @@ def create_invite(team: Team, user, max_uses: int = 10, ttl_hours: int = 72) -> 
         team=team,
         created_by=user,
         max_uses=max_uses,
-        expires_at=timezone.now() + timezone.timedelta(hours=ttl_hours),
+        expires_at=timezone.now() + timedelta(hours=ttl_hours),
     )
     record("team.invite.create", actor=user, event=team.event, target=team, detail={"invite": invite.pk})
     return invite
@@ -147,11 +149,45 @@ def submit_project(project: Project, user) -> Project:
         raise PermissionDenied("You are not a member of this project's team.")
     if not project.title.strip():
         raise ValidationError("A title is required before submitting.")
+    already = (
+        Project.objects.filter(team=project.team, status=Project.Status.SUBMITTED, duplicate_of__isnull=True)
+        .exclude(pk=project.pk)
+        .first()
+    )
+    if already is not None and not is_organizer(user, project.event):
+        raise ValidationError(
+            f"Your team has already submitted '{already.title}'. Edit that project, or withdraw it before submitting another."
+        )
     project.status = Project.Status.SUBMITTED
     project.submitted_at = project.submitted_at or timezone.now()
     project.save(update_fields=["status", "submitted_at", "updated_at"])
-    record("project.submit", actor=user, event=project.event, target=project)
+    twins = flag_lookalikes(project)
+    record("project.submit", actor=user, event=project.event, target=project, detail={"lookalikes": twins})
     return project
+
+
+def lookalikes(project: Project):
+    """Other submitted projects in the event that share this one's repository
+    or live address. Shown to organizers; never excluded automatically, because
+    two teams forking one starter is not the same as one project entered twice."""
+    from django.db.models import Q
+
+    match = Q()
+    if project.repo_url:
+        match |= Q(repo_url__iexact=project.repo_url)
+    if project.live_url:
+        match |= Q(live_url__iexact=project.live_url)
+    if not match:
+        return Project.objects.none()
+    return (
+        Project.objects.filter(match, event=project.event, status=Project.Status.SUBMITTED)
+        .exclude(pk=project.pk)
+        .select_related("team")
+    )
+
+
+def flag_lookalikes(project: Project) -> list[int]:
+    return list(lookalikes(project).values_list("id", flat=True))
 
 
 @transaction.atomic
@@ -304,3 +340,30 @@ def remove_judge(role: EventRole, user):
     JudgeAssignment.objects.filter(event=role.event, judge=role.user).delete()
     record("judge.remove", actor=user, event=role.event, target=role, detail={"email": role.user.email})
     role.delete()
+
+
+def can_issue_sign_in_link(actor, target_user) -> bool:
+    """Admins may create a sign-in link for anyone. An organizer may create one
+    only for an account that has never been used: invited, no password set,
+    never signed in. Otherwise inviting an existing user as a judge would be a
+    way to take their account over."""
+    if actor.is_superuser:
+        return True
+    return target_user.last_login is None and not target_user.has_usable_password()
+
+
+@transaction.atomic
+def issue_judge_link(role: EventRole, actor) -> str:
+    """Create a one-time sign-in link for an invited judge; returns the raw token."""
+    from accounts.models import SignInLink
+
+    if not is_organizer(actor, role.event):
+        raise PermissionDenied("Only organizers can create sign-in links.")
+    if not can_issue_sign_in_link(actor, role.user):
+        raise ValidationError(
+            "This judge already has a working account. They sign in with their own password; "
+            "if they have lost it, an administrator can create a link for them."
+        )
+    _, raw = SignInLink.issue(role.user, created_by=actor)
+    record("judge.sign_in_link", actor=actor, event=role.event, target=role, detail={"email": role.user.email})
+    return raw

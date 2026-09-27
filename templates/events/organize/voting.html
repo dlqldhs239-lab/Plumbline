@@ -38,7 +38,7 @@
     <table><thead><tr><th>Ballot</th><th>Kind</th><th class="num">Votes</th><th>Flags</th><th></th></tr></thead><tbody>
     {% for v in report.voters %}
       <tr class="{% if v.voided_at %}dim{% endif %}"><td>{{ v }}<br><small class="muted">{{ v.created_at|date:"Y-m-d H:i" }}{% if v.voided_at %} · voided: {{ v.void_reason|default:"—" }}{% endif %}</small></td><td>{{ v.get_kind_display }}</td><td class="num">{{ v.n_votes }}</td><td>{% for f in v.flags %}<span class="badge warn">{{ f }}</span> {% endfor %}</td>
-        <td>{% if not v.voided_at %}<form method="post" class="inline">{% csrf_token %}<input type="hidden" name="action" value="void"><input type="hidden" name="voter" value="{{ v.pk }}"><input type="hidden" name="reason" value="organizer review"><button class="btn small danger" type="submit">Void</button></form>{% endif %}</td></tr>
+        <td>{% if not v.voided_at %}<form method="post" class="inline">{% csrf_token %}<input type="hidden" name="action" value="void"><input type="hidden" name="voter" value="{{ v.pk }}"><input type="hidden" name="reason" value="organizer review"><button class="btn small danger" type="submit" data-confirm="Void this ballot">Void</button></form>{% endif %}</td></tr>
     {% empty %}<tr><td colspan="5" class="muted">No ballots yet.</td></tr>{% endfor %}
     </tbody></table>
     </div>

@@ -3,7 +3,6 @@
 {% block main_class %}narrow{% endblock %}
 {% block content %}
 <h1>Sign in</h1>
-<div class="card">
   <form method="post">
     {% csrf_token %}
     {% if form.non_field_errors %}<div class="nonfield">{{ form.non_field_errors|join:" " }}</div>{% endif %}
@@ -11,7 +10,7 @@
     <div class="field"><label for="id_password">Password</label>{{ form.password }}</div>
     <input type="hidden" name="next" value="{{ next }}">
     <button class="btn primary" type="submit">Sign in</button>
-    <a class="btn" href="{% url 'accounts:signup' %}">Create account</a>
+    <a class="btn" href="{% url 'accounts:signup' %}{% if next %}?next={{ next|urlencode }}{% endif %}">Create account</a>
+    <p class="help"><a href="{% url 'accounts:password_help' %}">Forgot your password</a> · Invited as a judge? Use the sign-in link your organizer sent.</p>
   </form>
-</div>
 {% endblock %}

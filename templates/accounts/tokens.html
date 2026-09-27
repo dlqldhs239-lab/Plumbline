@@ -24,7 +24,7 @@
     {% for t in tokens %}
       <tr class="{% if t.revoked_at %}dim{% endif %}">
         <td class="mono">{{ t.prefix }}…</td><td>{{ t.label }}</td><td>{{ t.created_at|date:"Y-m-d H:i" }}</td><td>{{ t.last_used_at|date:"Y-m-d H:i"|default:"—" }}</td>
-        <td>{% if t.revoked_at %}<span class="badge neutral">revoked</span>{% else %}<form method="post" action="{% url 'accounts:revoke_token' t.pk %}" class="inline">{% csrf_token %}<button class="btn small danger" type="submit">Revoke</button></form>{% endif %}</td>
+        <td>{% if t.revoked_at %}<span class="badge neutral">revoked</span>{% else %}<form method="post" action="{% url 'accounts:revoke_token' t.pk %}" class="inline">{% csrf_token %}<button class="btn small danger" type="submit" data-confirm="Revoke for good">Revoke</button></form>{% endif %}</td>
       </tr>
     {% empty %}<tr><td colspan="5" class="muted">No tokens yet.</td></tr>{% endfor %}
     </tbody>

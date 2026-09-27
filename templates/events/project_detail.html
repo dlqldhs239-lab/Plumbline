@@ -43,6 +43,18 @@
     {% if answers %}
     <div class="card"><h3>Organizer questions</h3>{% for a in answers %}<p><strong>{{ a.question.prompt }}</strong><br>{{ a.value|default:"—"|linebreaksbr }}</p>{% endfor %}</div>
     {% endif %}
+    {% if feedback %}
+    <div class="card" id="feedback">
+      <h3>Feedback from the judges</h3>
+      <p class="muted">{% if is_member %}Only your team and the organizers can read this.{% else %}Visible to the team once results are published.{% endif %} Judges are not named.</p>
+      {% for f in feedback %}
+      <div class="review">
+        <div class="row spread"><strong>{{ f.label }}</strong><span class="mono tnum">{% for k, v in f.scores.items %}{{ k|title }} {{ v }}{% if not forloop.last %} · {% endif %}{% endfor %}</span></div>
+        {% if f.comment %}<p>{{ f.comment }}</p>{% else %}<p class="muted">No written comment.</p>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
     {% if event.comments_enabled and project.is_public %}
     <div class="card" id="comments">
       <h3>Comments</h3>
@@ -78,13 +90,30 @@
     <div class="card"><h3>Community vote</h3><p class="muted">Voting is open for this event.</p><a class="btn" href="{% url 'ballot' event.slug %}#p{{ project.pk }}">Go to your ballot</a></div>
     {% endif %}
     {% if result %}
-    <div class="card">
-      <h3>Result</h3>
+    <div class="card" id="result">
+      <h3>Result{% if not event.results_published %} <span class="badge warn">Not published</span>{% endif %}</h3>
       <table>
-        <tr><td>Rank (normalized)</td><td class="num"><strong>#{{ result.rank_normalized }}</strong></td></tr>
-        <tr><td>Rank (raw)</td><td class="num">#{{ result.rank_raw }}</td></tr>
-        <tr><td>Reviews</td><td class="num">{{ result.review_count }}</td></tr>
+        <tr><td>Rank</td><td class="num"><strong>{{ result.rank_normalized }}</strong></td></tr>
+        <tr><td>Score, adjusted</td><td class="num"><strong>{{ result.normalized_mean|floatformat:3 }}</strong></td></tr>
+        <tr><td>Raw average</td><td class="num">{{ result.raw_mean|floatformat:3 }}</td></tr>
+        <tr><td>Judges</td><td class="num">{{ result.review_count }}</td></tr>
       </table>
+    </div>
+    {% endif %}
+    {% if breakdown %}
+    <div class="card" id="breakdown">
+      <h3>By criterion</h3>
+      <table>
+        <thead><tr><th>Criterion</th><th class="num">Weight</th><th class="num">Mean</th><th style="width:34%"></th></tr></thead>
+        <tbody>{% for c in breakdown %}<tr><td>{{ c.name }}</td><td class="num">{{ c.weight|floatformat:"-2" }}</td><td class="num">{% if c.mean is not None %}{{ c.mean|floatformat:2 }}{% else %}n/a{% endif %}</td><td><div class="bar"><span style="width:{{ c.pct }}%"></span></div></td></tr>{% endfor %}</tbody>
+      </table>
+    </div>
+    {% endif %}
+    {% if lookalikes %}
+    <div class="card" id="lookalikes">
+      <h3>Shares a repository or live address</h3>
+      <p class="muted">Only organizers see this. Nothing is excluded automatically; hide a project if it is the same work entered twice.</p>
+      <ul>{% for t in lookalikes %}<li><a href="{{ t.get_absolute_url }}">{{ t.title }}</a> <small class="muted">{{ t.team.name }}</small></li>{% endfor %}</ul>
     </div>
     {% endif %}
   </div>

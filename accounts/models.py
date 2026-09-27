@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import secrets
+from datetime import timedelta
 
 from django.conf import settings
 from django.db import models
@@ -63,3 +64,50 @@ class ApiToken(models.Model):
             return None
         cls.objects.filter(pk=token.pk).update(last_used_at=timezone.now())
         return token.user
+
+
+class SignInLink(models.Model):
+    """A one-time link that lets someone set a password and sign in.
+
+    The portal sends no email, so this is how an invited judge gets in and how
+    a forgotten password is recovered: an organizer or admin creates the link
+    and passes it on through whatever channel they already use. Only a hash
+    is stored; the link is shown once, expires, and works once.
+    """
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="sign_in_links")
+    key_hash = models.CharField(max_length=64, unique=True, editable=False)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    used_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"sign-in link for {self.user.get_username()}"
+
+    @classmethod
+    def issue(cls, user, created_by=None, days: int = 7) -> tuple["SignInLink", str]:
+        """Create a link and return (link, raw token). Earlier unused links for
+        the same user stop working, so only the newest one is live."""
+        cls.objects.filter(user=user, used_at__isnull=True).update(expires_at=timezone.now())
+        raw = secrets.token_urlsafe(32)
+        link = cls.objects.create(
+            user=user,
+            key_hash=ApiToken.hash_key(raw),
+            created_by=created_by,
+            expires_at=timezone.now() + timedelta(days=days),
+        )
+        return link, raw
+
+    @classmethod
+    def find(cls, raw: str):
+        """The live link for a raw token, or None."""
+        link = cls.objects.select_related("user").filter(key_hash=ApiToken.hash_key(raw or "")).first()
+        if link is None or link.used_at is not None or link.expires_at <= timezone.now() or not link.user.is_active:
+            return None
+        return link

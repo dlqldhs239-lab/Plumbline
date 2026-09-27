@@ -43,7 +43,7 @@ expected = "sha256=" + hex(hmac_sha256(secret, raw_body))</pre>
       <td style="white-space:nowrap">
         <form method="post" class="inline">{% csrf_token %}<input type="hidden" name="webhook" value="{{ h.pk }}"><input type="hidden" name="action" value="test"><button class="btn small" type="submit">Send ping</button></form>
         <form method="post" class="inline">{% csrf_token %}<input type="hidden" name="webhook" value="{{ h.pk }}"><input type="hidden" name="action" value="{% if h.active %}disable{% else %}enable{% endif %}"><button class="btn small" type="submit">{% if h.active %}Pause{% else %}Resume{% endif %}</button></form>
-        <form method="post" class="inline">{% csrf_token %}<input type="hidden" name="webhook" value="{{ h.pk }}"><input type="hidden" name="action" value="delete"><button class="btn small danger" type="submit">Delete</button></form>
+        <form method="post" class="inline">{% csrf_token %}<input type="hidden" name="webhook" value="{{ h.pk }}"><input type="hidden" name="action" value="delete"><button class="btn small danger" type="submit" data-confirm="Delete for good">Delete</button></form>
       </td>
     </tr>
     {% empty %}<tr><td colspan="5" class="muted">No webhooks yet.</td></tr>{% endfor %}

@@ -44,6 +44,15 @@
 (function () {
   var t = document.querySelector('.nav-toggle'), n = document.getElementById('nav');
   if (t && n) t.addEventListener('click', function () { var o = n.classList.toggle('open'); t.setAttribute('aria-expanded', o); });
+  // Irreversible buttons ask once more, in place. Without scripts they act on the first click.
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-confirm]');
+    if (!b || b.dataset.armed === '1') return;
+    e.preventDefault();
+    var label = b.textContent;
+    b.dataset.armed = '1'; b.textContent = b.dataset.confirm; b.classList.add('armed');
+    setTimeout(function () { b.dataset.armed = ''; b.textContent = label; b.classList.remove('armed'); }, 4000);
+  });
 })();
 </script>
 {% block scripts %}{% endblock %}

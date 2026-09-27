@@ -106,6 +106,13 @@ def project_detail(request, slug, pk):
     if event.results_published:
         result = ProjectResult.objects.filter(project=project).first()
     organizer = is_organizer(request.user, event)
+    member = services.is_team_member(request.user, project)
+    breakdown, feedback = None, []
+    if event.results_published or organizer:
+        breakdown = judging_services.criterion_means(project)
+    if (event.results_published and member) or organizer:
+        feedback = judging_services.feedback_for(project)
+    twins = services.lookalikes(project) if organizer else []
     comments = project.comments.select_related("author")
     if not organizer:
         comments = comments.filter(hidden_at__isnull=True)
@@ -122,6 +129,10 @@ def project_detail(request, slug, pk):
             "is_organizer": organizer,
             "result": result,
             "comments": comments,
+            "breakdown": breakdown,
+            "feedback": feedback,
+            "is_member": member,
+            "lookalikes": twins,
         },
     )
 
@@ -427,6 +438,17 @@ def organize_judges(request, slug):
         except ValidationError as e:
             messages.error(request, "; ".join(e.messages))
         return redirect("organize_judges", slug=slug)
+    if request.method == "POST" and request.POST.get("link"):
+        role = get_object_or_404(EventRole, pk=request.POST["link"], event=event, role=Role.JUDGE)
+        try:
+            raw = services.issue_judge_link(role, request.user)
+            request.session["fresh_link"] = {
+                "email": role.user.email,
+                "url": request.build_absolute_uri(f"/accounts/claim/{raw}/"),
+            }
+        except ValidationError as e:
+            messages.error(request, "; ".join(e.messages))
+        return redirect("organize_judges", slug=slug)
     if request.method == "POST" and request.POST.get("remove"):
         role = get_object_or_404(EventRole, pk=request.POST["remove"], event=event, role=Role.JUDGE)
         try:
@@ -438,7 +460,19 @@ def organize_judges(request, slug):
     judges = (
         event.roles.filter(role=Role.JUDGE).select_related("user").prefetch_related("tracks").order_by("user__username")
     )
-    return render(request, "events/organize/judges.html", {"event": event, "form": form, "judges": judges})
+    rows = [
+        {
+            "role": r,
+            "invited": services.can_issue_sign_in_link(request.user, r.user),
+            "never": r.user.last_login is None,
+        }
+        for r in judges
+    ]
+    return render(
+        request,
+        "events/organize/judges.html",
+        {"event": event, "form": form, "rows": rows, "fresh_link": request.session.pop("fresh_link", None)},
+    )
 
 
 @login_required
@@ -453,7 +487,7 @@ def organize_rubric(request, slug):
     formset = CriterionFormSet(request.POST or None, initial=initial, prefix="c")
     if request.method == "POST" and not locked and formset.is_valid():
         rows = [
-            f.cleaned_data
+            {k: f.cleaned_data.get(k) for k in ("key", "name", "weight", "description")}
             for f in formset
             if f.cleaned_data and not f.cleaned_data.get("DELETE") and f.cleaned_data.get("key")
         ]
