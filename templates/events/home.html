@@ -26,6 +26,6 @@
   {% endfor %}
 </div>
 {% else %}
-<div class="empty">No events yet.</div>
+<div class="empty"><strong>No events yet</strong>Create the first one and you become its organizer.<br><a class="btn" href="{% url 'event_create' %}">Create an event</a></div>
 {% endif %}
 {% endblock %}

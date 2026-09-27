@@ -38,7 +38,7 @@
     </div>
     {% if event.description %}<div class="card"><h3>About</h3>{{ event.description|linebreaks }}</div>{% endif %}
     {% if event.tracks.all %}
-    <div class="card"><h3>Tracks</h3><ul>{% for t in event.tracks.all %}<li><a href="{% url 'gallery' event.slug %}?track={{ t.id }}">{{ t.name }}</a>{% if t.description %} — <small>{{ t.description }}</small>{% endif %}</li>{% endfor %}</ul></div>
+    <div class="card"><h3>Tracks</h3><ul>{% for t in event.tracks.all %}<li><a href="{% url 'gallery' event.slug %}?track={{ t.id }}">{{ t.name }}</a>{% if t.description %}: <small>{{ t.description }}</small>{% endif %}</li>{% endfor %}</ul></div>
     {% endif %}
     {% if event.prizes.all %}
     <div class="card"><h3>Prizes</h3><table>{% for p in event.prizes.all %}<tr><td>{{ p.name }}{% if p.track %} <span class="badge neutral">{{ p.track.name }}</span>{% endif %}</td><td class="num">{% if p.amount %}{{ p.amount|floatformat:0 }} {{ p.currency }}{% endif %}</td></tr>{% endfor %}</table></div>

@@ -1,14 +1,15 @@
 {% extends "base.html" %}
+{% load plumbline %}
 {% block title %}Gallery · {{ event.name }}{% endblock %}
 {% block content %}
 <div class="page-head">
   <div>
     <div class="eyebrow"><a href="{{ event.get_absolute_url }}">{{ event.name }}</a></div>
     <h1>Project gallery</h1>
-    <small>{{ page.paginator.count }} submitted project{{ page.paginator.count|pluralize }}</small>
+    <small>{{ page.paginator.count }} submitted project{{ page.paginator.count|pluralize }}{% if q or track %} match{{ page.paginator.count|pluralize:"es," }}{% endif %}</small>
   </div>
-  <form method="get" class="row" role="search">
-    <input type="text" name="q" value="{{ q }}" placeholder="Search title, team, tags" aria-label="Search" style="width:16rem">
+  <form method="get" class="filters" role="search">
+    <input type="search" name="q" value="{{ q }}" placeholder="Title, team or tag" aria-label="Search projects">
     <select name="track" aria-label="Track">
       <option value="">All tracks</option>
       {% for t in event.tracks.all %}<option value="{{ t.id }}" {% if track == t.id|stringformat:"s" %}selected{% endif %}>{{ t.name }}</option>{% endfor %}
@@ -19,28 +20,25 @@
 </div>
 
 {% if page.object_list %}
-<div class="grid cols-3">
+<div class="grid cols-4 gallery">
   {% for p in page.object_list %}
-  <article class="card">
-    {% if p.thumbnail_url %}<img class="thumb" src="{{ p.thumbnail_url }}" alt="">{% else %}<div class="thumb placeholder" aria-hidden="true">{{ p.title|slice:":1" }}</div>{% endif %}
-    <h3><a href="{{ p.get_absolute_url }}">{{ p.title }}</a></h3>
-    <p class="meta">{{ p.tagline }}</p>
-    <div class="row spread">
-      <small>{{ p.team.name }}</small>
-      {% if p.track %}<span class="badge neutral">{{ p.track.name }}</span>{% endif %}
-    </div>
-    {% if p.tech_tags %}<div class="tags" style="margin-top:.5rem">{% for t in p.tech_tags %}<span>{{ t }}</span>{% endfor %}</div>{% endif %}
-  </article>
+  <a class="project" href="{{ p.get_absolute_url }}">
+    {% if p.thumbnail_url %}<img class="thumb" src="{{ p.thumbnail_url }}" alt="" loading="lazy">{% else %}<div class="cover" style="{{ p.title|cover_style }}" aria-hidden="true"><b>{{ p.title }}</b></div>{% endif %}
+    <h3{% if not p.thumbnail_url %} class="sr-only"{% endif %}>{{ p.title }}</h3>
+    <p class="by"><span>{{ p.team.name }}</span>{% if p.track %}<span class="label">{{ p.track.name }}</span>{% endif %}</p>
+    {% if p.tagline %}<p>{{ p.tagline }}</p>{% endif %}
+    {% if p.tech_tags %}<div class="tags row">{% for t in p.tech_tags|slice:":4" %}<span>{{ t }}</span>{% endfor %}</div>{% endif %}
+  </a>
   {% endfor %}
 </div>
 {% if page.has_other_pages %}
-<div class="row" style="margin-top:1rem">
-  {% if page.has_previous %}<a class="btn" href="?q={{ q }}&track={{ track }}&page={{ page.previous_page_number }}">← Previous</a>{% endif %}
-  <small>Page {{ page.number }} of {{ page.paginator.num_pages }}</small>
-  {% if page.has_next %}<a class="btn" href="?q={{ q }}&track={{ track }}&page={{ page.next_page_number }}">Next →</a>{% endif %}
+<div class="pager">
+  {% if page.has_previous %}<a class="btn" href="?q={{ q }}&track={{ track }}&page={{ page.previous_page_number }}">Previous</a>{% endif %}
+  <span>Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+  {% if page.has_next %}<a class="btn" href="?q={{ q }}&track={{ track }}&page={{ page.next_page_number }}">Next</a>{% endif %}
 </div>
 {% endif %}
 {% else %}
-<div class="empty">{% if q or track %}Nothing matches that filter.{% else %}No submitted projects yet.{% endif %}</div>
+<div class="empty"><strong>{% if q or track %}Nothing matches{% else %}No projects yet{% endif %}</strong>{% if q or track %}Try a shorter search or another track.<br><a class="btn" href="{% url 'gallery' event.slug %}">Show everything</a>{% else %}Submitted projects appear here as soon as a team submits.{% endif %}</div>
 {% endif %}
 {% endblock %}

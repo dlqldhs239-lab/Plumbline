@@ -23,11 +23,11 @@
         <form method="post" action="{% url 'vote' event.slug p.pk %}" class="inline">{% csrf_token %}<input type="hidden" name="weight" value="{{ w|default:0|add:'1' }}"><button class="btn small" type="submit" aria-label="more votes">+</button></form>
         {% if w %}<small class="muted">costs {{ w|square }}</small>{% endif %}
       {% else %}
-        <form method="post" action="{% url 'vote' event.slug p.pk %}" class="inline">{% csrf_token %}<input type="hidden" name="weight" value="{% if w %}0{% else %}1{% endif %}"><button class="btn {% if w %}primary{% endif %}" type="submit">{% if w %}✓ Voted — remove{% else %}Vote{% endif %}</button></form>
+        <form method="post" action="{% url 'vote' event.slug p.pk %}" class="inline">{% csrf_token %}<input type="hidden" name="weight" value="{% if w %}0{% else %}1{% endif %}"><button class="btn {% if w %}primary{% endif %}" type="submit">{% if w %}Voted. Remove{% else %}Vote{% endif %}</button></form>
       {% endif %}
     </div>
   </article>
   {% endwith %}
-  {% empty %}<div class="empty">Nothing to vote on yet.</div>{% endfor %}
+  {% empty %}<div class="empty"><strong>Nothing to vote on yet</strong>Projects appear on the ballot once teams submit.</div>{% endfor %}
 </div>
 {% endblock %}

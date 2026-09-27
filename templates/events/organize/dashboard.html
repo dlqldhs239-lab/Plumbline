@@ -5,17 +5,17 @@
 <div class="page-head"><div><h1>{{ event.name }}</h1><small class="muted">Phase: <strong>{{ event.phase }}</strong> · now {{ now|date:"Y-m-d H:i" }} UTC · submissions close {{ event.submissions_close_at|date:"Y-m-d H:i" }} UTC</small></div>
 <div class="actions"><a class="btn" href="{% url 'gallery' event.slug %}">Gallery</a><a class="btn" href="{% url 'organize_export' event.slug 'projects' %}">Export projects CSV</a></div></div>
 
-<div class="grid cols-4">
-  <div class="card stat"><div class="n">{{ counts.submitted }}</div><div class="l">submitted projects</div></div>
-  <div class="card stat"><div class="n">{{ counts.drafts }}</div><div class="l">drafts</div></div>
-  <div class="card stat"><div class="n">{{ counts.teams }}</div><div class="l">teams</div></div>
-  <div class="card stat"><div class="n">{{ counts.judges }}</div><div class="l">judges</div></div>
-  <div class="card stat"><div class="n">{{ counts.reviews_done }} <small class="muted">/ {{ counts.assignments }}</small></div><div class="l">reviews submitted</div></div>
-  <div class="card stat"><div class="n">{{ counts.duplicates }}</div><div class="l">flagged duplicates</div></div>
-  <div class="card stat"><div class="n">{{ counts.hidden }}</div><div class="l">hidden</div></div>
+<div class="stats">
+  <div class="stat"><div class="n">{{ counts.submitted }}</div><div class="l">submitted projects</div></div>
+  <div class="stat"><div class="n">{{ counts.drafts }}</div><div class="l">drafts</div></div>
+  <div class="stat"><div class="n">{{ counts.teams }}</div><div class="l">teams</div></div>
+  <div class="stat"><div class="n">{{ counts.judges }}</div><div class="l">judges</div></div>
+  <div class="stat"><div class="n">{{ counts.reviews_done }} <small class="muted">/ {{ counts.assignments }}</small></div><div class="l">reviews submitted</div></div>
+  <div class="stat"><div class="n">{{ counts.duplicates }}</div><div class="l">flagged duplicates</div></div>
+  <div class="stat"><div class="n">{{ counts.hidden }}</div><div class="l">hidden</div></div>
 </div>
 
-<div class="grid cols-2" style="margin-top:1rem">
+<div class="grid cols-2">
   <div class="card">
     <div class="row spread"><h3>Judge progress</h3><a class="btn small" href="{% url 'organize_export' event.slug 'assignments' %}">CSV</a></div>
     {% if progress %}

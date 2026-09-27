@@ -2,7 +2,7 @@
 {% block title %}Results · {{ event.name }}{% endblock %}
 {% block content %}
 <div class="page-head"><div><div class="eyebrow"><a href="{{ event.get_absolute_url }}">{{ event.name }}</a></div><h1>Results</h1>
-{% if preview %}<span class="badge warn">Organizer preview — not published</span>{% else %}<small class="muted">Published {{ event.results_published_at|date:"Y-m-d H:i" }} UTC</small>{% endif %}</div></div>
+{% if preview %}<span class="badge warn">Organizer preview, not published</span>{% else %}<small class="muted">Published {{ event.results_published_at|date:"Y-m-d H:i" }} UTC</small>{% endif %}</div></div>
 {% if rows %}
 <div class="card table-wrap">
 <table>
@@ -15,5 +15,5 @@
 </table>
 </div>
 <p class="muted" style="margin-top:.75rem">Score is the cross-judge normalized mean on the rubric scale ({{ rows.0.method }}). See the organizer's JUDGING notes for the method.</p>
-{% else %}<div class="empty">No results computed yet.</div>{% endif %}
+{% else %}<div class="empty"><strong>No results yet</strong>Standings appear here when the organizers publish them.</div>{% endif %}
 {% endblock %}

@@ -3,7 +3,7 @@
 {% block content %}
 {% include "events/organize/_nav.html" with on="results" %}
 <div class="page-head">
-  <div><h1>Results</h1><small class="muted">{% if event.results_published %}Published {{ event.results_published_at|date:"Y-m-d H:i" }} UTC{% else %}Not published — only organizers can see this{% endif %}</small></div>
+  <div><h1>Results</h1><small class="muted">{% if event.results_published %}Published {{ event.results_published_at|date:"Y-m-d H:i" }} UTC{% else %}Not published. Only organizers can see this{% endif %}</small></div>
   <div class="actions">
     <form method="post" class="inline">{% csrf_token %}<input type="hidden" name="action" value="recompute"><button class="btn primary" type="submit">Recompute</button></form>
     {% if event.results_published %}
@@ -45,8 +45,8 @@
   </tbody>
 </table>
 </div>
-<p class="muted" style="margin-top:.75rem">Method: {{ rows.0.method }} — per-judge z-scores with shrinkage toward the panel, mapped back to the rubric scale. Documented in JUDGING.md.</p>
+<p class="muted" style="margin-top:.75rem">Method {{ rows.0.method }}: per-judge z-scores with shrinkage toward the panel, mapped back to the rubric scale. Documented in JUDGING.md.</p>
 {% else %}
-<div class="empty">Nothing computed yet. Press <strong>Recompute</strong> once judges have submitted reviews.</div>
+<div class="empty"><strong>Nothing computed yet</strong>Press Recompute once judges have submitted reviews. Nothing is published until you say so.</div>
 {% endif %}
 {% endblock %}

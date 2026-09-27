@@ -29,6 +29,19 @@ def theme_mode(event=None):
 
 
 @register.filter
+def cover_style(title):
+    """Where a project's plumb line hangs on its cover. Derived from the title,
+    so a project always looks the same and forty of them look different."""
+    import hashlib
+
+    h = hashlib.sha256(str(title or "").encode()).digest()
+    x = 18 + h[0] % 66  # line position, percent from the left
+    y = 30 + h[1] % 38  # line length, percent of the height
+    w = 62 + h[2] % 22  # width axis of the title
+    return f"--x:{x}%;--y:{y}%;--w:{w}%"
+
+
+@register.filter
 def initials(value):
     words = [w for w in re.split(r"\s+", str(value or "").strip()) if w]
     return "".join(w[0] for w in words[:2]).upper() or "—"
