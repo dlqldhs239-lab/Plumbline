@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     "events",
     "judging",
     "community",
+    "integrations",
 ]
 
 MIDDLEWARE = [
@@ -134,6 +135,13 @@ X_FRAME_OPTIONS = "DENY"
 # committed .dogfood.toml keeps working across `docker compose down && up`.
 PLUMBLINE_SEED_SECRET = os.environ.get("PLUMBLINE_SEED_SECRET", "dev-seed-secret")
 PLUMBLINE_SITE_NAME = os.environ.get("PLUMBLINE_SITE_NAME", "Plumbline")
+
+# Webhooks. Deliveries run in a background thread after the transaction
+# commits, so a slow receiver never slows a judge down. Set ASYNC to 0 to
+# deliver inline (used by the tests).
+PLUMBLINE_WEBHOOKS_ASYNC = env_bool("PLUMBLINE_WEBHOOKS_ASYNC", True)
+PLUMBLINE_WEBHOOK_TIMEOUT = float(os.environ.get("PLUMBLINE_WEBHOOK_TIMEOUT", "5"))
+PLUMBLINE_WEBHOOK_MAX_ATTEMPTS = int(os.environ.get("PLUMBLINE_WEBHOOK_MAX_ATTEMPTS", "5"))
 
 # Rate limits for anonymous write endpoints (voting, comments). Requests per minute per client.
 PLUMBLINE_ANON_WRITE_RATE = int(os.environ.get("PLUMBLINE_ANON_WRITE_RATE", "20"))

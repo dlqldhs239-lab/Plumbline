@@ -46,4 +46,9 @@ def record(
         entry.target_id = str(target.pk)
         entry.target_label = str(target)[:300]
     entry.save()
+    if event is not None:
+        # Imported here: integrations depends on audit, not the other way round.
+        from integrations.services import enqueue
+
+        enqueue(entry)
     return entry

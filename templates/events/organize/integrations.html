@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Integrations · {{ event.name }}{% endblock %}
+{% block content %}
+{% include "events/organize/_nav.html" with on="integrations" %}
+<div class="page-head"><div><h1>Integrations</h1><small class="muted">Webhooks subscribe to this event's audit stream. Everything here is also in the <a href="/api/docs">API</a>.</small></div></div>
+
+<div class="grid cols-2">
+  <div class="card">
+    <h3>Add a webhook</h3>
+    <form method="post">
+      {% csrf_token %}<input type="hidden" name="action" value="create">
+      <div class="field"><label for="url">URL</label><input type="url" id="url" name="url" placeholder="https://example.org/hooks/plumbline" required></div>
+      <div class="field"><label for="actions">Actions</label><input type="text" id="actions" name="actions" placeholder="project., score.submit, results.">
+        <div class="help">Comma-separated prefixes. Leave empty to receive everything. Seen so far: {% for a in known_actions %}<code>{{ a }}</code>{% if not forloop.last %}, {% endif %}{% endfor %}</div></div>
+      <div class="field"><label for="description">Note</label><input type="text" id="description" name="description" maxlength="200"></div>
+      <button class="btn primary" type="submit">Create webhook</button>
+    </form>
+  </div>
+  <div class="card">
+    <h3>How to verify a delivery</h3>
+    <p class="muted">Each request is a JSON <code>POST</code> with three headers. Recompute the signature over the raw body with the webhook's secret and compare.</p>
+<pre>X-Plumbline-Event: project.submit
+X-Plumbline-Delivery: 42
+X-Plumbline-Signature: sha256=&lt;hex&gt;
+
+expected = "sha256=" + hex(hmac_sha256(secret, raw_body))</pre>
+    <p class="muted">Deliveries run after the change is committed and never block the person who caused it. Anything but a 2xx is a failure you can retry here, or with <code>manage.py deliver_webhooks</code>.</p>
+  </div>
+</div>
+
+<div class="card" style="margin-top:1rem">
+  <h3>Webhooks</h3>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>URL</th><th>Actions</th><th>Secret</th><th>State</th><th></th></tr></thead>
+    <tbody>
+    {% for h in hooks %}
+    <tr class="{% if not h.active %}dim{% endif %}">
+      <td>{{ h.url }}{% if h.description %}<br><small class="muted">{{ h.description }}</small>{% endif %}</td>
+      <td>{% for a in h.actions %}<span class="badge neutral">{{ a }}</span> {% empty %}<small class="muted">everything</small>{% endfor %}</td>
+      <td><code>{{ h.secret }}</code></td>
+      <td><span class="badge {% if h.active %}ok{% else %}neutral{% endif %}">{% if h.active %}active{% else %}paused{% endif %}</span></td>
+      <td style="white-space:nowrap">
+        <form method="post" class="inline">{% csrf_token %}<input type="hidden" name="webhook" value="{{ h.pk }}"><input type="hidden" name="action" value="test"><button class="btn small" type="submit">Send ping</button></form>
+        <form method="post" class="inline">{% csrf_token %}<input type="hidden" name="webhook" value="{{ h.pk }}"><input type="hidden" name="action" value="{% if h.active %}disable{% else %}enable{% endif %}"><button class="btn small" type="submit">{% if h.active %}Pause{% else %}Resume{% endif %}</button></form>
+        <form method="post" class="inline">{% csrf_token %}<input type="hidden" name="webhook" value="{{ h.pk }}"><input type="hidden" name="action" value="delete"><button class="btn small danger" type="submit">Delete</button></form>
+      </td>
+    </tr>
+    {% empty %}<tr><td colspan="5" class="muted">No webhooks yet.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+
+<div class="card" style="margin-top:1rem">
+  <h3>Recent deliveries</h3>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>When (UTC)</th><th>Action</th><th>To</th><th>Result</th><th class="num">Attempts</th><th></th></tr></thead>
+    <tbody>
+    {% for d in deliveries %}
+    <tr>
+      <td class="mono" style="white-space:nowrap">{{ d.created_at|date:"Y-m-d H:i:s" }}</td>
+      <td class="mono">{{ d.action }}</td>
+      <td><small>{{ d.webhook.url }}</small></td>
+      <td><span class="badge {% if d.status == 'ok' %}ok{% elif d.status == 'failed' %}bad{% else %}neutral{% endif %}">{{ d.get_status_display }}{% if d.status_code %} · {{ d.status_code }}{% endif %}</span>{% if d.error %}<br><small class="muted">{{ d.error }}</small>{% endif %}</td>
+      <td class="num">{{ d.attempts }}</td>
+      <td>{% if d.status != 'ok' %}<form method="post" class="inline">{% csrf_token %}<input type="hidden" name="delivery" value="{{ d.pk }}"><input type="hidden" name="action" value="retry"><button class="btn small" type="submit">Retry</button></form>{% endif %}</td>
+    </tr>
+    {% empty %}<tr><td colspan="6" class="muted">Nothing sent yet.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endblock %}
