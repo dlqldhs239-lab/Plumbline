@@ -68,8 +68,10 @@ weighted, organizer-configurable rubric; a judge console designed for scoring
 thirty projects in a sitting (keyboard scoring, submit-and-next); role
 isolation enforced in the backend (a judge can only ever load their own
 assignments, through the UI, the API and the exports); a live progress
-dashboard; cross-judge normalization with a documented method and a
-generated proof; CSV export at every stage; an append-only audit log an
+dashboard; cross-judge normalization and a jury-size adjustment, with a
+documented method, a generated proof and a second implementation that
+checks the first; results published as adjusted score, scale and number of
+judges, with the mean of every criterion and a per-track view; CSV export at every stage; an append-only audit log an
 organizer reads in the browser.
 
 **T3 Public.** Community voting with three access modes (open link,
@@ -109,8 +111,6 @@ side of "claim your tiers honestly". To verify T3 yourself:
 - Outbound email. Judges and ballot links are created by the organizer and
   distributed with whatever mail tool they already use.
 - Pairwise (Gavel-style) judging mode.
-- A multi-track judge can filter their queue by track, but there is no
-  per-track leaderboard on the results page yet.
 
 ## Running it for real
 
@@ -120,6 +120,7 @@ Copy `.env.example` to `.env` and set:
 |---|---|---|
 | `DJANGO_SECRET_KEY` | dev value | **change it** |
 | `PLUMBLINE_SEED` | `1` | set `0` so the fixtures are not loaded |
+| `PLUMBLINE_SEED_PUBLISH` | `1` | the sample event is loaded finished, with results published; `0` leaves that to the organizer |
 | `PLUMBLINE_SEED_SECRET` | dev value | only matters when seeding |
 | `ALLOWED_HOSTS` | `*` | your hostname |
 | `CSRF_TRUSTED_ORIGINS` | `http://localhost:8080,…` | your origin, with scheme |
@@ -154,7 +155,7 @@ pip install -r requirements.txt
 python manage.py migrate && python manage.py createcachetable
 python manage.py seed_fixtures fixtures.json
 python manage.py runserver 8080
-python manage.py test tests            # 155 tests, ~10 minutes
+python manage.py test tests            # 180 tests, 3 to 10 minutes
 python manage.py normalization_report sample-hack-2026 > docs/normalization-proof.md
 ```
 

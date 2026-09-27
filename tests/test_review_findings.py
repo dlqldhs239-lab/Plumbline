@@ -605,11 +605,11 @@ class PublishedResultsTests(SeededTestCase):
 
     def test_unranked_projects_come_last(self):
         judging_services.recompute_results(self.event, self.organizer)
-        ProjectResult.objects.filter(event=self.event, rank_normalized=1).update(rank_normalized=None, rank_raw=None)
-        ranks = [r.rank_normalized for r in ProjectResult.objects.filter(event=self.event)]
+        ProjectResult.objects.filter(event=self.event, rank=1).update(rank=None, rank_normalized=None, rank_raw=None)
+        ranks = [r.rank for r in ProjectResult.objects.filter(event=self.event)]
         self.assertIsNone(ranks[-1])
         self.assertIsNotNone(ranks[0])
-        ranks = [r.rank_normalized for r in judging_services.standings(self.event)]
+        ranks = [r.rank for r in judging_services.standings(self.event)]
         self.assertIsNone(ranks[-1])
 
 

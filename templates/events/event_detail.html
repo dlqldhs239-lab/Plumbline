@@ -1,56 +1,95 @@
 {% extends "base.html" %}
 {% block title %}{{ event.name }} · {{ SITE_NAME }}{% endblock %}
 {% block content %}
-<div class="page-head">
+{% with phase=event.phase %}
+<div class="page-head tall">
   <div>
-    <div class="eyebrow">Event</div>
-    <h1>{{ event.name }}</h1>
-    {% if event.tagline %}<p class="muted">{{ event.tagline }}</p>{% endif %}
+    <div class="eyebrow">Event · {% if phase == 'upcoming' %}opens {{ event.submissions_open_at|date:"Y-m-d H:i" }} UTC{% elif phase == 'submissions' %}submissions open until {{ event.submissions_close_at|date:"Y-m-d H:i" }} UTC{% elif phase == 'judging' %}judging{% elif phase == 'results' %}results published{% else %}closed{% endif %}</div>
+    <h1 class="display-2">{{ event.name }}</h1>
+    {% if event.tagline %}<p class="lede">{{ event.tagline }}</p>{% endif %}
   </div>
   <div class="actions">
-    <a class="btn" href="{% url 'gallery' event.slug %}">Gallery ({{ project_count }})</a>
-    {% if event.results_published %}<a class="btn" href="{% url 'results' event.slug %}">Results</a>{% endif %}
-    {% if is_organizer %}<a class="btn primary" href="{% url 'organize_dashboard' event.slug %}">Organize</a>{% endif %}
-    {% if 'judge' in roles %}<a class="btn primary" href="{% url 'judging:queue' event.slug %}">Judge console</a>{% endif %}
+    {% if event.results_published %}<a class="btn primary" href="{% url 'results' event.slug %}">Results</a>{% endif %}
+    <a class="btn" href="{% url 'gallery' event.slug %}">Gallery</a>
+    {% if 'judge' in roles %}<a class="btn{% if not event.results_published %} primary{% endif %}" href="{% url 'judging:queue' event.slug %}">Judge console</a>{% endif %}
+    {% if is_organizer %}<a class="btn" href="{% url 'organize_dashboard' event.slug %}">Organize</a>{% endif %}
   </div>
 </div>
 
-{% with phase=event.phase %}
-<div class="phase" style="margin-bottom:1.25rem">
-  <span class="{% if phase == 'upcoming' %}on{% else %}past{% endif %}">Upcoming</span>
-  <span class="{% if phase == 'submissions' %}on{% elif phase != 'upcoming' %}past{% endif %}">Submissions</span>
-  <span class="{% if phase == 'judging' or phase == 'closed' %}on{% elif phase == 'results' %}past{% endif %}">Judging</span>
-  <span class="{% if phase == 'results' %}on{% endif %}">Results</span>
+<div class="stats">
+  <div class="stat"><div class="n">{{ project_count }}</div><div class="l">Project{{ project_count|pluralize }} submitted</div></div>
+  <div class="stat"><div class="n">{{ team_count }}</div><div class="l">Team{{ team_count|pluralize }}</div></div>
+  <div class="stat"><div class="n">{{ judge_count }}</div><div class="l">Judge{{ judge_count|pluralize }}</div></div>
+  <div class="stat"><div class="n">{{ event.tracks.all|length }}</div><div class="l">Track{{ event.tracks.all|length|pluralize }}</div></div>
+  <div class="stat"><div class="n">{{ event.reviews_per_project }}</div><div class="l">Reviews per project</div></div>
 </div>
+
+<section class="timeline-block" aria-label="Dates">
+  <div class="timeline" aria-hidden="true">
+    <div class="rule">{% if timeline.here is not None %}<span class="done" style="width:{{ timeline.here }}%"></span>{% elif timeline.after %}<span class="done" style="width:100%"></span>{% endif %}</div>
+    {% for m in timeline.marks %}
+    <div class="tick{% if m.past %} past{% endif %}{% if forloop.first %} first{% endif %}{% if forloop.last and not forloop.first %} last{% endif %}{% if m.row %} low{% endif %}" style="left:{{ m.pct }}%">
+      <span class="label">{{ m.label }}</span><span class="mono tnum">{{ m.at|date:"Y-m-d H:i" }}</span>
+    </div>
+    {% endfor %}
+    {% if timeline.here is not None %}<div class="now" style="left:{{ timeline.here }}%"><span class="label">Now</span></div>{% endif %}
+  </div>
+  <table class="dates">
+    <caption class="label">Dates, UTC</caption>
+    <tbody>
+    {% for m in timeline.marks %}<tr{% if m.past %} class="dim"{% endif %}><td>{{ m.label }}</td><td class="num">{{ m.at|date:"Y-m-d H:i" }}</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</section>
 {% endwith %}
 
-<div class="grid cols-2">
-  <div class="stack">
-    <div class="card">
-      <h3>Dates <small class="muted">(UTC)</small></h3>
-      <table>
-        <tr><td>Submissions open</td><td class="num">{{ event.submissions_open_at|date:"Y-m-d H:i" }}</td></tr>
-        <tr><td>Submissions close</td><td class="num"><strong>{{ event.submissions_close_at|date:"Y-m-d H:i" }}</strong></td></tr>
-        {% if event.judging_open_at %}<tr><td>Judging opens</td><td class="num">{{ event.judging_open_at|date:"Y-m-d H:i" }}</td></tr>{% endif %}
-        {% if event.judging_close_at %}<tr><td>Judging closes</td><td class="num">{{ event.judging_close_at|date:"Y-m-d H:i" }}</td></tr>{% endif %}
-        {% if event.results_published_at %}<tr><td>Results published</td><td class="num">{{ event.results_published_at|date:"Y-m-d H:i" }}</td></tr>{% endif %}
-      </table>
-    </div>
-    {% if event.description %}<div class="card"><h3>About</h3>{{ event.description|linebreaks }}</div>{% endif %}
-    {% if event.tracks.all %}
-    <div class="card"><h3>Tracks</h3><ul>{% for t in event.tracks.all %}<li><a href="{% url 'gallery' event.slug %}?track={{ t.id }}">{{ t.name }}</a>{% if t.description %}: <small>{{ t.description }}</small>{% endif %}</li>{% endfor %}</ul></div>
+<div class="grid split wide">
+  <div class="stack loose">
+    {% if event.description %}
+    <section class="card"><h3>About</h3><div class="prose">{{ event.description|linebreaks }}</div></section>
     {% endif %}
+
+    {% if tracks %}
+    <section class="card">
+      <h3>Tracks</h3>
+      <div class="ledger tight">
+        {% for t in tracks %}
+        <a class="ledger-row two" href="{% url 'gallery' event.slug %}?track={{ t.track.id }}">
+          <span class="name"><strong>{{ t.track.name }}</strong>{% if t.track.description %}<small>{{ t.track.description }}</small>{% endif %}</span>
+          <span class="mono tnum">{{ t.n }} project{{ t.n|pluralize }}</span>
+        </a>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+
+    <section class="card" id="rubric">
+      <h3>How projects are judged</h3>
+      <p class="muted">Each judge marks every criterion from {{ rubric.scale_min }} to {{ rubric.scale_max }}. {% if event.reviews_per_project %}Every project is meant to get {{ event.reviews_per_project }} review{{ event.reviews_per_project|pluralize }}.{% endif %} Scores are corrected for how each judge marks before anyone is ranked.</p>
+      <table class="rubric">
+        <thead><tr><th>Criterion</th><th class="num">Share</th><th style="width:38%"><span class="sr-only">Share of the score</span></th></tr></thead>
+        <tbody>
+        {% for c in criteria %}
+        <tr><td><strong>{{ c.name }}</strong>{% if c.description %}<br><small>{{ c.description }}</small>{% endif %}</td><td class="num">{{ c.share }}%</td><td><div class="bar"><span style="width:{{ c.share }}%"></span></div></td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </section>
+
     {% if event.prizes.all %}
-    <div class="card"><h3>Prizes</h3><table>{% for p in event.prizes.all %}<tr><td>{{ p.name }}{% if p.track %} <span class="badge neutral">{{ p.track.name }}</span>{% endif %}</td><td class="num">{% if p.amount %}{{ p.amount|floatformat:0 }} {{ p.currency }}{% endif %}</td></tr>{% endfor %}</table></div>
+    <section class="card">
+      <h3>Prizes</h3>
+      <table>{% for p in event.prizes.all %}<tr><td><strong>{{ p.name }}</strong>{% if p.track %} <span class="badge neutral">{{ p.track.name }}</span>{% endif %}{% if p.description %}<br><small>{{ p.description }}</small>{% endif %}</td><td class="num">{% if p.amount %}{{ p.amount|floatformat:0 }} {{ p.currency }}{% endif %}</td></tr>{% endfor %}</table>
+    </section>
     {% endif %}
   </div>
 
-  <div class="stack">
-    <div class="card">
-      <h3>Participate</h3>
+  <div class="stack loose">
+    <section class="card box">
+      <h3>Take part</h3>
       {% if not user.is_authenticated %}
         <p>Sign in to form a team and submit a project.</p>
-        <a class="btn primary" href="{% url 'accounts:signup' %}">Create account</a> <a class="btn" href="{% url 'accounts:login' %}?next={{ request.path }}">Sign in</a>
+        <div class="row"><a class="btn primary" href="{% url 'accounts:signup' %}?next={{ request.path }}">Create account</a><a class="btn" href="{% url 'accounts:login' %}?next={{ request.path }}">Sign in</a></div>
       {% elif membership %}
         <p>You are on team <a href="{% url 'team_detail' event.slug membership.team.pk %}"><strong>{{ membership.team.name }}</strong></a>.</p>
         <div class="row">
@@ -67,9 +106,13 @@
           <p class="muted">Submissions open {{ event.submissions_open_at|date:"Y-m-d H:i" }} UTC.</p>
         {% endif %}
       {% endif %}
-    </div>
+    </section>
     {% if event.voting_access != 'closed' %}
-    <div class="card"><h3>Community vote</h3><p class="muted">{{ event.get_voting_access_display }}{% if event.voting_close_at %} · closes {{ event.voting_close_at|date:"Y-m-d H:i" }} UTC{% endif %}</p>{% if event.voting_open %}<a class="btn primary" href="{% url 'ballot' event.slug %}">Open your ballot</a>{% else %}<span class="badge neutral">Not open right now</span>{% endif %}</div>
+    <section class="card">
+      <h3>Community vote</h3>
+      <p class="muted">{{ event.get_voting_access_display }}{% if event.voting_credits %} · {{ event.voting_credits }} credits each, quadratic{% endif %}{% if event.voting_close_at %} · closes {{ event.voting_close_at|date:"Y-m-d H:i" }} UTC{% endif %}</p>
+      {% if event.voting_open %}<a class="btn primary" href="{% url 'ballot' event.slug %}">Open your ballot</a>{% else %}<span class="badge neutral">Not open right now</span>{% endif %}
+    </section>
     {% endif %}
   </div>
 </div>

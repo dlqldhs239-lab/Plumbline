@@ -50,7 +50,7 @@ User ──< EventRole >── Event ──< Track
 | `Criterion` | rubric, key (slug), name, description, weight (decimal), order | unique (rubric, key). Criteria are replaceable until the first score exists |
 | `JudgeAssignment` | event, judge (user), project, batch, status ∈ {pending, in_progress, submitted}, comment, assigned_at, submitted_at | unique (judge, project). **Scores hang off this row**, so "a judge's scores" is always "scores of the judge's assignments" — there is no query that lists scores without going through the judge |
 | `Score` | assignment, criterion, value | unique (assignment, criterion) |
-| `ProjectResult` | event, project (1:1), review_count, raw_mean, normalized_mean, rank_raw, rank_normalized, community_score, method, computed_at | a snapshot written by *Recompute*; not a source of truth |
+| `ProjectResult` | event, project (1:1), review_count, raw_mean, normalized_mean, adjusted_mean, rank_raw, rank_normalized, rank, criterion_means, community_score, method, computed_at | a snapshot written by *Recompute*; not a source of truth |
 | `JudgeCalibration` | event, judge, review_count, mean, stdev, shrink_weight, flat | per-judge statistics from the last recompute, shown on the results page |
 
 ### community

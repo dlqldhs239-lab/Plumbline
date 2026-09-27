@@ -122,6 +122,10 @@ class ResultOut(Schema):
     normalized_mean: float | None
     rank_raw: int | None
     rank_normalized: int | None
+    adjusted_mean: float | None = None
+    rank: int | None = None
+    scale_max: int = 5
+    criterion_means: list[dict] = []
     community_score: float | None = None
     method: str
 

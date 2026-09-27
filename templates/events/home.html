@@ -1,31 +1,147 @@
 {% extends "base.html" %}
-{% block title %}Events · {{ SITE_NAME }}{% endblock %}
+{% load static %}
+{% block title %}{{ SITE_NAME }} · submission and judging portal{% endblock %}
+{% block main_class %}bleed{% endblock %}
 {% block content %}
-<section class="hero">
-  <div class="eyebrow">Submission and judging portal</div>
-  <h1>Judging that holds a straight line.</h1>
-  <p>Teams submit, judges score against a weighted rubric, scores are normalized across judges, and every step is exportable. Role isolation is enforced in the backend.</p>
-  {% if not user.is_authenticated %}
-    <div class="row"><a class="btn primary" href="{% url 'accounts:signup' %}">Create an account</a><a class="btn" href="{% url 'accounts:login' %}">Sign in</a></div>
+<section class="field-hero{% if not case %} bare{% endif %}">
+  {% if case %}
+  <div class="field">
+    <canvas id="field" role="img" aria-label="{{ case.judges }} judges of {{ featured.name }} drawn as plumb lines. Each starts leaning by how far that judge's average sits from the panel's, then settles to vertical."></canvas>
+    <div class="readout" aria-hidden="true"><span class="label">Panel out of true</span><b id="field-dev">0.00</b><span class="label">points, mean lean</span></div>
+    <div class="field-tip label" id="field-tip" aria-hidden="true"></div>
+  </div>
+  {% endif %}
+  <div class="hero-copy">
+    <div class="hero-main">
+      <p class="eyebrow">{% if case %}{{ featured.name }} · {{ case.judges }} judges · {{ case.projects }} projects{% else %}Submission and judging portal{% endif %}</p>
+      {% if case.kind == "flat" %}
+      <h1 class="display">One judge gave everyone <i>a {{ case.mark_word }}.</i></h1>
+      {% elif case %}
+      <h1 class="display">{{ case.judges_word }} judges.<br>One <i>line.</i></h1>
+      {% else %}
+      <h1 class="display">Judging that holds a <i>straight line.</i></h1>
+      {% endif %}
+    </div>
+    <div class="hero-side">
+      {% if case.kind == "flat" %}
+      <p>{{ case.flat_reviews_word|capfirst }} projects, {{ case.flat_reviews_word }} identical marks. On a raw average that lifts whoever drew that judge. {{ SITE_NAME }} counted the marks as no opinion, and <a href="{{ case.project.project.get_absolute_url }}">{{ case.project.project.title }}</a> went from {{ case.from_word }} to {{ case.to_word }}.</p>
+      {% elif case %}
+      <p>Each line is a judge, leaning by how far their average sits from the panel's. Once they hang true, <a href="{{ case.project.project.get_absolute_url }}">{{ case.project.project.title }}</a> goes from {{ case.from_word }} to {{ case.to_word }}.</p>
+      {% else %}
+      <p>Teams submit, judges score against a weighted rubric, and scores are corrected for how each judge marks before anyone is ranked. Nothing is published here yet.</p>
+      {% endif %}
+      <div class="row">
+        {% if case %}<a class="btn primary" href="{% url 'results' featured.slug %}">See the standings</a><button class="btn" type="button" id="field-again" hidden>Release again</button>
+        {% elif user.is_authenticated %}<a class="btn primary" href="{% url 'event_create' %}">Create an event</a>
+        {% else %}<a class="btn primary" href="{% url 'accounts:signup' %}">Create an account</a><a class="btn" href="{% url 'accounts:login' %}">Sign in</a>{% endif %}
+      </div>
+    </div>
+  </div>
+</section>
+
+{% if case %}
+<div class="legend" aria-hidden="true">
+  <div><i class="lean"></i><span class="label">Lean: generous or harsh</span></div>
+  <div><i class="len"></i><span class="label">Length: reviews given</span></div>
+  <div><i class="flat"></i><span class="label">Dashed: every mark the same</span></div>
+  <div><i class="true"></i><span class="label">Vertical: counted</span></div>
+</div>
+
+<section class="block" id="case">
+  <div class="block-head">
+    <span class="label">The case</span>
+    <h2 class="display-2">{{ case.moved }} of {{ case.projects }} projects changed place.</h2>
+    <p>Judges disagree about where a three is. Averaging their marks as they stand ranks the luck of the draw along with the work. Here is one project from {{ featured.name }}, step by step.</p>
+  </div>
+  {% with r=case.project %}
+  <ol class="steps">
+    <li>
+      <span class="label">01 · Raw mean</span>
+      <b class="tnum">{{ r.raw_mean|floatformat:3 }}</b>
+      <span class="place">{{ r.rank_raw }} of {{ case.projects }}</span>
+      <p>The mean of {{ r.review_count }} review{{ r.review_count|pluralize }}, as marked.</p>
+    </li>
+    <li>
+      <span class="label">02 · Judges set true</span>
+      <b class="tnum">{{ r.normalized_mean|floatformat:3 }}</b>
+      <span class="place">{{ r.rank_normalized }} of {{ case.projects }}</span>
+      <p>Each mark is read against its judge's own mean and spread.{% if case.kind == "flat" %} Marks from a judge who gave everyone the same count as no opinion.{% endif %}</p>
+    </li>
+    <li class="final">
+      <span class="label">03 · Adjusted for jury size</span>
+      <b class="tnum">{{ r.adjusted_mean|floatformat:3 }}</b>
+      <span class="place">{{ r.rank }} of {{ case.projects }}</span>
+      <p>A project with few reviews is pulled toward the panel mean. This is the score that ranks.</p>
+    </li>
+  </ol>
+  <p class="after"><a href="{{ r.project.get_absolute_url }}">{{ r.project.title }}</a> by {{ r.project.team.name }}{% if r.project.track %}, {{ r.project.track.name }}{% endif %}. <a href="{% url 'results' featured.slug %}#method">How the score is made</a></p>
+  {% endwith %}
+</section>
+{% endif %}
+
+<section class="block" id="events">
+  <div class="block-head">
+    <span class="label">On this installation</span>
+    <h2 class="display-2">Events</h2>
+  </div>
+  {% if events %}
+  <div class="ledger">
+    {% for e in events %}
+    <a class="ledger-row" href="{{ e.get_absolute_url }}">
+      <span class="badge {% if e.phase == 'submissions' %}ok{% elif e.phase == 'judging' %}warn{% elif e.phase == 'results' %}{% else %}neutral{% endif %}">{{ e.phase|title }}</span>
+      <span class="name"><strong>{{ e.name }}</strong>{% if e.tagline %}<small>{{ e.tagline }}</small>{% endif %}</span>
+      <span class="mono tnum">{{ e.project_count }} project{{ e.project_count|pluralize }}</span>
+      <span class="mono tnum">{% if e.phase == 'upcoming' %}Opens {{ e.submissions_open_at|date:"Y-m-d" }}{% elif e.phase == 'submissions' %}Closes {{ e.submissions_close_at|date:"Y-m-d H:i" }} UTC{% else %}Closed {{ e.submissions_close_at|date:"Y-m-d" }}{% endif %}</span>
+    </a>
+    {% endfor %}
+  </div>
   {% else %}
-    <div class="row"><a class="btn primary" href="{% url 'event_create' %}">Create an event</a><a class="btn" href="{% url 'dashboard' %}">Your dashboard</a></div>
+  <div class="empty"><strong>No events yet</strong>Create the first one and you become its organizer.<br><a class="btn" href="{% url 'event_create' %}">Create an event</a></div>
   {% endif %}
 </section>
 
-<h2>Events</h2>
-{% if events %}
-<div class="grid cols-3">
-  {% for e in events %}
-  <div class="card">
-    <div class="row spread"><span class="badge {% if e.phase == 'submissions' %}ok{% elif e.phase == 'judging' %}warn{% elif e.phase == 'results' %}{% else %}neutral{% endif %}">{{ e.phase|title }}</span><small>{{ e.project_count }} project{{ e.project_count|pluralize }}</small></div>
-    <h3><a href="{{ e.get_absolute_url }}">{{ e.name }}</a></h3>
-    <p class="meta">{{ e.tagline|default:"" }}</p>
-    <p class="meta">Submissions close {{ e.submissions_close_at|date:"Y-m-d H:i" }} UTC</p>
-    <a href="{% url 'gallery' e.slug %}">Gallery →</a>
+<section class="block sunk" id="verify">
+  <div class="block-head">
+    <span class="label">What you can check</span>
+    <h2 class="display-2">Do not take our word for it.</h2>
+    <p>Each line below is enforced on the server, and each can be tried from a terminal{% if featured %} against {{ featured.name }}{% endif %}.</p>
   </div>
-  {% endfor %}
-</div>
-{% else %}
-<div class="empty"><strong>No events yet</strong>Create the first one and you become its organizer.<br><a class="btn" href="{% url 'event_create' %}">Create an event</a></div>
+  <div class="table-wrap">
+  <table class="claims">
+    <thead><tr><th>What holds</th><th>Try it</th><th class="num">Answer</th></tr></thead>
+    <tbody>
+      <tr><td>A judge cannot read another judge's scores, in the page or in the API.</td><td><code>GET /api/judges/&lt;another judge&gt;/scores</code></td><td class="num">403</td></tr>
+      <tr><td>Submissions stop at the deadline, by the server's clock.</td><td><code>POST /api/events/{% if featured %}{{ featured.slug }}{% else %}&lt;event&gt;{% endif %}/projects</code></td><td class="num">403</td></tr>
+      <tr><td>Results stay closed to everyone but organizers until they are published.</td><td><code>GET /api/events/&lt;event&gt;/results</code></td><td class="num">403</td></tr>
+      <tr><td>A participant cannot open the judging endpoints at all.</td><td><code>GET /api/judges/me/scores</code></td><td class="num">403</td></tr>
+      <tr><td>Every change is on the record, with who made it, and leaves as CSV.</td><td><code>GET /api/events/&lt;event&gt;/export/audit.csv</code></td><td class="num">200</td></tr>
+      <tr><td>The portal runs with the network unplugged: fonts, scripts and the API reference come from the image.</td><td><code>docker compose up</code></td><td class="num"><a href="/api/docs">/api/docs</a></td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section class="block closing">
+  <div class="block-head">
+    <span class="label">Self-hosted · MIT</span>
+    <h2 class="display-2">Run the next one yourself.</h2>
+    <p>One command brings up the portal and its database. Every action in these pages is also an API call.</p>
+  </div>
+  <div class="closing-row">
+    <pre>docker compose up
+# the portal answers on http://localhost:8080
+# the API reference is at /api/docs</pre>
+    <div class="row">
+      {% if user.is_authenticated %}<a class="btn primary" href="{% url 'event_create' %}">Create an event</a><a class="btn" href="{% url 'dashboard' %}">Your dashboard</a>
+      {% else %}<a class="btn primary" href="{% url 'accounts:signup' %}">Create an account</a><a class="btn" href="{% url 'accounts:login' %}">Sign in</a>{% endif %}
+      <a class="btn" href="/api/docs">API reference</a>
+    </div>
+  </div>
+</section>
+{% endblock %}
+{% block scripts %}
+{% if case %}
+{{ panel|json_script:"field-data" }}
+<script src="{% static 'js/field.js' %}" defer></script>
 {% endif %}
 {% endblock %}

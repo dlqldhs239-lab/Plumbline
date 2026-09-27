@@ -19,10 +19,17 @@ the rubric scale. In plain terms:
    reviews get z = 0 (rank-neutral) and the judge is flagged as flat.
 5. A project's normalized score is the mean z across its reviews, mapped back
    to the scale: panel_mean + z × panel_stdev, then clipped to [min, max].
+6. Projects do not all get the same number of reviews. A mean of two reviews
+   is a weaker claim than a mean of five, so each project is pulled toward
+   the panel mean in proportion to how little evidence it has:
+   adjusted = (n × normalized + J × panel_mean) / (n + J), with J = jury_k.
+   J is a number of reviews: the prior counts as much as J reviews at the
+   panel mean would. J = 0 switches the step off.
 
-Ranking uses the normalized score; the raw mean is kept beside it so an
-organizer can see exactly what moved and why. See JUDGING.md for the
-worked example on the fixture data.
+Ranking uses the adjusted score. The raw mean and the normalized score are
+kept beside it, each with its own rank, so an organizer can see exactly what
+moved at which step and why. See JUDGING.md for the worked example on the
+fixture data.
 """
 
 from __future__ import annotations
@@ -32,6 +39,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 
 SHRINK_K = 3.0  # reviews needed before a judge's own statistics dominate
+JURY_K = 3.0  # reviews the panel mean counts for when a project has few
 FLAT_EPSILON = 1e-9
 
 
@@ -60,8 +68,11 @@ class ProjectStanding:
     n: int
     raw_mean: float | None
     normalized: float | None
+    adjusted: float | None = None
+    jury_weight: float | None = None
     rank_raw: int | None = None
     rank_normalized: int | None = None
+    rank: int | None = None
     z_values: list[float] = field(default_factory=list)
 
 
@@ -71,7 +82,9 @@ class NormalizationResult:
     projects: dict[str, ProjectStanding]
     panel_mean: float | None
     panel_stdev: float | None
-    method: str = "zscore-shrink-v1"
+    shrink_k: float = SHRINK_K
+    jury_k: float = JURY_K
+    method: str = "zscore-shrink-v2"
 
 
 def _mean(xs: list[float]) -> float:
@@ -99,8 +112,14 @@ def weighted_score(values: dict[str, int], weights: dict[str, float]) -> float |
 
 
 def normalize(
-    reviews: list[Review], scale_min: float, scale_max: float, shrink_k: float = SHRINK_K
+    reviews: list[Review],
+    scale_min: float,
+    scale_max: float,
+    shrink_k: float = SHRINK_K,
+    jury_k: float = JURY_K,
 ) -> NormalizationResult:
+    if shrink_k < 0 or jury_k < 0:
+        raise ValueError("shrinkage constants cannot be negative")
     by_judge: dict[str, list[Review]] = defaultdict(list)
     by_project: dict[str, list[Review]] = defaultdict(list)
     for r in reviews:
@@ -138,15 +157,29 @@ def normalize(
         z = _mean(zs)
         normalized = panel_mean + z * panel_stdev
         normalized = max(scale_min, min(scale_max, normalized))
-        projects[project_id] = ProjectStanding(project_id, len(rs), raw, normalized, z_values=zs)
+        n = len(rs)
+        jury_weight = n / (n + jury_k)
+        adjusted = jury_weight * normalized + (1 - jury_weight) * panel_mean
+        projects[project_id] = ProjectStanding(
+            project_id, n, raw, normalized, adjusted=adjusted, jury_weight=jury_weight, z_values=zs
+        )
 
     _rank(projects, key="raw_mean", attr="rank_raw")
     _rank(projects, key="normalized", attr="rank_normalized")
-    return NormalizationResult(judges=judges, projects=projects, panel_mean=panel_mean, panel_stdev=panel_stdev)
+    _rank(projects, key="adjusted", attr="rank")
+    return NormalizationResult(
+        judges=judges,
+        projects=projects,
+        panel_mean=panel_mean,
+        panel_stdev=panel_stdev,
+        shrink_k=shrink_k,
+        jury_k=jury_k,
+    )
 
 
 def _rank(projects: dict[str, ProjectStanding], key: str, attr: str):
-    """Dense ranking, highest first. Ties share a rank (1, 1, 3)."""
+    """Standard competition ranking, highest first: ties share a rank and the
+    next rank is skipped (1, 1, 3)."""
     ordered = sorted(projects.values(), key=lambda p: (-(getattr(p, key) or 0), p.project_id))
     rank = 0
     prev = None

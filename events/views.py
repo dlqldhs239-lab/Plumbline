@@ -12,6 +12,7 @@ from django.views.decorators.http import require_POST
 from audit.services import record
 from judging import export as export_services
 from judging import services as judging_services
+from judging import showcase
 from judging.models import JudgeAssignment, JudgeCalibration, ProjectResult
 from plumbline.inputs import as_id, id_or_404
 
@@ -51,7 +52,18 @@ def home(request):
         if request.user.is_authenticated:
             visible |= Q(roles__user=request.user)
         qs = qs.filter(visible).distinct()
-    return render(request, "events/home.html", {"events": qs})
+    featured = showcase.featured_event()
+    case = showcase.case(featured) if featured else None
+    return render(
+        request,
+        "events/home.html",
+        {
+            "events": qs,
+            "featured": featured,
+            "case": case,
+            "panel": showcase.panel(featured) if case else None,
+        },
+    )
 
 
 def event_detail(request, slug):
@@ -60,9 +72,14 @@ def event_detail(request, slug):
     membership = None
     if request.user.is_authenticated:
         membership = TeamMembership.objects.filter(team__event=event, user=request.user).select_related("team").first()
-    project_count = event.projects.filter(
-        status=Project.Status.SUBMITTED, is_hidden=False, duplicate_of__isnull=True
-    ).count()
+    public = event.projects.filter(status=Project.Status.SUBMITTED, is_hidden=False, duplicate_of__isnull=True)
+    per_track = dict(public.order_by().values_list("track_id").annotate(n=Count("id")))
+    tracks = [{"track": t, "n": per_track.get(t.id, 0)} for t in event.tracks.all()]
+    rubric = judging_services.ensure_rubric(event)
+    criteria = list(rubric.criteria.all())
+    total_weight = sum((c.weight for c in criteria), 0) or 1
+    for c in criteria:
+        c.share = round(100 * float(c.weight) / float(total_weight))
     return render(
         request,
         "events/event_detail.html",
@@ -71,10 +88,49 @@ def event_detail(request, slug):
             "roles": roles,
             "is_organizer": is_organizer(request.user, event),
             "membership": membership,
-            "project_count": project_count,
+            "project_count": public.count(),
+            "team_count": event.teams.count(),
+            "judge_count": event.roles.filter(role=Role.JUDGE).count(),
+            "tracks": tracks,
+            "rubric": rubric,
+            "criteria": criteria,
+            "timeline": timeline(event),
             "now": timezone.now(),
         },
     )
+
+
+def timeline(event, now=None) -> dict:
+    """The event's dates on one line, and where today falls on it. Positions
+    are percentages of the span from the first date to the last."""
+    now = now or timezone.now()
+    marks = [
+        ("Submissions open", event.submissions_open_at),
+        ("Submissions close", event.submissions_close_at),
+        ("Judging opens", event.judging_open_at),
+        ("Judging closes", event.judging_close_at),
+        ("Voting closes", event.voting_close_at if event.voting_access != "closed" else None),
+        ("Results", event.results_published_at),
+    ]
+    marks = sorted(((label, at) for label, at in marks if at), key=lambda m: m[1])
+    merged = []
+    for label, at in marks:
+        if merged and merged[-1]["at"] == at:
+            merged[-1]["label"] += " · " + label.lower()
+        else:
+            merged.append({"label": label, "at": at})
+    start, end = merged[0]["at"], merged[-1]["at"]
+    span = (end - start).total_seconds() or 1
+    for m in merged:
+        m["pct"] = round(100 * (m["at"] - start).total_seconds() / span, 2)
+        m["past"] = m["at"] <= now
+    # Labels that would sit on top of each other take turns above and below the line.
+    for i, m in enumerate(merged):
+        m["row"] = i % 2
+    here = None
+    if start <= now <= end:
+        here = round(100 * (now - start).total_seconds() / span, 2)
+    return {"marks": merged, "here": here, "before": now < start, "after": now > end}
 
 
 def gallery(request, slug):
@@ -105,14 +161,21 @@ def project_detail(request, slug, pk):
         raise PermissionDenied("This project is not public.")
     answers = project.answers.select_related("question").order_by("question__order")
     members = project.team.memberships.select_related("user")
-    result = None
-    if event.results_published:
-        result = judging_services.standings(event).filter(project=project).first()
+    result, ranked, in_track = None, 0, None
+    if event.results_published or is_organizer(request.user, event):
+        standing = judging_services.standings(event)
+        result = standing.filter(project=project).first()
+        if result is not None and result.rank:
+            ranked = standing.filter(rank__isnull=False).count()
+            if project.track_id:
+                peers = standing.filter(project__track_id=project.track_id, rank__isnull=False)
+                in_track = {"rank": peers.filter(rank__lt=result.rank).count() + 1, "of": peers.count()}
     organizer = is_organizer(request.user, event)
     member = services.is_team_member(request.user, project)
     breakdown, feedback = None, []
-    if event.results_published or organizer:
-        breakdown = judging_services.criterion_means(project)
+    rubric = judging_services.ensure_rubric(event)
+    if result is not None and (event.results_published or organizer):
+        breakdown = result.criterion_means or judging_services.criterion_means(project)
     if (event.results_published and member) or organizer:
         feedback = judging_services.feedback_for(project)
     twins = services.lookalikes(project) if organizer else []
@@ -131,6 +194,9 @@ def project_detail(request, slug, pk):
             "editing_open": event.submissions_open() or organizer,
             "is_organizer": organizer,
             "result": result,
+            "ranked": ranked,
+            "in_track": in_track,
+            "rubric": rubric,
             "comments": comments,
             "breakdown": breakdown,
             "feedback": feedback,
@@ -144,9 +210,42 @@ def results(request, slug):
     event = _event(slug)
     if not event.results_published and not is_organizer(request.user, event):
         return render(request, "events/results_hidden.html", {"event": event}, status=403)
-    rows = judging_services.standings(event)
+    everything = list(judging_services.standings(event))
+    track = request.GET.get("track") or ""
+    track_id = as_id(track)
+    rows = [r for r in everything if r.project.track_id == track_id] if track else everything
+    ranked = [r for r in rows if r.rank]
+    for r in ranked:
+        # Within a track the place is counted among that track's projects; ties keep sharing it.
+        r.place = r.rank if not track else 1 + sum(1 for o in ranked if o.rank < r.rank)
+    rubric = judging_services.ensure_rubric(event)
+    calibration = JudgeCalibration.objects.filter(event=event)
+    facts = {
+        "projects": len(ranked),
+        "reviews": sum(r.review_count for r in ranked),
+        "judges": calibration.count(),
+        "flat": calibration.filter(flat=True).count(),
+        "moved": sum(1 for r in ranked if r.rank_raw != r.rank),
+        "fewest": min((r.review_count for r in ranked), default=0),
+        "most": max((r.review_count for r in ranked), default=0),
+    }
     return render(
-        request, "events/results.html", {"event": event, "rows": rows, "preview": not event.results_published}
+        request,
+        "events/results.html",
+        {
+            "event": event,
+            "rows": rows,
+            "leaders": ranked[:3],
+            "rest": ranked[3:] + [r for r in rows if not r.rank],
+            "slope": showcase.slopegraph(ranked),
+            "facts": facts,
+            "rubric": rubric,
+            "jury_k": rubric.effective_jury_k(),
+            "track": track,
+            "track_name": next((t.name for t in event.tracks.all() if t.id == track_id), ""),
+            "voting": event.voting_access != "closed",
+            "preview": not event.results_published,
+        },
     )
 
 
@@ -497,6 +596,13 @@ def organize_rubric(request, slug):
     initial = [
         {"key": c.key, "name": c.name, "weight": c.weight, "description": c.description} for c in rubric.criteria.all()
     ]
+    if request.method == "POST" and "jury_k" in request.POST:
+        try:
+            judging_services.set_jury_k(rubric, request.user, request.POST.get("jury_k", "").strip())
+            messages.success(request, "Saved. Recompute the results to apply it.")
+        except ValidationError as e:
+            messages.error(request, "; ".join(e.messages))
+        return redirect("organize_rubric", slug=slug)
     formset = CriterionFormSet(request.POST or None, initial=initial, prefix="c")
     if request.method == "POST" and not locked and formset.is_valid():
         rows = [
@@ -587,8 +693,8 @@ def organize_results(request, slug):
     )
     movers = []
     for r in rows:
-        if r.rank_raw and r.rank_normalized:
-            r.delta = r.rank_raw - r.rank_normalized  # positive = moved up after normalization
+        if r.rank_raw and r.rank:
+            r.delta = r.rank_raw - r.rank  # positive = moved up once judges and jury size are accounted for
             r.delta_abs = abs(r.delta)
             movers.append(r)
     movers = sorted(movers, key=lambda r: r.delta_abs, reverse=True)[:8]

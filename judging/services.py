@@ -10,7 +10,7 @@ from decimal import Decimal, InvalidOperation
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.validators import validate_slug
 from django.db import transaction
-from django.db.models import Count, F, Q
+from django.db.models import Avg, Count, F, Q
 from django.utils import timezone
 
 from audit.services import record
@@ -318,7 +318,8 @@ def recompute_results(event: Event, user) -> dict:
     if not is_organizer(user, event):
         raise PermissionDenied("Only organizers can compute results.")
     reviews, _, rubric = collect_reviews(event)
-    result = normalize(reviews, rubric.scale_min, rubric.scale_max)
+    result = normalize(reviews, rubric.scale_min, rubric.scale_max, jury_k=rubric.effective_jury_k())
+    by_criterion = criterion_means_for_event(event, rubric)
 
     from community.services import tally
 
@@ -335,6 +336,9 @@ def recompute_results(event: Event, user) -> dict:
             normalized_mean=standing.normalized if standing else None,
             rank_raw=standing.rank_raw if standing else None,
             rank_normalized=standing.rank_normalized if standing else None,
+            adjusted_mean=standing.adjusted if standing else None,
+            rank=standing.rank if standing else None,
+            criterion_means=by_criterion.get(project.id, []),
             community_score=float(community[project.id]["votes"]) if project.id in community else None,
             method=result.method,
         )
@@ -346,15 +350,54 @@ def recompute_results(event: Event, user) -> dict:
             mean=js.mean,
             stdev=js.stdev,
             shrink_weight=js.shrink_weight,
+            shrunk_mean=js.shrunk_mean,
+            shrunk_stdev=js.shrunk_stdev,
             flat=js.flat,
         )
-    record(
-        "results.recompute",
-        actor=user,
-        event=event,
-        detail={"reviews": len(reviews), "projects": len(result.projects), "method": result.method},
+    summary = {
+        "reviews": len(reviews),
+        "projects": len(result.projects),
+        "method": result.method,
+        "judge_k": result.shrink_k,
+        "jury_k": result.jury_k,
+        "panel_mean": result.panel_mean,
+        "panel_stdev": result.panel_stdev,
+    }
+    record("results.recompute", actor=user, event=event, detail=summary)
+    return summary
+
+
+def criterion_means_for_event(event: Event, rubric: Rubric) -> dict[int, list[dict]]:
+    """Per project, the mean of each criterion over its submitted reviews, in
+    rubric order. One query for the whole event."""
+    criteria = list(rubric.criteria.all())
+    rows = (
+        Score.objects.filter(
+            criterion__rubric=rubric,
+            assignment__event=event,
+            assignment__status=JudgeAssignment.Status.SUBMITTED,
+        )
+        .values("assignment__project_id", "criterion_id")
+        .annotate(mean=Avg("value"), n=Count("id"))
     )
-    return {"reviews": len(reviews), "projects": len(result.projects), "method": result.method}
+    found = {(r["assignment__project_id"], r["criterion_id"]): r for r in rows}
+    span = max(1, rubric.scale_max - rubric.scale_min)
+    out: dict[int, list[dict]] = {}
+    for project_id in {k[0] for k in found}:
+        out[project_id] = []
+        for c in criteria:
+            r = found.get((project_id, c.id))
+            out[project_id].append(
+                {
+                    "key": c.key,
+                    "name": c.name,
+                    "weight": float(c.weight),
+                    "n": r["n"] if r else 0,
+                    "mean": round(r["mean"], 4) if r else None,
+                    "pct": round(100 * (r["mean"] - rubric.scale_min) / span) if r else 0,
+                }
+            )
+    return out
 
 
 @transaction.atomic
@@ -373,8 +416,22 @@ def standings(event: Event):
     return (
         ProjectResult.objects.filter(event=event, project__in=eligible_projects(event))
         .select_related("project", "project__track", "project__team")
-        .order_by(F("rank_normalized").asc(nulls_last=True), F("rank_raw").asc(nulls_last=True), "id")
+        .order_by(F("rank").asc(nulls_last=True), F("rank_normalized").asc(nulls_last=True), "id")
     )
+
+
+@transaction.atomic
+def set_jury_k(rubric: Rubric, user, value) -> Rubric:
+    """Change how strongly projects with few reviews are pulled toward the
+    panel mean. None follows the event's reviews per project; 0 is off."""
+    if not is_organizer(user, rubric.event):
+        raise PermissionDenied("Only organizers can edit the rubric.")
+    new = None if value in (None, "") else as_int(value, "Jury-size adjustment", 0, 100)
+    if new != rubric.jury_k:
+        record("rubric.jury_k", actor=user, event=rubric.event, target=rubric, detail={"changed": [rubric.jury_k, new]})
+        rubric.jury_k = new
+        rubric.save(update_fields=["jury_k"])
+    return rubric
 
 
 def progress(event: Event) -> list[dict]:

@@ -456,6 +456,7 @@ def results(request, slug: str):
     if not event.results_published and not is_organizer(request.user, event):
         raise PermissionDenied("Results are not published yet.")
     out = []
+    scale_max = judging_services.ensure_rubric(event).scale_max
     for r in judging_services.standings(event):
         out.append(
             {
@@ -468,6 +469,10 @@ def results(request, slug: str):
                 "normalized_mean": r.normalized_mean,
                 "rank_raw": r.rank_raw,
                 "rank_normalized": r.rank_normalized,
+                "adjusted_mean": r.adjusted_mean,
+                "rank": r.rank,
+                "scale_max": scale_max,
+                "criterion_means": r.criterion_means,
                 "community_score": r.community_score,
                 "method": r.method,
             }

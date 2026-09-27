@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 from django.conf import settings
-from django.core.validators import MinValueValidator
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
 
@@ -16,9 +16,24 @@ class Rubric(models.Model):
     scale_min = models.PositiveSmallIntegerField(default=1)
     scale_max = models.PositiveSmallIntegerField(default=5)
     instructions = models.TextField(blank=True)
+    jury_k = models.PositiveSmallIntegerField(
+        "Jury-size adjustment",
+        null=True,
+        blank=True,
+        validators=[MaxValueValidator(100)],
+        help_text=(
+            "How many reviews the panel mean counts for when a project has few. "
+            "Empty uses the event's reviews per project; 0 switches the adjustment off."
+        ),
+    )
 
     def __str__(self) -> str:
         return f"{self.name} ({self.event.slug})"
+
+    def effective_jury_k(self) -> float:
+        if self.jury_k is None:
+            return float(self.event.reviews_per_project)
+        return float(self.jury_k)
 
     @property
     def total_weight(self) -> Decimal:
@@ -97,6 +112,11 @@ class ProjectResult(models.Model):
     normalized_mean = models.FloatField(null=True, blank=True)
     rank_raw = models.PositiveIntegerField(null=True, blank=True)
     rank_normalized = models.PositiveIntegerField(null=True, blank=True)
+    # The score that decides the ranking: normalized, then adjusted for how
+    # many reviews the project received.
+    adjusted_mean = models.FloatField(null=True, blank=True)
+    rank = models.PositiveIntegerField(null=True, blank=True)
+    criterion_means = models.JSONField(default=list, blank=True)
     community_score = models.FloatField(null=True, blank=True)
     method = models.CharField(max_length=60, blank=True)
     computed_at = models.DateTimeField(auto_now=True)
@@ -104,10 +124,17 @@ class ProjectResult(models.Model):
     class Meta:
         # Unranked projects last on every database (SQLite would put them first).
         ordering = [
+            models.F("rank").asc(nulls_last=True),
             models.F("rank_normalized").asc(nulls_last=True),
-            models.F("rank_raw").asc(nulls_last=True),
             "id",
         ]
+
+    @property
+    def moved(self) -> int | None:
+        """Places gained (positive) or lost between the raw mean and the final rank."""
+        if self.rank is None or self.rank_raw is None:
+            return None
+        return self.rank_raw - self.rank
 
 
 class JudgeCalibration(models.Model):
@@ -120,6 +147,8 @@ class JudgeCalibration(models.Model):
     mean = models.FloatField(null=True, blank=True)
     stdev = models.FloatField(null=True, blank=True)
     shrink_weight = models.FloatField(null=True, blank=True)
+    shrunk_mean = models.FloatField(null=True, blank=True)
+    shrunk_stdev = models.FloatField(null=True, blank=True)
     flat = models.BooleanField(default=False)
     computed_at = models.DateTimeField(auto_now=True)
 

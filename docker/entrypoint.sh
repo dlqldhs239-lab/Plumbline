@@ -10,7 +10,13 @@ python manage.py createcachetable
 
 if [ "${PLUMBLINE_SEED:-1}" = "1" ]; then
   echo "[plumbline] seeding ${PLUMBLINE_FIXTURES:-fixtures.json}"
-  python manage.py seed_fixtures "${PLUMBLINE_FIXTURES:-fixtures.json}"
+  # The sample event closed months ago and every review is in, so it is
+  # loaded as a finished event: results computed and published.
+  if [ "${PLUMBLINE_SEED_PUBLISH:-1}" = "1" ]; then
+    python manage.py seed_fixtures "${PLUMBLINE_FIXTURES:-fixtures.json}" --publish
+  else
+    python manage.py seed_fixtures "${PLUMBLINE_FIXTURES:-fixtures.json}"
+  fi
 fi
 
 echo "[plumbline] serving on http://0.0.0.0:8080"

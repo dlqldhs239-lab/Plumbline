@@ -37,6 +37,8 @@ class ProjectResultAdmin(admin.ModelAdmin):
         "normalized_mean",
         "rank_raw",
         "rank_normalized",
+        "adjusted_mean",
+        "rank",
         "method",
     )
     list_filter = ("event",)

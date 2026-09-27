@@ -23,4 +23,15 @@
   </form>
 </div>
 <p class="muted" style="margin-top:.75rem">Need another row? Save once and an empty row appears.</p>
+
+<div class="card" style="margin-top:var(--s7)" id="jury">
+  <h3>Jury-size adjustment</h3>
+  <p class="muted">Projects do not all get the same number of reviews. A mean of two reviews is a weaker claim than a mean of five, so each project is pulled toward the panel mean in proportion to how few reviews it has. The number below is how many reviews the panel mean counts for. Currently <strong>{{ rubric.effective_jury_k|floatformat:"-1" }}</strong>{% if rubric.jury_k is None %}, following this event's reviews per project{% endif %}.</p>
+  <form method="post" class="row" style="align-items:flex-end">
+    {% csrf_token %}
+    <div class="field" style="margin:0;width:12rem"><label for="jury_k">Counts as this many reviews</label><input type="number" id="jury_k" name="jury_k" min="0" max="100" step="1" value="{{ rubric.jury_k|default_if_none:'' }}" placeholder="{{ event.reviews_per_project }}"></div>
+    <button class="btn" type="submit">Save</button>
+  </form>
+  <p class="help">Leave empty to follow reviews per project. 0 switches the adjustment off. The method and a worked example are in JUDGING.md.</p>
+</div>
 {% endblock %}

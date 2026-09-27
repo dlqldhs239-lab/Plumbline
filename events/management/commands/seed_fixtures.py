@@ -94,6 +94,11 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("path", nargs="?", default="fixtures.json")
         parser.add_argument("--quiet", action="store_true")
+        parser.add_argument(
+            "--publish",
+            action="store_true",
+            help="On the first load, compute the results and publish them, so the sample event is a finished one.",
+        )
 
     def handle(self, *args, **options):
         path = Path(options["path"])
@@ -101,7 +106,7 @@ class Command(BaseCommand):
             raise CommandError(f"fixtures file not found: {path}")
         data = json.loads(path.read_text(encoding="utf-8"))
         with transaction.atomic():
-            headers = self.load(data)
+            headers = self.load(data, publish=options["publish"])
         if not options["quiet"]:
             self.stdout.write("")
             self.stdout.write("[plumbline] seed complete. Auth headers for .dogfood.toml:")
@@ -118,7 +123,7 @@ class Command(BaseCommand):
             self.stdout.write(f"  participant  {headers['_participant_email']}")
 
     # ------------------------------------------------------------------
-    def load(self, data: dict) -> dict:
+    def load(self, data: dict, publish: bool = False) -> dict:
         ev = data["event"]
         close = parse_datetime(ev["submissions_close"])
         if close is None:
@@ -263,6 +268,12 @@ class Command(BaseCommand):
         headers = self.headers(
             {"organizer": organizer, "judge_a": judge_a, "judge_b": judge_b, "participant": participant}, issue=True
         )
+
+        if publish:
+            from judging.services import publish_results, recompute_results
+
+            recompute_results(event, organizer)
+            publish_results(event, organizer)
 
         record(
             "seed.fixtures",

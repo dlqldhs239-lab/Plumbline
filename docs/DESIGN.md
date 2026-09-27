@@ -25,10 +25,39 @@ reference is the one visual idea, used four ways:
 
 | screen | signature | what it shows |
 |---|---|---|
-| Landing | thirty plumb lines that swing and settle | each judge's lean from the panel mean |
-| Results | slopegraph, raw order to normalized order | which projects moved and how far |
+| Landing | one plumb line per judge, swinging and settling | each judge's lean from the panel mean |
+| Results | slopegraph, raw order to final order | which projects moved and how far |
+| Event | the dates on one rule, with a bob at today | where the event is in its life |
 | Organizer calibration | elevation against a datum line | each judge's mean and spread |
 | Judge review | graduated rod | the score scale as a measuring instrument |
+
+## The public pages
+
+**Landing.** The lines hang in the upper part of the first screen and the
+headline stands under them; no line crosses a letter. Every line is a judge
+of the most judged published event on the installation, drawn without name
+or id: lean is the judge's mean minus the panel's, length is the number of
+reviews, dashed is a judge who gave every project the same mark. The counter
+reads the mean lean still on show, in rubric points, and reaches 0.00 when
+the field has settled. The loop then stops, and it stops whenever the field
+leaves the screen.
+
+The headline is chosen from the data (`judging/showcase.py`). If the panel
+has a judge who gave every project the same mark, the page opens with that
+and with the project the mark was holding up. Otherwise it opens with the
+project that moved furthest. If nothing is published, it says so. No number
+on the page is written by hand; `tests/test_showcase.py` checks each one
+against the database.
+
+**Results.** Scores are shown the way Hackathon Raptors publishes its own:
+`3.930 adjusted / 5.00 · 3 judges`, with the mean of every criterion. The
+slopegraph is drawn on the server as SVG, so it is there with scripts off;
+the script only follows one project across on hover or focus. Under 1100px
+the graph gives way to the table, which on a phone keeps place, project,
+judges, adjusted score and movement.
+
+**Event.** The dates are one rule. Under 800px the rule gives way to a table
+of the same dates.
 
 ## Tokens
 
@@ -66,4 +95,5 @@ Cyanotype, Charcoal and red.
 - the stylesheet contains `transition: all`, a box shadow, a backdrop filter,
   a banned typeface or a non-token radius;
 - a colour literal appears outside the token blocks;
-- any template or stylesheet loads anything over the network.
+- any template or stylesheet loads anything over the network;
+- a script holds a colour literal or makes a request (`tests/test_showcase.py`).

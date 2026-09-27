@@ -61,7 +61,7 @@ raw scores therefore ranks luck of the draw along with quality.
 
 ## 4. Normalization: per-judge z-scores with shrinkage
 
-Implemented in `judging/normalization.py`, method id `zscore-shrink-v1`.
+Implemented in `judging/normalization.py`, method id `zscore-shrink-v2`.
 
 For each judge *j* with *n_j* submitted reviews, compute their mean *m_j*
 and sample standard deviation *σ_j*. For the whole panel compute *M* and *Σ*
@@ -95,8 +95,62 @@ the rubric scale and clipped to it:
 N(p) = clip( M + mean_j z(j, p) · Σ ,  scale_min, scale_max )
 ```
 
-Ranking is by *N(p)*, dense (ties share a rank). The raw mean and raw rank
-are kept beside it so the organizer can see exactly what moved.
+### Jury size
+
+Projects do not all get the same number of reviews (two to five in the
+fixtures). A mean of two reviews is a weaker claim than a mean of five: with
+two, one enthusiastic judge is half the score. So the last step pulls each
+project toward the panel mean in proportion to how little evidence it has:
+
+```
+A(p) = ( n_p · N(p) + J · M ) / ( n_p + J )
+```
+
+*J* is counted in reviews: the prior weighs as much as *J* reviews at the
+panel mean would. By default *J* is the event's reviews per project (3 in the
+fixtures), so a project that got the intended number of reviews keeps half
+of its distance from the mean and one that got more keeps more. The
+organizer can set *J* on the rubric page; 0 switches the step off. Hackathon
+Raptors publishes its own results with the same adjustment at *J* = 10 for
+panels of about nine judges per project, which is the same ratio.
+
+Two properties, both tested: the adjustment never moves a score past the
+panel mean, and projects with equal review counts keep the order they had
+before it.
+
+Ranking is by *A(p)*, standard competition ranking (ties share a rank, the
+next rank is skipped). The raw mean, the normalized score and the rank each
+of them would have given are stored beside it, so the organizer can see what
+moved at which step.
+
+### A case small enough to check by hand
+
+Two judges, three projects, scale 1 to 5, *K* = 3, *J* = 3.
+
+| | p1 | p2 | p3 | mean | spread |
+|---|---:|---:|---:|---:|---:|
+| judge A | 4 | 2 | | 3.0 | 1.414 |
+| judge B | 5 | 4 | 3 | 4.0 | 1.000 |
+
+Panel: five reviews, *M* = 3.6, *Σ* = 1.140.
+
+| | reviews | weight | shrunk mean | shrunk spread |
+|---|---:|---:|---:|---:|
+| judge A | 2 | 2/5 = 0.4 | 0.4·3.0 + 0.6·3.6 = 3.36 | 0.4·1.414 + 0.6·1.140 = 1.250 |
+| judge B | 3 | 3/6 = 0.5 | 0.5·4.0 + 0.5·3.6 = 3.80 | 0.5·1.000 + 0.5·1.140 = 1.070 |
+
+| project | z from A | z from B | mean z | normalized | reviews | adjusted | rank |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| p1 | (4 − 3.36)/1.250 = 0.512 | (5 − 3.80)/1.070 = 1.121 | 0.817 | 3.6 + 0.817·1.140 = 4.531 | 2 | (2·4.531 + 3·3.6)/5 = 3.972 | 1 |
+| p2 | (2 − 3.36)/1.250 = −1.088 | (4 − 3.80)/1.070 = 0.187 | −0.451 | 3.086 | 2 | 3.394 | 2 |
+| p3 | | (3 − 3.80)/1.070 = −0.748 | −0.748 | 2.748 | 1 | (2.748 + 3·3.6)/4 = 3.387 | 3 |
+
+On raw means p2 and p3 tie at 3.0. The generous judge B gave p3 a 3, which
+for B is a low mark, so normalization puts p3 below p2; the jury-size step
+then narrows the gap, because p3 has a single review, without reversing it.
+`tests/test_normalization.py` asserts these numbers, and checks the module
+against a second implementation written from this document on the full
+fixture set.
 
 ### The flat judge
 
@@ -114,9 +168,17 @@ their projects.
 122 submitted reviews, 40 projects (the duplicate submission is excluded),
 30 judges. Panel mean 3.557, spread 0.653.
 
-- **32 of 40 projects change rank.** Most moves are one to three places;
-  the top two swap nothing but a tie-break.
-- **Largest move: *Small Relay*, raw #12 → normalized #29.** It has two
+- **31 of 40 projects change rank** between the raw mean and the final
+  rank. Most moves are one to three places.
+- **The raw tie for first is broken.** *Iron Switch* and *Salt Ledger* both
+  have a raw mean of 4.333. *Salt Ledger* drew jdg_02, the most generous
+  judge on the panel; with that accounted for, *Iron Switch* is first
+  (3.930 against 3.896).
+- **Jury size at work: *Still Beacon*, raw #3, final #7.** Its 4.167 comes
+  from two reviews. Judge normalization takes it to sixth; the jury-size
+  step puts *Salt Kiln*, with three reviews and nearly the same normalized
+  score, ahead of it.
+- **Largest move: *Small Relay*, raw #12, final #26.** It has two
   reviews: a 4.0 from the flat judge jdg_07, and a 3.33 from jdg_29, for
   whom that is a below-average mark. Half of its raw mean came from a review
   carrying no information; once that is treated as neutral, the informative
@@ -153,5 +215,5 @@ choice with an explanation in the UI, not a division-by-zero guard.
 Change with more time: a pairwise mode (Gavel's Crowd-BT) as an alternative
 that sidesteps calibration entirely; an interaction term for track
 difficulty when judges are track-restricted, since a judge's mean is then
-partly the track's mean; and confidence intervals on *N(p)* so the results
+partly the track's mean; and confidence intervals on *A(p)* so the results
 page can say when two projects are indistinguishable.

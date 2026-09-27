@@ -1,17 +1,18 @@
 {% extends "base.html" %}
+{% load plumbline %}
 {% block title %}{{ project.title }} · {{ event.name }}{% endblock %}
 {% block content %}
-<div class="page-head">
+<div class="page-head tall">
   <div>
-    <div class="eyebrow"><a href="{{ event.get_absolute_url }}">{{ event.name }}</a> · <a href="{% url 'gallery' event.slug %}">Gallery</a></div>
-    <h1>{{ project.title }}</h1>
-    {% if project.tagline %}<p class="muted">{{ project.tagline }}</p>{% endif %}
-    <div class="row">
-      <span class="badge {% if project.status == 'submitted' %}ok{% elif project.status == 'draft' %}warn{% else %}bad{% endif %}">{{ project.get_status_display }}</span>
+    <div class="eyebrow"><a href="{{ event.get_absolute_url }}">{{ event.name }}</a> · <a href="{% url 'gallery' event.slug %}">Gallery</a>{% if project.track %} · <a href="{% url 'gallery' event.slug %}?track={{ project.track_id }}">{{ project.track.name }}</a>{% endif %}</div>
+    <h1 class="display-2">{{ project.title }}</h1>
+    {% if project.tagline %}<p class="lede">{{ project.tagline }}</p>{% endif %}
+    <div class="row byline">
+      <span>by <strong>{{ project.team.name }}</strong></span>
+      {% if project.submitted_at %}<span class="mono tnum muted">submitted {{ project.submitted_at|date:"Y-m-d H:i" }} UTC</span>{% endif %}
+      {% if project.status != 'submitted' %}<span class="badge {% if project.status == 'draft' %}warn{% else %}bad{% endif %}">{{ project.get_status_display }}</span>{% endif %}
       {% if project.is_hidden %}<span class="badge bad">Hidden from gallery</span>{% endif %}
       {% if project.duplicate_of %}<span class="badge warn">Duplicate of <a href="{{ project.duplicate_of.get_absolute_url }}">#{{ project.duplicate_of_id }}</a></span>{% endif %}
-      {% if project.track %}<span class="badge neutral">{{ project.track.name }}</span>{% endif %}
-      <small>by {{ project.team.name }}{% if project.submitted_at %} · submitted {{ project.submitted_at|date:"Y-m-d H:i" }} UTC{% endif %}</small>
     </div>
   </div>
   {% if can_edit %}
@@ -30,21 +31,21 @@
   {% endif %}
 </div>
 
-<div class="grid cols-2">
-  <div class="stack">
-    {% if project.thumbnail_url %}<img class="thumb" src="{{ project.thumbnail_url }}" alt="">{% endif %}
-    <div class="card">
-      <h3>Description</h3>
-      {% if project.description %}{{ project.description|linebreaks }}{% else %}<p class="muted">No description yet.</p>{% endif %}
-    </div>
+<div class="grid split wide">
+  <div class="stack loose">
+    {% if project.thumbnail_url %}<img class="thumb wide" src="{{ project.thumbnail_url }}" alt="">{% endif %}
+    <section class="card flat">
+      <h3 class="sr-only">Description</h3>
+      {% if project.description %}<div class="prose">{{ project.description|linebreaks }}</div>{% else %}<p class="muted">No description yet.</p>{% endif %}
+    </section>
     {% if project.image_urls %}
-    <div class="card"><h3>Gallery</h3><div class="grid cols-3">{% for u in project.image_urls %}<a href="{{ u }}" target="_blank" rel="noopener"><img class="thumb" src="{{ u }}" alt="" style="margin:0"></a>{% endfor %}</div></div>
+    <section class="card"><h3>Gallery</h3><div class="grid cols-3">{% for u in project.image_urls %}<a href="{{ u }}" target="_blank" rel="noopener"><img class="thumb" src="{{ u }}" alt="Image {{ forloop.counter }} of {{ project.title }}" style="margin:0" loading="lazy"></a>{% endfor %}</div></section>
     {% endif %}
     {% if answers %}
-    <div class="card"><h3>Organizer questions</h3>{% for a in answers %}<p><strong>{{ a.question.prompt }}</strong><br>{{ a.value|default:"—"|linebreaksbr }}</p>{% endfor %}</div>
+    <section class="card"><h3>Organizer questions</h3><dl class="qa">{% for a in answers %}<dt>{{ a.question.prompt }}</dt><dd>{{ a.value|default:"No answer"|linebreaksbr }}</dd>{% endfor %}</dl></section>
     {% endif %}
     {% if feedback %}
-    <div class="card" id="feedback">
+    <section class="card" id="feedback">
       <h3>Feedback from the judges</h3>
       <p class="muted">{% if is_member %}Only your team and the organizers can read this.{% else %}Visible to the team once results are published.{% endif %} Judges are not named.</p>
       {% for f in feedback %}
@@ -53,68 +54,76 @@
         {% if f.comment %}<p>{{ f.comment }}</p>{% else %}<p class="muted">No written comment.</p>{% endif %}
       </div>
       {% endfor %}
-    </div>
+    </section>
     {% endif %}
     {% if event.comments_enabled and project.is_public %}
-    <div class="card" id="comments">
+    <section class="card" id="comments">
       <h3>Comments</h3>
       {% for c in comments %}
-        <div style="padding:.6rem 0;border-bottom:1px solid var(--line)" class="{% if c.is_hidden %}dim{% endif %}">
-          <div class="row spread"><strong>{{ c.author.get_full_name|default:c.author.username }}</strong><small class="muted">{{ c.created_at|date:"Y-m-d H:i" }} UTC{% if c.is_hidden %} · hidden{% endif %}</small></div>
-          {% if c.is_hidden and not is_organizer %}<p class="muted"><em>Hidden by an organizer.</em></p>{% else %}<p style="margin:.25rem 0 0;white-space:pre-wrap">{{ c.body }}</p>{% endif %}
-          {% if is_organizer %}<form method="post" action="{% url 'hide_comment' event.slug project.pk c.pk %}" class="inline">{% csrf_token %}<input type="hidden" name="hidden" value="{% if c.is_hidden %}0{% else %}1{% endif %}"><button class="btn small" type="submit">{% if c.is_hidden %}Unhide{% else %}Hide{% endif %}</button></form>{% endif %}
+        <div class="review{% if c.is_hidden %} dim{% endif %}">
+          <div class="row spread"><strong>{{ c.author.get_full_name|default:c.author.username }}</strong><small class="muted mono tnum">{{ c.created_at|date:"Y-m-d H:i" }} UTC{% if c.is_hidden %} · hidden{% endif %}</small></div>
+          {% if c.is_hidden and not is_organizer %}<p class="muted">Hidden by an organizer.</p>{% else %}<p>{{ c.body }}</p>{% endif %}
+          {% if is_organizer %}<form method="post" action="{% url 'hide_comment' event.slug project.pk c.pk %}" class="inline">{% csrf_token %}<input type="hidden" name="hidden" value="{% if c.is_hidden %}0{% else %}1{% endif %}"><button class="btn small" type="submit" style="margin-top:var(--s3)">{% if c.is_hidden %}Unhide{% else %}Hide{% endif %}</button></form>{% endif %}
         </div>
       {% empty %}<p class="muted">No comments yet.</p>{% endfor %}
       {% if user.is_authenticated %}
-        <form method="post" action="{% url 'add_comment' event.slug project.pk %}" style="margin-top:1rem">{% csrf_token %}<div class="field"><label for="body">Add a comment</label><textarea id="body" name="body" rows="3" maxlength="2000" required></textarea></div><button class="btn" type="submit">Post</button></form>
-      {% else %}<p class="muted" style="margin-top:.75rem"><a href="{% url 'accounts:login' %}?next={{ request.path }}">Sign in</a> to comment.</p>{% endif %}
-    </div>
+        <form method="post" action="{% url 'add_comment' event.slug project.pk %}" style="margin-top:var(--s5)">{% csrf_token %}<div class="field"><label for="body">Add a comment</label><textarea id="body" name="body" rows="3" maxlength="2000" required></textarea></div><button class="btn" type="submit">Post</button></form>
+      {% else %}<p class="muted" style="margin-top:var(--s4)"><a href="{% url 'accounts:login' %}?next={{ request.path }}">Sign in</a> to comment.</p>{% endif %}
+    </section>
     {% endif %}
   </div>
-  <div class="stack">
-    <div class="card">
-      <h3>Links</h3>
-      <table>
-        {% if project.repo_url %}<tr><td>Repository</td><td><a href="{{ project.repo_url }}" rel="noopener" target="_blank">{{ project.repo_url }}</a></td></tr>{% endif %}
-        {% if project.live_url %}<tr><td>Live</td><td><a href="{{ project.live_url }}" rel="noopener" target="_blank">{{ project.live_url }}</a></td></tr>{% endif %}
-        {% if project.demo_video_url %}<tr><td>Demo video</td><td><a href="{{ project.demo_video_url }}" rel="noopener" target="_blank">{{ project.demo_video_url }}</a></td></tr>{% endif %}
-      </table>
-      {% if not project.repo_url and not project.live_url and not project.demo_video_url %}<p class="muted">No links yet.</p>{% endif %}
-    </div>
-    {% if project.tech_tags %}<div class="card"><h3>Built with</h3><div class="tags">{% for t in project.tech_tags %}<span>{{ t }}</span>{% endfor %}</div></div>{% endif %}
-    <div class="card">
-      <h3>Team {{ project.team.name }}</h3>
-      <ul>{% for m in members %}<li>{{ m.user.get_full_name|default:m.user.username }}{% if m.role == 'owner' %} <span class="badge neutral">owner</span>{% endif %}</li>{% endfor %}</ul>
-    </div>
-    {% if event.voting_open and project.is_public %}
-    <div class="card"><h3>Community vote</h3><p class="muted">Voting is open for this event.</p><a class="btn" href="{% url 'ballot' event.slug %}#p{{ project.pk }}">Go to your ballot</a></div>
-    {% endif %}
-    {% if result %}
-    <div class="card" id="result">
+
+  <div class="stack loose">
+    {% if not project.thumbnail_url %}<div class="cover rail" style="{{ project.title|cover_style }}" aria-hidden="true"><b>{{ project.title }}</b>{% if project.track %}<i>{{ project.track.name }}</i>{% endif %}</div>{% endif %}
+    {% if result and result.rank %}
+    <section class="card result" id="result">
       <h3>Result{% if not event.results_published %} <span class="badge warn">Not published</span>{% endif %}</h3>
+      <div class="score">
+        <b class="tnum">{{ result.adjusted_mean|floatformat:3 }}</b>
+        <span class="label">adjusted / {{ rubric.scale_max }}.00 · {{ result.review_count }} judge{{ result.review_count|pluralize }}</span>
+      </div>
       <table>
-        <tr><td>Rank</td><td class="num"><strong>{{ result.rank_normalized }}</strong></td></tr>
-        <tr><td>Score, adjusted</td><td class="num"><strong>{{ result.normalized_mean|floatformat:3 }}</strong></td></tr>
-        <tr><td>Raw average</td><td class="num">{{ result.raw_mean|floatformat:3 }}</td></tr>
-        <tr><td>Judges</td><td class="num">{{ result.review_count }}</td></tr>
+        <tr><td>Place</td><td class="num"><strong>{{ result.rank }}</strong> of {{ ranked }}</td></tr>
+        {% if in_track %}<tr><td>In {{ project.track.name }}</td><td class="num"><strong>{{ in_track.rank }}</strong> of {{ in_track.of }}</td></tr>{% endif %}
+        <tr><td>Raw mean</td><td class="num">{{ result.raw_mean|floatformat:3 }} <small>place {{ result.rank_raw }}</small></td></tr>
+        <tr><td>Judges set true</td><td class="num">{{ result.normalized_mean|floatformat:3 }} <small>place {{ result.rank_normalized }}</small></td></tr>
       </table>
-    </div>
+      <p class="help"><a href="{% url 'results' event.slug %}#method">How the score is made</a></p>
+    </section>
     {% endif %}
     {% if breakdown %}
-    <div class="card" id="breakdown">
+    <section class="card" id="breakdown">
       <h3>By criterion</h3>
       <table>
-        <thead><tr><th>Criterion</th><th class="num">Weight</th><th class="num">Mean</th><th style="width:34%"></th></tr></thead>
+        <thead><tr><th>Criterion</th><th class="num">Weight</th><th class="num">Mean</th><th style="width:34%"><span class="sr-only">Mean on the scale</span></th></tr></thead>
         <tbody>{% for c in breakdown %}<tr><td>{{ c.name }}</td><td class="num">{{ c.weight|floatformat:"-2" }}</td><td class="num">{% if c.mean is not None %}{{ c.mean|floatformat:2 }}{% else %}n/a{% endif %}</td><td><div class="bar"><span style="width:{{ c.pct }}%"></span></div></td></tr>{% endfor %}</tbody>
       </table>
-    </div>
+    </section>
+    {% endif %}
+    <section class="card">
+      <h3>Links</h3>
+      {% if project.repo_url or project.live_url or project.demo_video_url %}
+      <dl class="links">
+        {% if project.repo_url %}<dt class="label">Repository</dt><dd><a href="{{ project.repo_url }}" rel="noopener" target="_blank">{{ project.repo_url }}</a></dd>{% endif %}
+        {% if project.live_url %}<dt class="label">Live</dt><dd><a href="{{ project.live_url }}" rel="noopener" target="_blank">{{ project.live_url }}</a></dd>{% endif %}
+        {% if project.demo_video_url %}<dt class="label">Demo video</dt><dd><a href="{{ project.demo_video_url }}" rel="noopener" target="_blank">{{ project.demo_video_url }}</a></dd>{% endif %}
+      </dl>
+      {% else %}<p class="muted">No links yet.</p>{% endif %}
+    </section>
+    {% if project.tech_tags %}<section class="card"><h3>Built with</h3><div class="tags">{% for t in project.tech_tags %}<span>{{ t }}</span>{% endfor %}</div></section>{% endif %}
+    <section class="card">
+      <h3>Team {{ project.team.name }}</h3>
+      <ul class="plain">{% for m in members %}<li>{{ m.user.get_full_name|default:m.user.username }}{% if m.role == 'owner' %} <span class="badge neutral">owner</span>{% endif %}</li>{% endfor %}</ul>
+    </section>
+    {% if event.voting_open and project.is_public %}
+    <section class="card"><h3>Community vote</h3><p class="muted">Voting is open for this event.</p><a class="btn" href="{% url 'ballot' event.slug %}#p{{ project.pk }}">Go to your ballot</a></section>
     {% endif %}
     {% if lookalikes %}
-    <div class="card" id="lookalikes">
+    <section class="card" id="lookalikes">
       <h3>Shares a repository or live address</h3>
       <p class="muted">Only organizers see this. Nothing is excluded automatically; hide a project if it is the same work entered twice.</p>
-      <ul>{% for t in lookalikes %}<li><a href="{{ t.get_absolute_url }}">{{ t.title }}</a> <small class="muted">{{ t.team.name }}</small></li>{% endfor %}</ul>
-    </div>
+      <ul class="plain">{% for t in lookalikes %}<li><a href="{{ t.get_absolute_url }}">{{ t.title }}</a> <small class="muted">{{ t.team.name }}</small></li>{% endfor %}</ul>
+    </section>
     {% endif %}
   </div>
 </div>

@@ -1,19 +1,115 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}Results · {{ event.name }}{% endblock %}
 {% block content %}
-<div class="page-head"><div><div class="eyebrow"><a href="{{ event.get_absolute_url }}">{{ event.name }}</a></div><h1>Results</h1>
-{% if preview %}<span class="badge warn">Organizer preview, not published</span>{% else %}<small class="muted">Published {{ event.results_published_at|date:"Y-m-d H:i" }} UTC</small>{% endif %}</div></div>
-{% if rows %}
-<div class="card table-wrap">
-<table>
-  <thead><tr><th class="num">#</th><th>Project</th><th>Team</th><th>Track</th><th class="num">Reviews</th><th class="num">Score</th>{% if event.voting_access != 'closed' %}<th class="num">Community votes</th>{% endif %}</tr></thead>
-  <tbody>
-  {% for r in rows %}
-    <tr><td class="num"><strong>{{ r.rank_normalized|default:"—" }}</strong></td><td><a href="{{ r.project.get_absolute_url }}">{{ r.project.title }}</a></td><td>{{ r.project.team.name }}</td><td>{{ r.project.track.name|default:"" }}</td><td class="num">{{ r.review_count }}</td><td class="num">{{ r.normalized_mean|floatformat:2|default:"—" }}</td>{% if event.voting_access != 'closed' %}<td class="num">{{ r.community_score|floatformat:0|default:"0" }}</td>{% endif %}</tr>
-  {% endfor %}
-  </tbody>
-</table>
+<div class="page-head tall">
+  <div>
+    <div class="eyebrow"><a href="{{ event.get_absolute_url }}">{{ event.name }}</a> · {% if preview %}organizer preview, not published{% else %}published {{ event.results_published_at|date:"Y-m-d H:i" }} UTC{% endif %}</div>
+    <h1 class="display-2">Results{% if track_name %}<small>{{ track_name }}</small>{% endif %}</h1>
+    {% if facts.projects %}
+    <p class="lede">{{ facts.projects }} project{{ facts.projects|pluralize }}, {{ facts.reviews }} reviews{% if not track %}, {{ facts.judges }} judges{% endif %}. Scores are corrected for how each judge marks and for how many reviews a project received. {{ facts.moved }} project{{ facts.moved|pluralize }} changed place.</p>
+    {% endif %}
+  </div>
+  {% if event.tracks.all %}
+  <form method="get" class="filters two" aria-label="Filter results">
+    <select name="track" aria-label="Track">
+      <option value="">All tracks</option>
+      {% for t in event.tracks.all %}<option value="{{ t.id }}"{% if track == t.id|stringformat:"s" %} selected{% endif %}>{{ t.name }}</option>{% endfor %}
+    </select>
+    <button class="btn" type="submit">Show</button>
+  </form>
+  {% endif %}
 </div>
-<p class="muted" style="margin-top:.75rem">Score is the cross-judge normalized mean on the rubric scale ({{ rows.0.method }}). See the organizer's JUDGING notes for the method.</p>
-{% else %}<div class="empty"><strong>No results yet</strong>Standings appear here when the organizers publish them.</div>{% endif %}
+{% if preview %}<ul class="messages"><li class="warning">Only organizers see this page until the results are published.</li></ul>{% endif %}
+
+{% if leaders %}
+<section class="leaders" aria-label="First three places">
+  {% for r in leaders %}
+  <article class="leader">
+    <span class="place tnum" aria-label="Place {{ r.place }}">{{ r.place }}</span>
+    <div class="who">
+      <h2><a href="{{ r.project.get_absolute_url }}">{{ r.project.title }}</a></h2>
+      <p>{{ r.project.team.name }}{% if r.project.track %} · {{ r.project.track.name }}{% endif %}</p>
+    </div>
+    <dl class="marks">
+      {% for c in r.criterion_means %}<div><dt class="label">{{ c.name }}</dt><dd class="tnum">{% if c.mean is not None %}{{ c.mean|floatformat:2 }}{% else %}n/a{% endif %}</dd></div>{% endfor %}
+    </dl>
+    <div class="score">
+      <b class="tnum">{{ r.adjusted_mean|floatformat:3 }}</b>
+      <span class="label">adjusted / {{ rubric.scale_max }}.00 · {{ r.review_count }} judge{{ r.review_count|pluralize }}</span>
+      <span class="label was">raw {{ r.raw_mean|floatformat:3 }}, place {{ r.rank_raw }}</span>
+    </div>
+  </article>
+  {% endfor %}
+</section>
+{% endif %}
+
+{% if slope %}
+<section class="slope-block" aria-labelledby="slope-h">
+  <div class="block-head inset">
+    <span class="label">What moved</span>
+    <h2 id="slope-h">Raw order, final order</h2>
+    <p>Left, the order raw means gave. Right, the order that stands. A line that climbs is a project that was marked by harder judges than its neighbours.{% if slope.shown < slope.total %} The first {{ slope.shown }} of {{ slope.total }} are drawn; the table below has all of them.{% endif %}</p>
+  </div>
+  <div class="slope-cap"><span class="label">Raw mean</span><span class="key"><span class="label up">Up three or more</span><span class="label down">Down three or more</span><span class="label held">Held</span></span><span class="label">Adjusted</span></div>
+  <div class="slope" style="--rows:{{ slope.shown }};--row:{{ slope.row }}px">
+    <ol class="slope-col left">
+      {% for r in slope.left %}<li><a href="{{ r.project.get_absolute_url }}" data-p="{{ r.project_id }}"><span class="t">{{ r.project.title }}</span><span class="tnum">{{ r.raw_mean|floatformat:3 }}</span></a></li>{% endfor %}
+    </ol>
+    <svg viewBox="0 0 {{ slope.width }} {{ slope.height }}" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+      {% for l in slope.lines %}<path class="{{ l.tone }}" d="{{ l.d }}" data-p="{{ l.id }}" vector-effect="non-scaling-stroke"/>{% endfor %}
+    </svg>
+    <ol class="slope-col right">
+      {% for r in slope.right %}<li><a href="{{ r.project.get_absolute_url }}" data-p="{{ r.project_id }}"><span class="tnum">{{ r.adjusted_mean|floatformat:3 }}</span><span class="t">{{ r.project.title }}</span></a></li>{% endfor %}
+    </ol>
+  </div>
+</section>
+{% endif %}
+
+{% if rows %}
+<section aria-labelledby="table-h">
+  <div class="block-head inset">
+    <span class="label">Standings</span>
+    <h2 id="table-h">Every project</h2>
+  </div>
+  <div class="table-wrap">
+  <table class="standings">
+    <thead><tr><th class="num">Place</th><th>Project</th><th class="wide">Team</th>{% if not track %}<th class="wide">Track</th>{% endif %}<th class="num">Judges</th><th class="num wide">Raw</th><th class="num wide">Judges set true</th><th class="num">Adjusted</th><th class="num">Moved</th>{% if voting %}<th class="num wide">Community votes</th>{% endif %}</tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr>
+        <td class="num"><strong>{% if r.rank %}{{ r.place }}{% else %}n/a{% endif %}</strong></td>
+        <td><a href="{{ r.project.get_absolute_url }}">{{ r.project.title }}</a><small class="narrow">{{ r.project.team.name }}</small></td>
+        <td class="wide">{{ r.project.team.name }}</td>
+        {% if not track %}<td class="wide">{{ r.project.track.name|default:"" }}</td>{% endif %}
+        <td class="num">{{ r.review_count }}</td>
+        <td class="num wide">{% if r.raw_mean is not None %}{{ r.raw_mean|floatformat:3 }}{% else %}n/a{% endif %}</td>
+        <td class="num wide">{% if r.normalized_mean is not None %}{{ r.normalized_mean|floatformat:3 }}{% else %}n/a{% endif %}</td>
+        <td class="num"><strong>{% if r.adjusted_mean is not None %}{{ r.adjusted_mean|floatformat:3 }}{% else %}n/a{% endif %}</strong></td>
+        <td class="num">{% with m=r.moved %}{% if m is None %}{% elif m > 0 %}<span class="move up">+{{ m }}</span>{% elif m < 0 %}<span class="move down">−{% widthratio m -1 1 %}</span>{% else %}<span class="move">0</span>{% endif %}{% endwith %}</td>
+        {% if voting %}<td class="num wide">{{ r.community_score|floatformat:0|default:"0" }}</td>{% endif %}
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% if not facts.projects %}<p class="muted">No project {% if track %}in this track {% endif %}has a submitted review yet.</p>{% endif %}
+</section>
+
+<section class="method" id="method" aria-labelledby="method-h">
+  <div class="block-head inset">
+    <span class="label">Method · {{ rows.0.method }}</span>
+    <h2 id="method-h">How the score is made</h2>
+  </div>
+  <ol class="steps quiet">
+    <li><span class="label">01 · Raw</span><p>Each judge's marks are combined by the rubric's weights into one score from {{ rubric.scale_min }} to {{ rubric.scale_max }}. The raw mean is the plain average of a project's reviews.</p></li>
+    <li><span class="label">02 · Judges set true</span><p>Each score is read against its judge's own mean and spread, so a four from a judge who gives fours to everyone counts for less than a four from a judge who rarely does. Judges with few reviews are read partly against the panel.{% if facts.flat %} {{ facts.flat }} judge{{ facts.flat|pluralize }} gave every project the same mark; those marks count as no opinion.{% endif %}</p></li>
+    <li><span class="label">03 · Adjusted</span><p>Projects here received between {{ facts.fewest }} and {{ facts.most }} reviews. {% if jury_k %}A project is pulled toward the panel mean as if {{ jury_k|floatformat:"-1" }} more reviews at that mean had been given, so a score resting on two reviews is trusted less than one resting on five.{% else %}The organizers have switched the jury-size adjustment off for this event.{% endif %} This is the score that ranks.</p></li>
+  </ol>
+  <p class="after">Community votes, where an event has them, are shown beside the judged score and never mixed into it.</p>
+</section>
+{% else %}
+<div class="empty"><strong>No results yet</strong>Standings appear here when the organizers publish them.</div>
+{% endif %}
 {% endblock %}
+{% block scripts %}{% if slope %}<script src="{% static 'js/slope.js' %}" defer></script>{% endif %}{% endblock %}

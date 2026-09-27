@@ -126,6 +126,7 @@ def scores_csv(event: Event) -> tuple[str, list[list]]:
 def results_csv(event: Event) -> tuple[str, list[list]]:
     rows = [
         [
+            "rank",
             "rank_normalized",
             "rank_raw",
             "project_id",
@@ -135,6 +136,7 @@ def results_csv(event: Event) -> tuple[str, list[list]]:
             "reviews",
             "raw_mean",
             "normalized_mean",
+            "adjusted_mean",
             "method",
         ]
     ]
@@ -142,6 +144,7 @@ def results_csv(event: Event) -> tuple[str, list[list]]:
     for r in qs:
         rows.append(
             [
+                r.rank or "",
                 r.rank_normalized or "",
                 r.rank_raw or "",
                 r.project_id,
@@ -151,6 +154,7 @@ def results_csv(event: Event) -> tuple[str, list[list]]:
                 r.review_count,
                 f"{r.raw_mean:.4f}" if r.raw_mean is not None else "",
                 f"{r.normalized_mean:.4f}" if r.normalized_mean is not None else "",
+                f"{r.adjusted_mean:.4f}" if r.adjusted_mean is not None else "",
                 r.method,
             ]
         )

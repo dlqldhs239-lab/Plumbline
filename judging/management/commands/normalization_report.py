@@ -2,8 +2,8 @@
 
     python manage.py normalization_report sample-hack-2026 > docs/normalization-proof.md
 
-Shows judge statistics, then every project's raw mean, normalized score and
-rank movement. This is the artifact JUDGING.md refers to; it is regenerated
+Shows judge statistics, then every project's raw mean, normalized score,
+jury-size adjusted score and rank movement. This is the artifact JUDGING.md refers to; it is regenerated
 from the database, never edited by hand.
 """
 
@@ -28,7 +28,7 @@ class Command(BaseCommand):
         except Event.DoesNotExist:
             raise CommandError("no such event") from None
         reviews, weights, rubric = collect_reviews(event)
-        result = normalize(reviews, rubric.scale_min, rubric.scale_max)
+        result = normalize(reviews, rubric.scale_min, rubric.scale_max, jury_k=rubric.effective_jury_k())
         titles = {str(p.id): p for p in Project.objects.filter(event=event).select_related("track")}
         judge_label = {}
         for r in EventRole.objects.filter(event=event, role=Role.JUDGE).select_related("user"):
@@ -44,7 +44,8 @@ class Command(BaseCommand):
         )
         out(
             f"{len(reviews)} submitted reviews over {len(result.projects)} eligible projects by {len(result.judges)} judges. "
-            f"Panel mean {result.panel_mean:.3f}, panel spread {result.panel_stdev:.3f}."
+            f"Panel mean {result.panel_mean:.3f}, panel spread {result.panel_stdev:.3f}. "
+            f"Judge shrinkage K = {result.shrink_k:g}; jury-size adjustment J = {result.jury_k:g}."
         )
         out("")
         out("## Judges")
@@ -64,26 +65,31 @@ class Command(BaseCommand):
         out("## Projects")
         out("")
         out(
-            "Sorted by normalized rank. Δ is raw rank minus normalized rank: positive means the project moved up once judge bias was removed."
+            "Sorted by final rank. Δ is raw rank minus final rank: positive means the project moved up "
+            "once judge bias was removed and the number of reviews was accounted for."
         )
         out("")
-        out("| norm. rank | raw rank | Δ | project | track | reviews | raw mean | normalized | judges |")
-        out("|---:|---:|---:|---|---|---:|---:|---:|---|")
+        out(
+            "| rank | norm. rank | raw rank | Δ | project | track | reviews | raw mean | normalized | weight | adjusted | judges |"
+        )
+        out("|---:|---:|---:|---:|---|---|---:|---:|---:|---:|---:|---|")
         by_project_judges: dict[str, list[str]] = {}
         for r in reviews:
             by_project_judges.setdefault(r.project_id, []).append(judge_label.get(r.judge_id, r.judge_id))
-        for pid, s in sorted(result.projects.items(), key=lambda kv: (kv[1].rank_normalized or 0, kv[0])):
+        for pid, s in sorted(result.projects.items(), key=lambda kv: (kv[1].rank or 0, kv[0])):
             p = titles.get(pid)
-            delta = (s.rank_raw or 0) - (s.rank_normalized or 0)
+            delta = (s.rank_raw or 0) - (s.rank or 0)
             sign = f"+{delta}" if delta > 0 else str(delta)
             out(
-                f"| {s.rank_normalized} | {s.rank_raw} | {sign} | {p.title if p else pid} | {p.track.name if p and p.track else ''} | {s.n} | {s.raw_mean:.3f} | {s.normalized:.3f} | {', '.join(sorted(by_project_judges.get(pid, [])))} |"
+                f"| {s.rank} | {s.rank_normalized} | {s.rank_raw} | {sign} | {p.title if p else pid} | "
+                f"{p.track.name if p and p.track else ''} | {s.n} | {s.raw_mean:.3f} | {s.normalized:.3f} | "
+                f"{s.jury_weight:.2f} | {s.adjusted:.3f} | {', '.join(sorted(by_project_judges.get(pid, [])))} |"
             )
-        moved = sum(1 for s in result.projects.values() if s.rank_raw != s.rank_normalized)
-        biggest = max(result.projects.values(), key=lambda s: abs((s.rank_raw or 0) - (s.rank_normalized or 0)))
+        moved = sum(1 for s in result.projects.values() if s.rank_raw != s.rank)
+        biggest = max(result.projects.values(), key=lambda s: abs((s.rank_raw or 0) - (s.rank or 0)))
         out("")
         out(
             f"{moved} of {len(result.projects)} projects changed rank. Largest move: "
             f"{titles[biggest.project_id].title if biggest.project_id in titles else biggest.project_id} "
-            f"from raw #{biggest.rank_raw} to normalized #{biggest.rank_normalized}."
+            f"from raw #{biggest.rank_raw} to final #{biggest.rank}."
         )
