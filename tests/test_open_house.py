@@ -72,7 +72,22 @@ class SeedTests(OpenHouse):
         self.assertEqual((AuditLog.objects.count(), Project.objects.count(), Vote.objects.count()), before)
         self.assertEqual(Event.objects.filter(external_id="open_house").count(), 1)
         order = [r.project.title for r in judging.placed(self.house)]
-        self.assertEqual((order[0], order[-1]), ("Late Train", "Green Room"))
+        self.assertEqual((order[0], order[-1]), ("Roll Call", "Paper Trail"))
+
+    def test_the_same_seed_gives_the_same_assignment_whatever_order_the_judges_come_in(self):
+        from unittest import mock
+
+        def pairs():
+            rows = JudgeAssignment.objects.filter(event=self.house).values_list("judge_id", "project_id")
+            return sorted(rows)
+
+        first = pairs()
+        real = judging.judges_for
+        for order in (lambda rows: rows[::-1], lambda rows: rows[3:] + rows[:3]):
+            JudgeAssignment.objects.filter(event=self.house).delete()
+            with mock.patch.object(judging, "judges_for", lambda e, order=order: order(list(real(e)))):
+                judging.assign_balanced(self.house, self.organizer, 3, batch="again", seed=7)
+            self.assertEqual(pairs(), first)
 
     def test_the_fixture_event_is_untouched_and_both_are_on_the_front_page(self):
         self.assertEqual(self.event.projects.count(), 41)

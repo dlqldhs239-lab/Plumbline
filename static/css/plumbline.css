@@ -599,6 +599,7 @@ h2.rule:first-child { margin-top: 0; }
 /* ================================================ organizer console */
 .console-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s4); }
 .table-wrap.scroll { max-height: 448px; overflow: auto; }
+.table-wrap.scroll.tall { max-height: min(70vh, 760px); }
 .table-wrap.scroll thead th { position: sticky; top: 0; background: var(--ground); padding-top: var(--s2); }
 h2.rule.grow { flex: 1; margin-top: 0; }
 

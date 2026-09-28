@@ -144,7 +144,7 @@ public internet.
 
 ## How it was checked
 
-- 367 tests, run on every change. Among them a second implementation of the
+- 368 tests, run on every change. Among them a second implementation of the
   normalization and one of the Bradley-Terry estimator, each written from the
   document and not from the module.
 - The official checker (T1, T2) and `tools/verify_tiers.py` (T3, T4), against

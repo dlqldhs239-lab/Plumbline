@@ -262,7 +262,7 @@ pip install -r requirements.txt
 python manage.py migrate && python manage.py createcachetable
 python manage.py seed_fixtures fixtures.json
 python manage.py runserver 8080
-python manage.py test tests            # 367 tests, 5 to 12 minutes
+python manage.py test tests            # 368 tests, 5 to 12 minutes
 python manage.py normalization_report sample-hack-2026 > docs/normalization-proof.md
 ```
 

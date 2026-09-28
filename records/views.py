@@ -107,7 +107,10 @@ def organize_records(request, slug):
         except ValidationError as e:
             messages.error(request, "; ".join(e.messages))
         return redirect("organize_records", slug=slug)
-    records = list(event.records.select_related("recipient", "project", "event").order_by("kind", "revoked_at", "id"))
+    records = list(event.records.select_related("recipient", "project", "event").order_by("id"))
+    # Places first, in order; then participation; then the judges.
+    first = {Record.Kind.PLACEMENT: 0, Record.Kind.PARTICIPATION: 1, Record.Kind.JUDGE: 2}
+    records.sort(key=lambda r: (r.is_revoked, first.get(r.kind, 3), r.payload.get("place") or 0, r.id))
     ground = services.Ground(event)
     for r in records:
         r.resting = "" if r.is_revoked else services.why_not_standing(r, ground)

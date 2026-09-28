@@ -132,7 +132,9 @@ def assign_balanced(
         seed = as_int(seed, "seed", 0, 2**31 - 1)
     rng = random.Random(seed)
 
-    judge_roles = list(judges_for(event))
+    # In a fixed order. The database returns rows in whatever order suits
+    # it, and the same seed has to give the same assignment on any of them.
+    judge_roles = sorted(judges_for(event), key=lambda r: r.user_id)
     if not judge_roles:
         raise ValidationError("This event has no judges yet.")
     load = {r.user_id: 0 for r in judge_roles}
