@@ -27,6 +27,7 @@ PHRASES = {
     "import.judges": "imported judges",
     "import.projects": "imported projects",
     "judge.add": "added as judge",
+    "judge.invite": "invited",
     "judge.remove": "removed the judge",
     "judge.sign_in_link": "made a sign-in link for",
     "prize.create": "added the prize",

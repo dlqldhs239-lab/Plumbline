@@ -431,7 +431,7 @@ class SpreadsheetTests(SeededTestCase):
             out = StringIO()
             call_command(command, self.event.slug, stdout=out)
             line = next(x for x in out.getvalue().splitlines() if "Iron" in x and x.startswith("|"))
-            header = next(x for x in out.getvalue().splitlines() if x.startswith("| ") and "project" in x.lower())
+            header = next(x for x in out.getvalue().splitlines() if x.startswith("| ") and "| project |" in x.lower())
             self.assertIn("Iron \\| Switch and more", line, command)
             self.assertEqual(line.replace("\\|", "").count("|"), header.count("|"), command)
 

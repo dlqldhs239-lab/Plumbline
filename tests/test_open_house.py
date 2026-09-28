@@ -72,7 +72,7 @@ class SeedTests(OpenHouse):
         self.assertEqual((AuditLog.objects.count(), Project.objects.count(), Vote.objects.count()), before)
         self.assertEqual(Event.objects.filter(external_id="open_house").count(), 1)
         order = [r.project.title for r in judging.placed(self.house)]
-        self.assertEqual((order[0], order[-1]), ("Roll Call", "Paper Trail"))
+        self.assertEqual((order[0], order[-1]), ("Roll Call", "Green Room"))
 
     def test_the_same_seed_gives_the_same_assignment_whatever_order_the_judges_come_in(self):
         from unittest import mock

@@ -828,6 +828,8 @@ def organize_results(request, slug):
     datum = elevation["datum"]["value"] if elevation else None
     for c in calibration:
         c.lean = (c.mean - datum) if datum is not None and c.mean is not None else None
+        # What the method takes off this judge's scores.
+        c.habit = (c.shrunk_mean - datum) if datum is not None and c.shrunk_mean is not None else None
     movers = []
     for r in rows:
         if r.rank_raw and r.rank:

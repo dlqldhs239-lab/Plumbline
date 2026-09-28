@@ -32,8 +32,33 @@ class NormalizeTests(SimpleTestCase):
         ranks = {p: s.rank_normalized for p, s in res.projects.items()}
         self.assertEqual(ranks["p4"], 1)
         self.assertEqual(ranks["p1"], 5)
-        # Raw mean would put p5 (3.5) below p3 (4.0). Normalized, p5 sits between p3 and p4-ish, above p2.
+        # Raw mean would put p5 (3.5) below p3 (4.0). With H's harshness taken off it is above p2.
         self.assertLess(ranks["p5"], ranks["p2"])
+        self.assertLess(res.judges["H"].leniency, 0)
+        self.assertGreater(res.judges["G"].leniency, 0)
+        self.assertGreater(res.projects["p5"].normalized, 3.5)
+
+    def test_a_judge_who_drew_strong_projects_is_not_taken_for_a_generous_one(self):
+        """What standard scores per judge get wrong. A and B agree on every
+        project they share. A happened to see the three best, B the three
+        worst. Neither is lenient; their means differ by two points."""
+        reviews = []
+        for pid, score, judges in (
+            ("top1", 5.0, "AC"),
+            ("top2", 4.5, "AC"),
+            ("top3", 4.0, "AC"),
+            ("low1", 3.0, "BC"),
+            ("low2", 2.5, "BC"),
+            ("low3", 2.0, "BC"),
+        ):
+            reviews += [Review(j, pid, score) for j in judges]
+        res = normalize(reviews, 1, 5, jury_k=0)
+        self.assertGreater(res.judges["A"].mean - res.judges["B"].mean, 1.9)
+        for judge in "ABC":
+            self.assertAlmostEqual(res.judges[judge].leniency, 0.0, places=9)
+        for s in res.projects.values():
+            self.assertAlmostEqual(s.normalized, s.raw_mean, places=9)
+            self.assertEqual(s.rank, s.rank_raw)
 
     def test_flat_judge_is_rank_neutral(self):
         reviews = [Review("F", f"p{i}", 3.0) for i in range(4)]
@@ -47,12 +72,62 @@ class NormalizeTests(SimpleTestCase):
             self.assertTrue(
                 all(z == 0.0 for z, r in zip(s.z_values, project_reviews, strict=True) if r.judge_id == "F")
             )
+            self.assertEqual((s.n, s.informative), (2, 1))
 
-    def test_single_review_judge_is_shrunk_toward_panel(self):
+    def test_the_flat_judge_changes_nothing_but_the_count(self):
+        others = [Review("A", "p0", 5.0), Review("A", "p1", 3.0), Review("B", "p0", 4.0), Review("B", "p1", 3.5)]
+        flat = [Review("F", "p0", 2.0), Review("F", "p1", 2.0)]
+        without = normalize(others, 1, 5, jury_k=0)
+        with_flat = normalize(others + flat, 1, 5, jury_k=0)
+        for pid in ("p0", "p1"):
+            a, b = without.projects[pid], with_flat.projects[pid]
+            self.assertAlmostEqual(a.normalized, b.normalized, places=9)
+            self.assertAlmostEqual(without.panel_mean, with_flat.panel_mean, places=9)
+            self.assertEqual(a.rank, b.rank)
+
+    def test_a_project_seen_only_by_a_flat_judge_stands_at_the_panel_mean(self):
+        reviews = [Review("F", "only", 5.0), Review("F", "p1", 5.0), Review("A", "p1", 2.0), Review("A", "p2", 4.0)]
+        res = normalize(reviews, 1, 5)
+        self.assertAlmostEqual(res.projects["only"].normalized, res.panel_mean)
+        self.assertAlmostEqual(res.projects["only"].adjusted, res.panel_mean)
+        self.assertEqual(res.projects["only"].informative, 0)
+
+    def test_a_judge_with_one_review_is_believed_less(self):
         reviews = [Review("A", "p1", 1.0), Review("A", "p2", 5.0), Review("A", "p3", 3.0), Review("B", "p3", 5.0)]
         res = normalize(reviews, 1, 5)
-        self.assertLess(res.judges["B"].shrink_weight, 0.3)
-        self.assertGreater(res.judges["A"].shrink_weight, 0.45)
+        self.assertAlmostEqual(res.judges["B"].shrink_weight, 0.5)
+        self.assertAlmostEqual(res.judges["A"].shrink_weight, 0.75)
+        strict = normalize(reviews, 1, 5, shrink_k=1e9)
+        self.assertAlmostEqual(strict.judges["B"].leniency, 0.0, places=6)
+        self.assertGreater(abs(res.judges["B"].leniency), 0.1)
+
+    def test_the_order_of_the_reviews_does_not_matter(self):
+        import random
+
+        rng = random.Random(7)
+        reviews = [Review(f"j{rng.randrange(9)}", f"p{n % 12}", float(rng.randint(1, 5))) for n in range(40)]
+        seen = {(r.judge_id, r.project_id): r for r in reviews}
+        reviews = list(seen.values())
+        first = normalize(reviews, 1, 5)
+        for _ in range(5):
+            rng.shuffle(reviews)
+            again = normalize(reviews, 1, 5)
+            for pid, s in first.projects.items():
+                self.assertEqual(again.projects[pid].adjusted, s.adjusted)
+                self.assertEqual(again.projects[pid].rank, s.rank)
+
+    def test_it_settles(self):
+        import random
+
+        rng = random.Random(11)
+        # A chain: each judge shares one project with the next. The slowest shape to solve.
+        reviews = []
+        for n in range(60):
+            reviews.append(Review(f"j{n}", f"p{n}", float(rng.randint(1, 5))))
+            reviews.append(Review(f"j{n}", f"p{n + 1}", float(rng.randint(1, 5))))
+        res = normalize(reviews, 1, 5)
+        self.assertTrue(res.settled)
+        self.assertGreater(res.rounds, 1)
 
     def test_ranks_are_dense_and_scores_clipped(self):
         reviews = [Review("A", "p1", 5.0), Review("A", "p2", 5.0), Review("A", "p3", 1.0)]
@@ -119,47 +194,70 @@ class JurySizeTests(SimpleTestCase):
 
 def oracle(reviews, scale_min, scale_max, judge_k, jury_k):
     """The same method written a second time, from JUDGING.md and not from
-    the module, with the standard library's statistics functions. If the two
-    disagree, one of them does not do what the document says."""
+    the module. The module repeats two averages until nothing moves; this
+    writes the same conditions as one set of linear equations and solves
+    them by elimination. If the two disagree, one of them does not do what
+    the document says."""
     import statistics
+    from fractions import Fraction
 
-    scores = [r.score for r in reviews]
-    big_m = statistics.fmean(scores)
-    big_s = statistics.stdev(scores) if len(scores) > 1 else 0.0
-    if big_s < 1e-9:
-        big_s = 1.0
-    judge = {}
-    for j in {r.judge_id for r in reviews}:
-        xs = [r.score for r in reviews if r.judge_id == j]
-        m = statistics.fmean(xs)
-        s = statistics.stdev(xs) if len(xs) > 1 else 0.0
-        w = len(xs) / (len(xs) + judge_k)
-        judge[j] = (w * m + (1 - w) * big_m, w * s + (1 - w) * big_s, len(xs) >= 2 and s < 1e-9)
+    by_judge = {}
+    for r in reviews:
+        by_judge.setdefault(r.judge_id, []).append(r.score)
+    flat = {j for j, xs in by_judge.items() if len(xs) >= 2 and max(xs) - min(xs) < 1e-9}
+    said = [r for r in reviews if r.judge_id not in flat]
+    big_m = statistics.fmean(r.score for r in (said or reviews))
+    projects = sorted({r.project_id for r in said})
+    judges = sorted({r.judge_id for r in said})
+    names = [("q", p) for p in projects] + [("b", j) for j in judges]
+    at = {name: n for n, name in enumerate(names)}
+    size = len(names)
+    rows = [[Fraction(0)] * (size + 1) for _ in range(size)]
+    m = Fraction(big_m)
+    for r in said:
+        q, b = at[("q", r.project_id)], at[("b", r.judge_id)]
+        left = Fraction(r.score) - m
+        # n_p * q_p + sum of b over the project's judges = sum of (score - M)
+        rows[q][q] += 1
+        rows[q][b] += 1
+        rows[q][size] += left
+        # (n_j + K) * b_j + sum of q over the judge's projects = sum of (score - M)
+        rows[b][b] += 1
+        rows[b][q] += 1
+        rows[b][size] += left
+    for j in judges:
+        rows[at[("b", j)]][at[("b", j)]] += Fraction(judge_k)
+    for col in range(size):
+        pivot = next(n for n in range(col, size) if rows[n][col] != 0)
+        rows[col], rows[pivot] = rows[pivot], rows[col]
+        for n in range(size):
+            if n != col and rows[n][col] != 0:
+                factor = rows[n][col] / rows[col][col]
+                rows[n] = [x - factor * y for x, y in zip(rows[n], rows[col], strict=True)]
+    solved = {name: float(rows[n][size] / rows[n][n]) for name, n in at.items()}
     out = {}
     for p in {r.project_id for r in reviews}:
-        zs = []
-        for r in reviews:
-            if r.project_id != p:
-                continue
-            m, s, flat = judge[r.judge_id]
-            zs.append(0.0 if flat or s < 1e-9 else (r.score - m) / s)
-        normalized = min(scale_max, max(scale_min, big_m + statistics.fmean(zs) * big_s))
-        n = len(zs)
-        out[p] = (normalized, (n * normalized + jury_k * big_m) / (n + jury_k))
-    return out
+        n = sum(1 for r in said if r.project_id == p)
+        normalized = min(scale_max, max(scale_min, big_m + solved.get(("q", p), 0.0)))
+        adjusted = (n * normalized + jury_k * big_m) / (n + jury_k) if n + jury_k else big_m
+        out[p] = (normalized, adjusted)
+    return out, {j: solved[("b", j)] for j in judges}
 
 
 class OracleTests(SeededTestCase):
     def test_the_module_agrees_with_an_independent_implementation_on_the_fixtures(self):
         reviews, _, rubric = services.collect_reviews(self.event)
         self.assertEqual(len(reviews), 122)
-        for judge_k, jury_k in ((3, 3), (3, 0), (3, 10), (0, 3), (10, 1)):
+        for judge_k, jury_k in ((1, 3), (1, 0), (1, 10), (0.5, 3), (3, 3), (10, 1)):
             res = normalize(reviews, rubric.scale_min, rubric.scale_max, shrink_k=judge_k, jury_k=jury_k)
-            want = oracle(reviews, rubric.scale_min, rubric.scale_max, judge_k, jury_k)
+            self.assertTrue(res.settled)
+            want, leniency = oracle(reviews, rubric.scale_min, rubric.scale_max, judge_k, jury_k)
             self.assertEqual(set(res.projects), set(want))
             for pid, (normalized, adjusted) in want.items():
-                self.assertAlmostEqual(res.projects[pid].normalized, normalized, places=9)
-                self.assertAlmostEqual(res.projects[pid].adjusted, adjusted, places=9)
+                self.assertAlmostEqual(res.projects[pid].normalized, normalized, places=8)
+                self.assertAlmostEqual(res.projects[pid].adjusted, adjusted, places=8)
+            for judge, value in leniency.items():
+                self.assertAlmostEqual(res.judges[judge].leniency, value, places=8)
 
     def test_a_hand_worked_case(self):
         """Small enough to check with a pencil; the arithmetic is in JUDGING.md."""
@@ -170,15 +268,17 @@ class OracleTests(SeededTestCase):
             Review("B", "p2", 4.0),
             Review("B", "p3", 3.0),
         ]
-        res = normalize(reviews, 1, 5, shrink_k=3, jury_k=3)
+        res = normalize(reviews, 1, 5, shrink_k=1, jury_k=3)
         self.assertAlmostEqual(res.panel_mean, 3.6)
-        self.assertAlmostEqual(res.panel_stdev, 1.140175425, places=8)
-        self.assertAlmostEqual(res.judges["A"].shrunk_mean, 0.4 * 3.0 + 0.6 * 3.6)
-        self.assertAlmostEqual(res.judges["B"].shrunk_mean, 0.5 * 4.0 + 0.5 * 3.6)
-        want = oracle(reviews, 1, 5, 3, 3)
+        self.assertAlmostEqual(res.judges["A"].leniency, -0.5)
+        self.assertAlmostEqual(res.judges["B"].leniency, 0.5)
+        for pid, normalized, adjusted in (("p1", 4.5, 3.96), ("p2", 3.0, 3.36), ("p3", 2.5, 3.325)):
+            self.assertAlmostEqual(res.projects[pid].normalized, normalized)
+            self.assertAlmostEqual(res.projects[pid].adjusted, adjusted)
+        self.assertEqual([res.projects[p].rank for p in ("p1", "p2", "p3")], [1, 2, 3])
+        want, _ = oracle(reviews, 1, 5, 1, 3)
         for pid in ("p1", "p2", "p3"):
             self.assertAlmostEqual(res.projects[pid].adjusted, want[pid][1], places=9)
-        self.assertEqual(res.projects["p1"].rank, 1)
 
 
 class FixtureNormalizationTests(SeededTestCase):

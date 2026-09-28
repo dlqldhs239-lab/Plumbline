@@ -69,33 +69,54 @@ not to stay silent about it.
 **Cost.** The official report now ends with "claimed but not verified: T3
 T4". The README says why in its first screen.
 
-## 5. Scores are corrected in two steps, and both can be read
+## 5. Quality and leniency are estimated together, and every step can be read
 
-**Chosen.** Per-judge standard scores with shrinkage toward the panel, then
-an adjustment for how many reviews a project received. Raw mean, normalized
-score and adjusted score are all stored, each with the rank it would give.
+**Chosen.** Each score is taken as the panel mean, plus the project's
+quality, plus the judge's leniency. The two unknowns are solved together;
+a judge's leniency is believed in proportion to how many reviews they gave.
+Then an adjustment for how many reviews a project received. Raw mean,
+normalized score and adjusted score are all stored, each with the rank it
+would give.
+
+**Reversed.** For a day and a half the portal used standard scores per
+judge, shrunk toward the panel, and this entry said that a model solved by
+repetition had been turned down as hard to explain. Then we measured both
+on simulated events where the true order is known
+(`docs/normalization-evidence.md`). Standard scores did worse than the new
+method in every panel and worse than a raw average in two of five. The
+reason is simple once seen: a judge with three reviews who drew three good
+projects looks generous, and standard scores mark those projects down.
 
 **Turned down.** Raw averages. Dropping the highest and lowest mark (with
-two to five reviews there is nothing left). Pairwise comparison (a different
-judging flow; listed as future work). A model fitted by iteration (hard to
-explain to a team that lost a place).
+two to five reviews there is nothing left). Correcting for the spread of a
+judge's marks as well as their level (measured; it made the order worse).
+Letting the data choose the amount of shrinkage (measured; with this few
+reviews the estimate is unstable and picked the wrong amount in two panels
+of five).
 
-**Why.** The method has to be explainable to the team it moved. Every step
-is a formula with one constant, the page shows a project going through all
-three, and `JUDGING.md` has a case small enough to check with a pencil.
+**Given up.** A method that is one formula. This one is two, each defined
+by the other. It is still explainable to the team it moved: your score is
+what your judges gave, less what each of them gives more than other judges
+do on the same projects. `JUDGING.md` has a case small enough to check with
+a pencil.
 
-**Evidence.** A second implementation, written from the document with the
-standard library's statistics functions, agrees with the module to nine
-decimal places on the fixture set for five settings of the constants.
+**Evidence.** A second implementation writes the same conditions as one
+system of linear equations and solves it by elimination in exact
+fractions. It agrees with the module to eight decimal places on the fixture
+set for six settings of the constants.
 
 ## 6. A judge who gives everyone the same mark counts as no opinion
 
-**Chosen.** Their reviews get a standard score of zero and the judge is
-flagged to the organizer.
+**Chosen.** Their reviews are set aside: they take no part in the
+estimate, they are left out of the panel mean, and they do not count as
+evidence when a project's score is adjusted for the size of its jury. They
+are still counted and listed as reviews, the report prints both numbers
+side by side, and the judge is flagged to the organizer.
 
-**Turned down.** Dividing by a spread borrowed from the panel, which would
-manufacture a preference the judge never expressed. Discarding their
-reviews, which would change review counts silently.
+**Turned down.** Treating their marks as marks, which lets a four given to
+everything lift whoever drew that judge. Letting them count toward the
+panel mean, which would move the level every other judge is read against.
+Removing them from view, which would change review counts silently.
 
 **Why.** A four given to everything says nothing about which project is
 better. It is information about the judge, and it is shown as that.
@@ -248,6 +269,12 @@ portal will not do that, and should not have to.
   did. Every test passed, because the tests read the markup. It was found
   while taking screenshots for the README. `tools/check_drawings.py` now checks
   that every drawing arrives.
+- **Measure the method before defending it.** The normalization was
+  documented, proved on the fixture set and checked against a second
+  implementation before anyone asked whether it found the right order.
+  When we asked, on simulated events, it lost to a plain average in two
+  panels of five. The measurement took two hours and should have been
+  the first thing written.
 - **Open it as a stranger would.** The portal was checked against a
   database that had been used for a day. A fresh one showed what a judge
   would see first: most of T3 and T4 switched off. That was found forty

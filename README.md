@@ -18,6 +18,14 @@ organizer how far each judge hangs from the panel, corrects for it with a
 method written down in [JUDGING.md](JUDGING.md), and publishes both orders
 side by side so that anyone can see what the correction did.
 
+The method was measured before it was believed. On simulated events where
+the true order is known, it is compared with a raw average and with the
+standard scores most portals use, and the tables are printed as they came
+out, the one where it loses included:
+[docs/normalization-evidence.md](docs/normalization-evidence.md). The
+portal's first method lost that comparison and was replaced on the second
+day.
+
 | | |
 |---|---|
 | ![Raw order against final order](docs/screens/slopegraph.png) | ![How each judge marks, against the panel mean](docs/screens/elevation.png) |
@@ -25,7 +33,9 @@ side by side so that anyone can see what the correction did.
 | ![The judge console](docs/screens/review.png) | ![Pairwise comparison](docs/screens/compare.png) |
 | **Judge console.** Number keys score, the sheet saves itself, *submit and next* moves on. Made for thirty projects in a sitting. | **Pairwise mode.** Which of two is better, ranked with a Bradley-Terry model beside the rubric. |
 | ![A signed certificate](docs/screens/certificate.png) | ![The organizer's dashboard](docs/screens/console.png) |
-| **Signed records.** A certificate with a number and a signature that anyone can check at `/verify/`. | **Dashboard.** What needs attention before results can be published, and nothing else. |
+| **Signed records.** A certificate with a number and an Ed25519 signature that anyone can check, with the portal or without it. | **Dashboard.** What needs attention before results can be published, and nothing else. |
+| ![The audit log](docs/screens/audit.png) | ![The organizer's voting page](docs/screens/voting.png) |
+| **Audit log.** Who did what to what, as sentences, with the value before and after. | **Community vote.** The tally, and the ballots that came from one address, flagged and not refused. |
 
 The charts are drawn by the server as SVG. There is no chart library, no
 CDN and no build step; the pages work with scripts switched off. The design
@@ -119,7 +129,8 @@ thirty projects in a sitting (keyboard scoring, submit-and-next); role
 isolation enforced in the backend (a judge can only ever load their own
 assignments, through the UI, the API and the exports); a live progress
 dashboard; cross-judge normalization and a jury-size adjustment, with a
-documented method, a generated proof and a second implementation that
+documented method, measurements against a known truth, a generated proof
+and a second implementation that
 checks the first; results published as adjusted score, scale and number of
 judges, with the mean of every criterion and a per-track view; CSV export at every stage; an append-only audit log an
 organizer reads in the browser.
@@ -274,8 +285,9 @@ pip install -r requirements.txt
 python manage.py migrate && python manage.py createcachetable
 python manage.py seed_fixtures fixtures.json
 python manage.py runserver 8080
-python manage.py test tests            # 382 tests, 5 to 12 minutes
+python manage.py test tests            # 395 tests, 5 to 12 minutes
 python manage.py normalization_report sample-hack-2026 > docs/normalization-proof.md
+python manage.py normalization_evidence sample-hack-2026 > docs/normalization-evidence.md
 ```
 
 Without `DATABASE_URL` the development server uses SQLite; Docker uses PostgreSQL.
@@ -285,6 +297,7 @@ Without `DATABASE_URL` the development server uses SQLite; Docker uses PostgreSQ
 - [ARCHITECTURE.md](ARCHITECTURE.md) — the shape of the system and why
 - [DATA-MODEL.md](DATA-MODEL.md) — schema, and how data gets in and out
 - [JUDGING.md](JUDGING.md) — assignment strategy, scoring maths, normalization, defended
+- [docs/normalization-evidence.md](docs/normalization-evidence.md) — does the method find the true order? Measured
 - [docs/normalization-proof.md](docs/normalization-proof.md) — the method run on the fixture data
 - [docs/pairwise-proof.md](docs/pairwise-proof.md) — the pairwise model run on the fixture data
 - [docs/THREAT-MODEL.md](docs/THREAT-MODEL.md) — voting and submission abuse: what is stopped, what is not

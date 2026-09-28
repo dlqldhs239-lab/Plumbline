@@ -46,21 +46,29 @@ class Command(BaseCommand):
         out(
             f"{len(reviews)} submitted reviews over {len(result.projects)} eligible projects by {len(result.judges)} judges. "
             f"Panel mean {result.panel_mean:.3f}, panel spread {result.panel_stdev:.3f}. "
-            f"Judge shrinkage K = {result.shrink_k:g}; jury-size adjustment J = {result.jury_k:g}."
+            f"Judge shrinkage K = {result.shrink_k:g}; jury-size adjustment J = {result.jury_k:g}. "
+            f"Solved in {result.rounds} rounds{'' if result.settled else ', and NOT settled'}."
         )
         out("")
         out("## Judges")
         out("")
-        out("| judge | reviews | mean | spread | shrink weight | shrunk mean | shrunk spread | note |")
+        out(
+            "Leniency is what is taken off each of the judge's scores. It is measured against what other "
+            "judges gave the same projects, and believed in the proportion reviews / (reviews + K)."
+        )
+        out("")
+        out("| judge | reviews | mean | from the panel | spread | believed | leniency | note |")
         out("|---|---:|---:|---:|---:|---:|---:|---|")
         for jid, js in sorted(result.judges.items(), key=lambda kv: judge_label.get(kv[0], kv[0])):
             note = (
-                "flat: every score identical, rank-neutral"
+                "every score the same: set aside, says nothing of any project"
                 if js.flat
-                else ("few reviews: pulled toward panel" if js.n < 3 else "")
+                else ("few reviews: leniency believed little" if js.n < 3 else "")
             )
+            taken = "" if js.flat else f"{js.leniency:+.3f}"
             out(
-                f"| {judge_label.get(jid, jid)} | {js.n} | {js.mean:.3f} | {js.stdev:.3f} | {js.shrink_weight:.2f} | {js.shrunk_mean:.3f} | {js.shrunk_stdev:.3f} | {note} |"
+                f"| {judge_label.get(jid, jid)} | {js.n} | {js.mean:.3f} | {js.mean - result.panel_mean:+.3f} | "
+                f"{js.stdev:.3f} | {js.shrink_weight:.2f} | {taken} | {note} |"
             )
         out("")
         out("## Projects")
@@ -71,9 +79,9 @@ class Command(BaseCommand):
         )
         out("")
         out(
-            "| rank | norm. rank | raw rank | Δ | project | track | reviews | raw mean | normalized | weight | adjusted | judges |"
+            "| rank | norm. rank | raw rank | Δ | project | track | reviews | that count | raw mean | normalized | weight | adjusted | judges |"
         )
-        out("|---:|---:|---:|---:|---|---|---:|---:|---:|---:|---:|---|")
+        out("|---:|---:|---:|---:|---|---|---:|---:|---:|---:|---:|---:|---|")
         by_project_judges: dict[str, list[str]] = {}
         for r in reviews:
             by_project_judges.setdefault(r.project_id, []).append(judge_label.get(r.judge_id, r.judge_id))
@@ -83,7 +91,8 @@ class Command(BaseCommand):
             sign = f"+{delta}" if delta > 0 else str(delta)
             out(
                 f"| {s.rank} | {s.rank_normalized} | {s.rank_raw} | {sign} | {md_cell(p.title if p else pid)} | "
-                f"{md_cell(p.track.name if p and p.track else '')} | {s.n} | {s.raw_mean:.3f} | {s.normalized:.3f} | "
+                f"{md_cell(p.track.name if p and p.track else '')} | {s.n} | {s.informative} | {s.raw_mean:.3f} | "
+                f"{s.normalized:.3f} | "
                 f"{s.jury_weight:.2f} | {s.adjusted:.3f} | {', '.join(sorted(by_project_judges.get(pid, [])))} |"
             )
         moved = sum(1 for s in result.projects.values() if s.rank_raw != s.rank)

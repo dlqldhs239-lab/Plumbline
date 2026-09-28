@@ -35,7 +35,7 @@
   <div class="block-head inset">
     <span class="label">The panel</span>
     <h2 id="elev-h">How each judge marks</h2>
-    <p>The line across is the panel mean, {{ elevation.datum.value|floatformat:3 }}. Each post is a judge, standing from that line to their own mean; the bracket is their spread. Harshest on the left. {% if elevation.flat %}{{ elevation.flat }} judge{{ elevation.flat|pluralize }} gave every project the same score and count{{ elevation.flat|pluralize:"s," }} as no opinion. {% endif %}{% if elevation.thin %}{{ elevation.thin }} gave fewer than three reviews and {{ elevation.thin|pluralize:"is,are" }} read mostly against the panel.{% endif %}</p>
+    <p>The line across is the panel mean, {{ elevation.datum.value|floatformat:3 }}. Each post is a judge, standing from that line to their own mean; the bracket is their spread. Harshest on the left. {% if elevation.flat %}{{ elevation.flat }} judge{{ elevation.flat|pluralize }} gave every project the same score and count{{ elevation.flat|pluralize:"s," }} as no opinion. {% endif %}{% if elevation.thin %}{{ elevation.thin }} gave fewer than three reviews, and what {{ elevation.thin|pluralize:"that tells of their habit,those tell of their habits" }} is believed less.{% endif %}</p>
   </div>
   <div class="elev-wrap">
   <svg class="elev" data-reveal viewBox="0 0 {{ elevation.width }} {{ elevation.height }}" role="img" aria-label="Each judge's mean and spread against the panel mean. The table below has the same figures.">
@@ -66,10 +66,10 @@
 <div class="grid cols-2" style="margin-top:var(--s7)">
   <section class="card">
     <h3>Judges</h3>
-    <p class="muted">The figures behind the drawing. Weight is how much a judge's own mean and spread count against the panel's: reviews / (reviews + 3).</p>
+    <p class="muted">The figures behind the drawing. Leniency is what is taken off each of a judge's scores: how far their marks stand from what other judges gave the same projects, believed in the proportion shown.</p>
     <div class="table-wrap scroll">
-    <table><thead><tr><th>Judge</th><th class="num">Reviews</th><th class="num">Mean</th><th class="num">From panel</th><th class="num">Spread</th><th class="num">Weight</th></tr></thead><tbody>
-    {% for c in calibration %}<tr><td>{{ c.judge.get_full_name|default:c.judge.username }}{% if c.flat %} <span class="badge warn">every score the same</span>{% endif %}</td><td class="num">{{ c.review_count }}</td><td class="num">{{ c.mean|floatformat:2 }}</td><td class="num">{% if c.lean is not None %}<span class="move {% if c.lean > 0.3 %}up{% elif c.lean < -0.3 %}down{% endif %}">{% if c.lean > 0 %}+{% endif %}{{ c.lean|floatformat:2 }}</span>{% endif %}</td><td class="num">{{ c.stdev|floatformat:2 }}</td><td class="num">{{ c.shrink_weight|floatformat:2 }}</td></tr>{% endfor %}
+    <table><thead><tr><th>Judge</th><th class="num">Reviews</th><th class="num">Mean</th><th class="num">From panel</th><th class="num">Leniency</th><th class="num">Spread</th><th class="num">Believed</th></tr></thead><tbody>
+    {% for c in calibration %}<tr><td>{{ c.judge.get_full_name|default:c.judge.username }}{% if c.flat %} <span class="badge warn">every score the same</span>{% endif %}</td><td class="num">{{ c.review_count }}</td><td class="num">{{ c.mean|floatformat:2 }}</td><td class="num">{% if c.lean is not None %}<span class="move {% if c.lean > 0.3 %}up{% elif c.lean < -0.3 %}down{% endif %}">{% if c.lean > 0 %}+{% endif %}{{ c.lean|floatformat:2 }}</span>{% endif %}</td><td class="num">{% if c.flat %}<span class="muted">set aside</span>{% elif c.habit is not None %}<span class="move {% if c.habit > 0.3 %}up{% elif c.habit < -0.3 %}down{% endif %}">{% if c.habit > 0 %}+{% endif %}{{ c.habit|floatformat:2 }}</span>{% endif %}</td><td class="num">{{ c.stdev|floatformat:2 }}</td><td class="num">{{ c.shrink_weight|floatformat:2 }}</td></tr>{% endfor %}
     </tbody></table>
     </div>
     <p class="help"><a href="{% url 'organize_export' event.slug 'calibration' %}">Calibration CSV</a> · <a href="{% url 'organize_export' event.slug 'scores' %}">Every score, CSV</a></p>

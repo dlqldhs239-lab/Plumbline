@@ -27,7 +27,7 @@ browser / curl / run.py
          ├─ events/extras.py        prizes, the organizer's form questions
          ├─ events/importer.py      CSV import: check first, then all or nothing
          ├─ judging/services.py     rubric, assignment, scoring, results
-         ├─ judging/normalization.py  judge z-scores, shrinkage, jury size
+         ├─ judging/normalization.py  quality and leniency, jury size
          ├─ judging/pairwise.py     Bradley-Terry estimator
          ├─ community/services.py   voting, comments, rate limits
          ├─ records/services.py     signed certificates and judge records
@@ -144,7 +144,7 @@ public internet.
 
 ## How it was checked
 
-- 382 tests, run on every change. Among them a second implementation of the
+- 395 tests, run on every change. Among them a second implementation of the
   normalization and one of the Bradley-Terry estimator, each written from the
   document and not from the module.
 - The official checker (T1, T2) and `tools/verify_tiers.py` (T3, T4), against

@@ -65,7 +65,7 @@
       <span class="label">02 · Judges set true</span>
       <b class="tnum">{{ r.normalized_mean|floatformat:3 }}</b>
       <span class="place">then</span>
-      <p>Each mark is read against its judge's own mean and spread.{% if case.kind == "flat" %} Marks from a judge who gave everyone the same count as no opinion.{% endif %}</p>
+      <p>Each judge's leniency, measured against the other judges of the same projects, is taken off.{% if case.kind == "flat" %} Marks from a judge who gave everyone the same count as no opinion.{% endif %}</p>
     </li>
     <li class="final">
       <span class="label">03 · Adjusted for jury size</span>

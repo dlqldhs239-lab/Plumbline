@@ -54,46 +54,79 @@ does not poison a mean; only *submitted* reviews enter the ranking.
 ## 3. Why raw averages are not enough
 
 Judges disagree about where "3" is. In the fixture panel, judge means range
-from 2.0 to 4.2 and spreads from 0.0 to 0.84. With three reviews per project,
-drawing two generous judges is worth roughly half a point on a five-point
-scale, which is more than the gap between first and fifth place. Averaging
-raw scores therefore ranks luck of the draw along with quality.
+from 2.0 to 4.2. With three reviews per project, drawing two generous judges
+is worth roughly half a point on a five-point scale, which is more than the
+gap between first and fifth place. Averaging raw scores therefore ranks luck
+of the draw along with quality.
 
-## 4. Normalization: per-judge z-scores with shrinkage
+## 4. Normalization: quality and leniency, estimated together
 
-Implemented in `judging/normalization.py`, method id `zscore-shrink-v2`.
+Implemented in `judging/normalization.py`, method id `additive-shrink-v3`.
+What it does to the order is measured in
+[docs/normalization-evidence.md](docs/normalization-evidence.md).
 
-For each judge *j* with *n_j* submitted reviews, compute their mean *m_j*
-and sample standard deviation *σ_j*. For the whole panel compute *M* and *Σ*
-over all reviews.
+### The model
 
-A judge with one or two reviews has statistics that are mostly noise, so
-their values are pulled toward the panel with weight
-
-```
-w_j = n_j / (n_j + K),   K = 3
-m̃_j = w_j · m_j + (1 − w_j) · M
-σ̃_j = w_j · σ_j + (1 − w_j) · Σ
-```
-
-This is the usual James–Stein-flavoured shrinkage: with one review a judge's
-own statistics count 25 %, with three 50 %, with nine 75 %. K = 3 was
-chosen because three reviews is where a judge's mean starts to say more
-about the judge than about which projects they happened to draw; it is a
-constant in the module and documented as such.
-
-Each review becomes a standard score against its judge:
+Every score is taken to be made of four things:
 
 ```
-z(j, p) = (s(j, p) − m̃_j) / σ̃_j
+s(j, p) = M + q_p + b_j + noise
 ```
 
-A project's normalized score is the mean of its z-scores mapped back onto
-the rubric scale and clipped to it:
+*M* is the panel mean, *q_p* how far project *p* stands above or below it,
+and *b_j* the leniency of judge *j*: how much higher that judge marks than
+the panel would have marked the same projects. The ranking wants *q_p*. A
+raw average gives *q_p* plus the mean leniency of whoever reviewed the
+project.
+
+### Solving it
+
+Each side is an average of what is left once the other is taken off:
 
 ```
-N(p) = clip( M + mean_j z(j, p) · Σ ,  scale_min, scale_max )
+q_p = mean over the project's reviews of   s(j, p) − M − b_j
+b_j = sum over the judge's reviews of      s(j, p) − M − q_p      divided by   n_j + K
 ```
+
+The two are repeated one after the other, from zero, until no value moves by
+more than 10⁻¹². On the fixture set that takes 139 rounds and a few
+milliseconds. The result does not depend on the order in which the reviews
+arrive; there is a test for that.
+
+*K* = 1 is the shrinkage. Dividing by *n_j* + *K* instead of *n_j* pulls a
+judge's leniency toward zero as if *K* further reviews with no leniency had
+been seen: a judge with one review is believed by half, with three by three
+quarters, with nine by nine tenths. Without it, a judge with a single review
+would be assumed to account for the whole of their disagreement with the
+others.
+
+A project's normalized score is its quality put back on the rubric scale and
+kept inside it:
+
+```
+N(p) = clip( M + q_p ,  scale_min, scale_max )
+```
+
+### Why not standard scores per judge
+
+That is what most portals do, and what this one did for its first day and a
+half: read each score against its judge's own mean and spread. It has a flaw
+that matters at exactly the sizes hackathons have. A judge's mean depends on
+which projects they drew. With three or four reviews each, a judge who
+happened to get strong projects has a high mean, is taken for generous, and
+has their projects marked down for it.
+
+Estimating both sides together does not make that mistake: a judge's
+leniency is measured against what *other judges gave the same projects*,
+not against the panel at large. `tests/test_normalization.py` has the case
+in its smallest form: two judges who agree on everything, one of whom saw
+the three best projects. Their means are two points apart and their
+leniency is zero.
+
+The spread of a judge's marks is not corrected. We tried it. With this few
+reviews a judge the estimate of their spread is mostly noise, and rescaling
+by it made the order worse in every simulated panel. It is shown to the
+organizer and used for nothing.
 
 ### Jury size
 
@@ -106,13 +139,22 @@ project toward the panel mean in proportion to how little evidence it has:
 A(p) = ( n_p · N(p) + J · M ) / ( n_p + J )
 ```
 
-*J* is counted in reviews: the prior weighs as much as *J* reviews at the
-panel mean would. By default *J* is the event's reviews per project (3 in the
-fixtures), so a project that got the intended number of reviews keeps half
-of its distance from the mean and one that got more keeps more. The
-organizer can set *J* on the rubric page; 0 switches the step off. Hackathon
-Raptors publishes its own results with the same adjustment at *J* = 10 for
-panels of about nine judges per project, which is the same ratio.
+*n_p* is the number of the project's reviews that say something (see the
+flat judge, below). *J* is counted in reviews: the prior weighs as much as
+*J* reviews at the panel mean would. By default *J* is the event's reviews
+per project (3 in the fixtures), so a project that got the intended number
+of reviews keeps half of its distance from the mean and one that got more
+keeps more. The organizer can set *J* on the rubric page; 0 switches the
+step off. Hackathon Raptors publishes its own results with the same
+adjustment at *J* = 10 for panels of about nine judges per project, which is
+the same ratio.
+
+This step is a policy, not a correction. In the simulations it leaves the
+agreement with the true order where it was and costs a little in how often
+the truly best project is ranked first, because the best project is
+sometimes one with few reviews. What it buys is that no project wins on two
+opinions against one that convinced five. An organizer who prefers the
+other trade sets *J* to 0.
 
 Two properties, both tested: the adjustment never moves a score past the
 panel mean, and projects with equal review counts keep the order they had
@@ -125,71 +167,114 @@ moved at which step.
 
 ### A case small enough to check by hand
 
-Two judges, three projects, scale 1 to 5, *K* = 3, *J* = 3.
+Two judges, three projects, scale 1 to 5, *K* = 1, *J* = 3.
 
-| | p1 | p2 | p3 | mean | spread |
-|---|---:|---:|---:|---:|---:|
-| judge A | 4 | 2 | | 3.0 | 1.414 |
-| judge B | 5 | 4 | 3 | 4.0 | 1.000 |
-
-Panel: five reviews, *M* = 3.6, *Σ* = 1.140.
-
-| | reviews | weight | shrunk mean | shrunk spread |
+| | p1 | p2 | p3 | mean |
 |---|---:|---:|---:|---:|
-| judge A | 2 | 2/5 = 0.4 | 0.4·3.0 + 0.6·3.6 = 3.36 | 0.4·1.414 + 0.6·1.140 = 1.250 |
-| judge B | 3 | 3/6 = 0.5 | 0.5·4.0 + 0.5·3.6 = 3.80 | 0.5·1.000 + 0.5·1.140 = 1.070 |
+| judge A | 4 | 2 | | 3.0 |
+| judge B | 5 | 4 | 3 | 4.0 |
 
-| project | z from A | z from B | mean z | normalized | reviews | adjusted | rank |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| p1 | (4 − 3.36)/1.250 = 0.512 | (5 − 3.80)/1.070 = 1.121 | 0.817 | 3.6 + 0.817·1.140 = 4.531 | 2 | (2·4.531 + 3·3.6)/5 = 3.972 | 1 |
-| p2 | (2 − 3.36)/1.250 = −1.088 | (4 − 3.80)/1.070 = 0.187 | −0.451 | 3.086 | 2 | 3.394 | 2 |
-| p3 | | (3 − 3.80)/1.070 = −0.748 | −0.748 | 2.748 | 1 | (2.748 + 3·3.6)/4 = 3.387 | 3 |
+Five reviews, *M* = 3.6. On both projects they share, B marks one or two
+points higher than A.
 
-On raw means p2 and p3 tie at 3.0. The generous judge B gave p3 a 3, which
-for B is a low mark, so normalization puts p3 below p2; the jury-size step
-then narrows the gap, because p3 has a single review, without reversing it.
-`tests/test_normalization.py` asserts these numbers, and checks the module
-against a second implementation written from this document on the full
-fixture set.
+The conditions, written out:
+
+```
+q1 = ( (4 − 3.6 − bA) + (5 − 3.6 − bB) ) / 2
+q2 = ( (2 − 3.6 − bA) + (4 − 3.6 − bB) ) / 2
+q3 =   (3 − 3.6 − bB)
+bA = ( (4 − 3.6 − q1) + (2 − 3.6 − q2) ) / (2 + 1)
+bB = ( (5 − 3.6 − q1) + (4 − 3.6 − q2) + (3 − 3.6 − q3) ) / (3 + 1)
+```
+
+They are satisfied by
+
+| | value |
+|---|---:|
+| bA | −0.5 |
+| bB | +0.5 |
+| q1 | +0.9 |
+| q2 | −0.6 |
+| q3 | −1.1 |
+
+which can be checked by putting the numbers back in. Then:
+
+| project | raw mean | normalized | reviews | adjusted | rank |
+|---|---:|---:|---:|---:|---:|
+| p1 | 4.5 | 3.6 + 0.9 = 4.5 | 2 | (2·4.5 + 3·3.6)/5 = 3.960 | 1 |
+| p2 | 3.0 | 3.6 − 0.6 = 3.0 | 2 | (2·3.0 + 3·3.6)/5 = 3.360 | 2 |
+| p3 | 3.0 | 3.6 − 1.1 = 2.5 | 1 | (2.5 + 3·3.6)/4 = 3.325 | 3 |
+
+On raw means p2 and p3 tie at 3.0. But p3's 3 comes from B alone, who marks
+half a point high; p2's 3.0 is the mean of a harsh mark and a generous one.
+So p3 goes below p2, and the jury-size step narrows the gap, because p3 has
+a single review, without reversing it.
+
+`tests/test_normalization.py` asserts these numbers. It also checks the
+module against a second implementation on the full fixture set: the same
+conditions written as one system of linear equations and solved by
+elimination in exact fractions. The two agree to eight decimal places for
+six settings of *K* and *J*.
 
 ### The flat judge
 
-A judge who gives every project the same score has σ_j = 0 and, more to the
-point, has expressed no preference between projects. Dividing by a shrunk
-σ̃_j would manufacture a preference out of the panel's spread. Instead their
-reviews are given z = 0: they count as "no information" and leave the
-project at the panel mean for that review. The judge is flagged `flat` in
-the calibration table so the organizer can see it and, if they want, replace
-them. In the fixtures this is **jdg_07**, who gave 4/4/4 to all three of
-their projects.
+A judge who gives every project the same score has expressed no preference
+between projects. Whatever is done with their marks, it should not move one
+project relative to another, and it should not move the level the others
+are read against either.
+
+So their reviews are set aside: they take no part in the solving, they are
+left out of the panel mean, and they are not counted in *n_p*. They are
+still counted and shown as reviews, and the judge is flagged in the
+organizer's table, who may want to replace them. A project reviewed by
+nobody else stands at the panel mean.
+
+In the fixtures this is **jdg_07**, who gave 4/4/4 to all three of their
+projects.
 
 ### What it does on the fixture data
 
 122 submitted reviews, 40 projects (the duplicate submission is excluded),
-30 judges. Panel mean 3.557, spread 0.653.
+30 judges. Panel mean 3.546.
 
-- **31 of 40 projects change rank** between the raw mean and the final
+- **35 of 40 projects change rank** between the raw mean and the final
   rank. Most moves are one to three places.
 - **The raw tie for first is broken.** *Iron Switch* and *Salt Ledger* both
-  have a raw mean of 4.333. *Salt Ledger* drew jdg_02, the most generous
-  judge on the panel; with that accounted for, *Iron Switch* is first
-  (3.930 against 3.896).
-- **Jury size at work: *Still Beacon*, raw #3, final #7.** Its 4.167 comes
-  from two reviews. Judge normalization takes it to sixth; the jury-size
-  step puts *Salt Kiln*, with three reviews and nearly the same normalized
-  score, ahead of it.
-- **Largest move: *Small Relay*, raw #12, final #26.** It has two
-  reviews: a 4.0 from the flat judge jdg_07, and a 3.33 from jdg_29, for
-  whom that is a below-average mark. Half of its raw mean came from a review
-  carrying no information; once that is treated as neutral, the informative
-  review places it in the lower half. This is the method working as
-  intended, not an artefact.
-- **jdg_01** has a single review (2.0). With w = 0.25 their mean is shrunk
-  from 2.0 to 3.17, so that one harsh mark neither dominates the project nor
-  is thrown away.
-- **jdg_02**, with six reviews and a mean of 4.22, is a generous judge with
-  a healthy spread; their projects move down a place or two relative to raw,
-  as they should.
+  have a raw mean of 4.333. *Salt Ledger* has four reviews and *Iron Switch*
+  three, and one of *Iron Switch*'s is from jdg_15, the most lenient judge
+  on the panel (+0.51). *Salt Ledger* is first, 3.973 against 3.874.
+- **Jury size at work: *Still Beacon*, raw #3, final #10.** Its 4.167 comes
+  from two reviews, one of them from jdg_15. With that taken off it is
+  eighth; the jury-size step then puts two projects with more reviews ahead
+  of it.
+- **Largest move: *Small Relay*, raw #12, final #23.** It has two reviews:
+  a 4.0 from the flat judge jdg_07, and a 3.33 from jdg_29. Half of its raw
+  mean came from a review that says nothing. What is left is one opinion,
+  slightly below the panel mean, and the project is ranked on that with the
+  caution one opinion deserves.
+- **jdg_01** has a single review (2.0), a point and a half below the panel.
+  Against what the other judges gave the same project, and believed by
+  half, their leniency comes to −0.72. The mark is neither taken at face
+  value nor thrown away.
+- **jdg_30** has a mean of 4.08, half a point above the panel, and a
+  leniency of only +0.14. Their projects were good ones: two of the first
+  three. Standard scores would have marked those projects down for having
+  been seen by a judge with a high mean.
+
+### What we do not claim
+
+[docs/normalization-evidence.md](docs/normalization-evidence.md) measures
+the method on simulated events where the true order is known. It finds the
+true order better than a raw average wherever judges differ in leniency,
+and better than standard scores per judge everywhere. On a panel of judges
+with no habits at all it does slightly worse than the raw average, because
+there is nothing to correct and the correction is not free.
+
+The same document takes each judge out of the fixture set in turn. The
+first place moves by one place at most; from the second place down,
+places move more. With three reviews a project that is the state of the
+evidence, and the portal says so instead of printing three decimals and
+leaving it there.
 
 ## 5. Pairwise mode
 
