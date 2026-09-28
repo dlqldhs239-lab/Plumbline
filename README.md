@@ -51,6 +51,31 @@ python3 checker/run.py .dogfood.toml --fixtures fixtures.json > acceptance-repor
 The committed [`acceptance-report.txt`](acceptance-report.txt) is that command's
 output against this repository.
 
+### Five minutes with it
+
+The portal starts with two events.
+
+**Sample Hack 2026** is the organizer's fixture set, loaded as it is: forty
+projects, thirty judges, every review submitted, results published. It is
+the event the checker runs against and the one to compare portals on.
+
+**Open House** is ours. Every window in it is open, so that there is
+something to do: eight projects with real descriptions, reviews waiting for
+the two seeded judges, a ballot, prizes, form questions, comments. It says
+on its own page that it is not part of the fixture set.
+`PLUMBLINE_SEED_OPEN_HOUSE=0` leaves it out.
+
+The sign-in page of a sample installation lists the accounts below and fills
+the form in for you.
+
+| minute | as | do | you are looking at |
+|---|---|---|---|
+| 1 | nobody | open `/`, then *See the standings* | the published results: raw order, final order, what moved |
+| 2 | judge (Wei) | *Judge*, Open House, score a project with the number keys, then *Compare in pairs* | the judge console and pairwise mode (T2, bonus) |
+| 3 | judge (Wei) | open `/api/judges/jdg_01/scores` | 403: another judge's scores are refused by the server, not hidden by the page |
+| 4 | nobody | Open House, *Open your ballot*, mark two projects | community voting, random order per voter (T3) |
+| 5 | organizer | Open House console: *Voting* (four ballots from one address are flagged), *Results* (recompute, publish), *Records* (issue, open a certificate, check it at `/verify/`), *Audit log* | the organizer's side of all of it (T2, T3, T4) |
+
 ### Seeded logins
 
 All seeded accounts use the password `plumbline`. Sign in with email or username.
@@ -59,9 +84,9 @@ All seeded accounts use the password `plumbline`. Sign in with email or username
 |---|---|---|
 | admin | `admin@example.org` | everything, plus `/admin/` |
 | organizer | `organizer@example.org` | the organizer console for *Sample Hack 2026* |
-| judge | `tomas.varga@example.org` (jdg_01) | the judge console; one assignment |
-| judge | `wei.lindqvist@example.org` (jdg_02) | the judge console; six assignments |
-| participant | `priya1@example.org` | team *NorthKiln*, project *Glass Signal* |
+| judge | `tomas.varga@example.org` (jdg_01) | the judge console; one submitted review in Sample Hack, three waiting in Open House |
+| judge | `wei.lindqvist@example.org` (jdg_02) | the judge console; six submitted reviews in Sample Hack, three waiting in Open House |
+| participant | `priya1@example.org` | team *NorthKiln*, project *Glass Signal*; free to form a team in Open House |
 
 Every fixture judge and team member exists as a user with the same password.
 
@@ -72,7 +97,8 @@ Every fixture judge and team member exists as a user with the same password.
 | Gallery | `/events/sample-hack-2026/gallery/` |
 | Organizer console | `/events/sample-hack-2026/organize/` |
 | Judge console | `/judge/` |
-| Community ballot | `/events/sample-hack-2026/ballot/` (the sample event has voting switched off; turn it on in Settings) |
+| Community ballot | `/events/open-house/ballot/` (the fixture event has no community vote) |
+| Judge console with work waiting | `/judge/open-house/` |
 | API docs (OpenAPI) | `/api/docs` — served from the image, no CDN |
 | Django admin | `/admin/` |
 
@@ -195,6 +221,7 @@ Copy `.env.example` to `.env` and set:
 | `DJANGO_SECRET_KEY` | dev value | **change it** |
 | `PLUMBLINE_SEED` | `1` | set `0` so the fixtures are not loaded |
 | `PLUMBLINE_SEED_PUBLISH` | `1` | the sample event is loaded finished, with results published; `0` leaves that to the organizer |
+| `PLUMBLINE_SEED_OPEN_HOUSE` | `1` | also load *Open House*, an event with every window open, to try the portal in |
 | `PLUMBLINE_SEED_SECRET` | dev value | only matters when seeding |
 | `ALLOWED_HOSTS` | `*` | your hostname |
 | `CSRF_TRUSTED_ORIGINS` | `http://localhost:8080,…` | your origin, with scheme |
@@ -224,6 +251,10 @@ Backups: `docker compose exec db pg_dump -U plumbline plumbline > backup.sql`.
 Leaving: the CSV exports in the organizer console cover every table an
 organizer cares about; `pg_dump` covers the rest.
 
+The audit log is written to be read: each entry is a sentence, who did
+what to what, with the values before and after. The stored entries and the
+CSV keep the action names and the JSON detail for programs.
+
 ## Development
 
 ```sh
@@ -231,7 +262,7 @@ pip install -r requirements.txt
 python manage.py migrate && python manage.py createcachetable
 python manage.py seed_fixtures fixtures.json
 python manage.py runserver 8080
-python manage.py test tests            # 345 tests, 4 to 10 minutes
+python manage.py test tests            # 367 tests, 5 to 12 minutes
 python manage.py normalization_report sample-hack-2026 > docs/normalization-proof.md
 ```
 

@@ -46,6 +46,11 @@
 (function () {
   var t = document.querySelector('.nav-toggle'), n = document.getElementById('nav');
   if (t && n) t.addEventListener('click', function () { var o = n.classList.toggle('open'); t.setAttribute('aria-expanded', o); });
+  // On a narrow screen the console's tabs scroll sideways. The one you are on is brought into view.
+  document.querySelectorAll('.subnav a.on').forEach(function (a) {
+    var bar = a.parentElement;
+    if (bar.scrollWidth > bar.clientWidth) bar.scrollLeft = Math.max(0, a.offsetLeft - bar.offsetLeft - 16);
+  });
   // Drawings are wiped in once, when they come into view. Without scripts they are simply there.
   var drawings = document.querySelectorAll('[data-reveal]');
   if ('IntersectionObserver' in window) {

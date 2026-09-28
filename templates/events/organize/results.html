@@ -27,7 +27,7 @@
   <div class="stat"><div class="n">{{ calibration|length }}</div><div class="l">judges</div></div>
   <div class="stat"><div class="n">{{ facts.moved }}</div><div class="l">changed place</div></div>
   <div class="stat"><div class="n">{% if elevation %}{{ elevation.range|floatformat:2 }}{% else %}n/a{% endif %}</div><div class="l">between harshest and kindest mean</div></div>
-  <div class="stat"><div class="n">{{ jury_k|floatformat:"-1" }}</div><div class="l">jury-size adjustment</div></div>
+  <div class="stat"><div class="n">{% if jury_k %}{{ jury_k|floatformat:"-1" }}{% else %}off{% endif %}</div><div class="l">jury-size adjustment{% if jury_k %}, in reviews{% endif %}</div></div>
 </div>
 
 {% if elevation %}

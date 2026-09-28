@@ -3,21 +3,36 @@
 {% block content %}
 {% include "events/organize/_nav.html" with on="audit" %}
 <div class="page-head">
-  <div><h1>Audit log</h1><small class="muted">Every write, from the UI, the API or the seed, newest first.</small></div>
-  <div class="actions">
-    <form method="get" class="row"><select name="action" aria-label="Action"><option value="">All actions</option>{% for a in actions %}<option value="{{ a }}" {% if a == action %}selected{% endif %}>{{ a }}</option>{% endfor %}</select><button class="btn" type="submit">Filter</button></form>
-    <a class="btn" href="{% url 'organize_export' event.slug 'audit' %}">Export CSV</a>
-  </div>
+  <div><h1>Audit log</h1><small class="muted">Everything that changed this event, who changed it and how. Newest first. Nothing here can be edited or removed.</small></div>
+  <div class="actions"><a class="btn" href="{% url 'organize_export' event.slug 'audit' %}">Export CSV</a></div>
 </div>
-<div class="card table-wrap">
-<table>
-  <thead><tr><th>When (UTC)</th><th>Actor</th><th>Action</th><th>Target</th><th>Via</th><th>Detail</th></tr></thead>
-  <tbody>
-  {% for e in page.object_list %}
-  <tr><td class="mono" style="white-space:nowrap">{{ e.created_at|date:"Y-m-d H:i:s" }}</td><td>{{ e.actor_label|default:"system" }}</td><td class="mono">{{ e.action }}</td><td>{{ e.target_label }}<br><small class="muted">{{ e.target_type }} {{ e.target_id }}</small></td><td><small>{{ e.channel }}{% if e.ip_address %} · {{ e.ip_address }}{% endif %}</small></td><td><small class="mono">{{ e.detail }}</small></td></tr>
-  {% empty %}<tr><td colspan="6" class="muted">Nothing logged yet.</td></tr>{% endfor %}
-  </tbody>
-</table>
-</div>
-{% if page.has_other_pages %}<div class="pager">{% if page.has_previous %}<a class="btn" href="?action={{ action|urlencode }}&page={{ page.previous_page_number }}">Newer</a>{% endif %}<small>Page {{ page.number }} of {{ page.paginator.num_pages }}</small>{% if page.has_next %}<a class="btn" href="?action={{ action|urlencode }}&page={{ page.next_page_number }}">Older</a>{% endif %}</div>{% endif %}
+<form method="get" class="filters log-filters">
+  <label class="sr-only" for="log-action">What was done</label>
+  <select name="action" id="log-action"><option value="">Everything</option>{% for a in actions %}<option value="{{ a.name }}" {% if a.name == action %}selected{% endif %}>{{ a.says|capfirst }}</option>{% endfor %}</select>
+  <label class="sr-only" for="log-actor">By whom</label>
+  <select name="actor" id="log-actor"><option value="">Anyone</option>{% for a in actors %}<option value="{{ a }}" {% if a == actor %}selected{% endif %}>{{ a }}</option>{% endfor %}</select>
+  <button class="btn" type="submit">Show</button>
+  {% if action or actor %}<a class="btn" href="{% url 'organize_audit' event.slug %}">Clear</a>{% endif %}
+  <small class="muted count">{{ page.paginator.count }} entr{{ page.paginator.count|pluralize:"y,ies" }}</small>
+</form>
+{% for d in days %}
+<section class="log-day">
+  <h2 class="log-date">{{ d.day|date:"l j F Y" }}</h2>
+  <ol class="log">
+  {% for r in d.rows %}
+    <li>
+      <time class="mono" datetime="{{ r.entry.created_at|date:'c' }}">{{ r.entry.created_at|date:"H:i:s" }}</time>
+      <div class="what">
+        <p><strong>{{ r.who }}</strong> {{ r.did }}{% if r.target %} <span class="target">{{ r.target }}</span>{% endif %}</p>
+        {% if r.facts %}<dl class="facts">{% for f in r.facts %}<div><dt>{{ f.label }}</dt><dd>{% if f.was %}<s>{{ f.was }}</s> {% endif %}{{ f.value }}</dd></div>{% endfor %}</dl>{% endif %}
+      </div>
+      <small class="via">{{ r.via }}{% if r.entry.ip_address %}<br><span class="mono">{{ r.entry.ip_address }}</span>{% endif %}<br><span class="mono code">{{ r.entry.action }}</span></small>
+    </li>
+  {% endfor %}
+  </ol>
+</section>
+{% empty %}
+<div class="empty"><strong>Nothing logged{% if action or actor %} that matches{% endif %}</strong>Every change to this event is written here as it happens.</div>
+{% endfor %}
+{% if page.has_other_pages %}<div class="pager">{% if page.has_previous %}<a class="btn" href="?action={{ action|urlencode }}&actor={{ actor|urlencode }}&page={{ page.previous_page_number }}">Newer</a>{% endif %}<small>Page {{ page.number }} of {{ page.paginator.num_pages }}</small>{% if page.has_next %}<a class="btn" href="?action={{ action|urlencode }}&actor={{ actor|urlencode }}&page={{ page.next_page_number }}">Older</a>{% endif %}</div>{% endif %}
 {% endblock %}

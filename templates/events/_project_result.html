@@ -1,0 +1,26 @@
+{% comment %}The result of one project: the score, the place, and the mean on every criterion.{% endcomment %}
+    {% if result and result.place %}
+    <section class="card result" id="result">
+      <h3>Result{% if not event.results_published %} <span class="badge warn">Not published</span>{% endif %}</h3>
+      <div class="score">
+        <b class="tnum">{{ result.adjusted_mean|floatformat:3 }}</b>
+        <span class="label">adjusted / {{ rubric.scale_max }}.00 · {{ result.review_count }} judge{{ result.review_count|pluralize }}</span>
+      </div>
+      <table>
+        <tr><td>Place</td><td class="num"><strong>{{ result.place }}</strong> of {{ ranked }}</td></tr>
+        {% if in_track %}<tr><td>In {{ project.track.name }}</td><td class="num"><strong>{{ in_track.rank }}</strong> of {{ in_track.of }}</td></tr>{% endif %}
+        <tr><td>Raw mean</td><td class="num">{{ result.raw_mean|floatformat:3 }} <small>place {{ result.place_raw }}</small></td></tr>
+        <tr><td>Judges set true</td><td class="num">{{ result.normalized_mean|floatformat:3 }}</td></tr>
+      </table>
+      <p class="help"><a href="{% url 'results' event.slug %}#method">How the score is made</a></p>
+    </section>
+    {% endif %}
+    {% if breakdown %}
+    <section class="card" id="breakdown">
+      <h3>By criterion</h3>
+      <table>
+        <thead><tr><th>Criterion</th><th class="num">Weight</th><th class="num">Mean</th><th style="width:34%"><span class="sr-only">Mean on the scale</span></th></tr></thead>
+        <tbody>{% for c in breakdown %}<tr><td>{{ c.name }}</td><td class="num">{{ c.weight|floatformat:"-2" }}</td><td class="num">{% if c.mean is not None %}{{ c.mean|floatformat:2 }}{% else %}n/a{% endif %}</td><td><div class="bar"><span style="width:{{ c.pct }}%"></span></div></td></tr>{% endfor %}</tbody>
+      </table>
+    </section>
+    {% endif %}

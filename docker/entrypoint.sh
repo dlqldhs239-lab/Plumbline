@@ -17,6 +17,11 @@ if [ "${PLUMBLINE_SEED:-1}" = "1" ]; then
   else
     python manage.py seed_fixtures "${PLUMBLINE_FIXTURES:-fixtures.json}"
   fi
+  # A second event, ours, in which every window is open: something to
+  # submit to, score and vote on. PLUMBLINE_SEED_OPEN_HOUSE=0 leaves it out.
+  if [ "${PLUMBLINE_SEED_OPEN_HOUSE:-1}" = "1" ]; then
+    python manage.py seed_open_house
+  fi
 fi
 
 if [ "${DJANGO_SECRET_KEY:-dev-only-change-me-in-production}" = "dev-only-change-me-in-production" ]; then

@@ -1,47 +1,53 @@
 {% extends "base.html" %}
+{% load community %}
 {% block title %}Voting · {{ event.name }}{% endblock %}
 {% block content %}
 {% include "events/organize/_nav.html" with on="voting" %}
 <div class="page-head">
-  <div><h1>Community voting</h1><small class="muted">Mode: <strong>{{ event.get_voting_access_display }}</strong>{% if event.voting_credits %} · quadratic, {{ event.voting_credits }} credits per voter{% else %} · one vote per project{% endif %} · {% if event.voting_open %}open now{% else %}not open{% endif %}. Change the mode and window in <a href="{% url 'organize_settings' event.slug %}">settings</a>.</small></div>
-  <div class="actions"><a class="btn" href="{% url 'export_votes' event.slug %}">Votes CSV</a>{% if event.voting_access == 'email' %}<a class="btn" href="{% url 'export_ballot_links' event.slug %}">Ballot links CSV</a>{% endif %}</div>
+  <div><h1>Community voting</h1><small class="muted"><strong>{{ event.get_voting_access_display }}</strong>{% if event.voting_access != 'closed' %}{% if event.voting_credits %} · quadratic, {{ event.voting_credits }} credits per voter{% else %} · one vote per project{% endif %} · {% if event.voting_open %}open now{% else %}not open{% endif %}{% endif %}. Who may vote and when is set in <a href="{% url 'organize_settings' event.slug %}">Settings</a>.</small></div>
+  <div class="actions">{% if event.voting_open %}<a class="btn" href="{% url 'ballot' event.slug %}">The ballot</a>{% endif %}{% if report.total %}<a class="btn" href="{% url 'export_votes' event.slug %}">Votes CSV</a>{% endif %}{% if event.voting_access == 'email' %}<a class="btn" href="{% url 'export_ballot_links' event.slug %}">Ballot links CSV</a>{% endif %}</div>
 </div>
 
-<div class="grid cols-4">
+{% if event.voting_access == 'closed' and not report.total %}
+<div class="empty"><strong>This event has no community vote</strong>Judges decide the ranking. A public vote can run beside it and is never mixed into the judged score.<br><a class="btn" href="{% url 'organize_settings' event.slug %}">Open one in Settings</a></div>
+{% else %}
+<div class="grid cols-4 stats">
   <div class="card stat"><div class="n">{{ report.total }}</div><div class="l">ballots</div></div>
   <div class="card stat"><div class="n">{{ report.flagged }}</div><div class="l">flagged</div></div>
   <div class="card stat"><div class="n">{{ report.voided }}</div><div class="l">voided</div></div>
   <div class="card stat"><div class="n">{{ report.shared_ips|length }}</div><div class="l">addresses with several ballots</div></div>
 </div>
 
-<div class="grid cols-2" style="margin-top:1rem">
-  <div class="stack">
+<div class="grid split voting">
+  <div class="stack loose">
     {% if event.voting_access == 'email' %}
     <div class="card">
       <h3>Issue ballot links</h3>
       <p class="muted">One link per email. The portal sends no mail: export the CSV and send the links with whatever you already use. A link binds that person's browser to their ballot.</p>
-      <form method="post">{% csrf_token %}<input type="hidden" name="action" value="issue"><div class="field"><textarea name="emails" rows="5" placeholder="one email per line"></textarea></div><button class="btn primary" type="submit">Create links</button></form>
+      <form method="post">{% csrf_token %}<input type="hidden" name="action" value="issue"><div class="field"><label for="emails">Email addresses</label><textarea name="emails" id="emails" rows="5" placeholder="one per line"></textarea></div><button class="btn primary" type="submit">Create links</button></form>
     </div>
     {% endif %}
     <div class="card">
-      <h3>Current tally <small class="muted">(organizers only until published)</small></h3>
-      <table><thead><tr><th>Project</th><th class="num">Votes</th><th class="num">Voters</th></tr></thead><tbody>
-      {% for p, t in projects %}<tr><td><a href="{{ p.get_absolute_url }}">{{ p.title }}</a></td><td class="num">{{ t.votes }}</td><td class="num">{{ t.voters }}</td></tr>{% endfor %}
+      <h3>The tally so far</h3>
+      <p class="muted">Yours to see. Everyone else sees it when the results are published. Voided ballots are left out.</p>
+      <table class="tally"><thead><tr><th>Project</th><th class="num">Votes</th><th class="num">Voters</th><th aria-hidden="true"></th></tr></thead><tbody>
+      {% for p, t in projects %}<tr{% if not t.votes %} class="dim"{% endif %}><td><a href="{{ p.get_absolute_url }}">{{ p.title }}</a></td><td class="num">{{ t.votes }}</td><td class="num">{{ t.voters }}</td><td class="len" aria-hidden="true"><i style="width:{% widthratio t.votes most 100 %}%"></i></td></tr>{% endfor %}
       </tbody></table>
     </div>
   </div>
   <div class="card">
-    <h3>Voting integrity</h3>
-    <p class="muted">Open-link ballots from the same address and browser are flagged, not blocked (shared offices exist). Void a ballot to exclude its votes; nothing is deleted.</p>
-    {% if report.shared_ips %}<p><strong>Addresses holding several ballots:</strong> {% for r in report.shared_ips %}<span class="badge warn">{{ r.ballots }} ballots</span> {% endfor %}</p>{% endif %}
-    <div class="table-wrap" style="max-height:30rem;overflow:auto">
-    <table><thead><tr><th>Ballot</th><th>Kind</th><th class="num">Votes</th><th>Flags</th><th></th></tr></thead><tbody>
+    <h3>Ballots</h3>
+    <p class="muted">Several ballots from one address are flagged, not refused: a whole office can share one. Look, then decide. Voiding a ballot takes its votes out of the tally and deletes nothing.</p>
+    {% if report.shared_ips %}<p class="shared">{% for r in report.shared_ips %}<span class="badge warn">{{ r.ballots }} ballots from one address</span> {% endfor %}</p>{% endif %}
+    <div class="table-wrap scroll">
+    <table><thead><tr><th>Ballot</th><th>Came by</th><th class="num">Votes</th><th>Flags</th><th><span class="sr-only">Void</span></th></tr></thead><tbody>
     {% for v in report.voters %}
-      <tr class="{% if v.voided_at %}dim{% endif %}"><td>{{ v }}<br><small class="muted">{{ v.created_at|date:"Y-m-d H:i" }}{% if v.voided_at %} · voided: {{ v.void_reason|default:"—" }}{% endif %}</small></td><td>{{ v.get_kind_display }}</td><td class="num">{{ v.n_votes }}</td><td>{% for f in v.flags %}<span class="badge warn">{{ f }}</span> {% endfor %}</td>
+      <tr class="{% if v.voided_at %}dim{% endif %}"><td>{% if v.email %}{{ v.email }}{% elif v.user %}{{ v.user.get_username }}{% else %}<span class="mono">{{ v.key|slice:":8" }}</span>{% endif %}<br><small class="muted">{{ v.created_at|date:"Y-m-d H:i" }}{% if v.voided_at %} · voided{% if v.void_reason %}: {{ v.void_reason }}{% endif %}{% endif %}</small></td><td>{{ v.get_kind_display }}</td><td class="num">{{ v.n_votes }}</td><td>{% for f in v.flags %}<span class="badge warn">{% if f == 'shared_ip' %}shared address{% elif f == 'many_ballots_same_ip' %}fourth or later{% else %}{{ f }}{% endif %}</span><br>{% endfor %}</td>
         <td>{% if not v.voided_at %}<form method="post" class="inline">{% csrf_token %}<input type="hidden" name="action" value="void"><input type="hidden" name="voter" value="{{ v.pk }}"><input type="hidden" name="reason" value="organizer review"><button class="btn small danger" type="submit" data-confirm="Void this ballot">Void</button></form>{% endif %}</td></tr>
     {% empty %}<tr><td colspan="5" class="muted">No ballots yet.</td></tr>{% endfor %}
     </tbody></table>
     </div>
   </div>
 </div>
+{% endif %}
 {% endblock %}

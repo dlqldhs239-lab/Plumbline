@@ -864,14 +864,30 @@ def organize_results(request, slug):
 def organize_audit(request, slug):
     event = _event(slug)
     _organizer_or_403(request, event)
-    action = (request.GET.get("action") or "").strip()
-    qs = event.audit_entries.select_related("actor")
+    from audit import reading
+
+    action = (request.GET.get("action") or "").strip()[:80]
+    actor = (request.GET.get("actor") or "").strip()[:200]
+    qs = event.audit_entries.select_related("actor").order_by("-created_at", "-id")
     if action:
         qs = qs.filter(action__startswith=action)
-    page = Paginator(qs, 100).get_page(request.GET.get("page"))
-    actions = event.audit_entries.values_list("action", flat=True).distinct().order_by("action")
+    if actor:
+        qs = qs.filter(actor_label=actor)
+    page = Paginator(qs, 60).get_page(request.GET.get("page"))
+    names = event.audit_entries.values_list("action", flat=True).distinct().order_by("action")
+    actors = event.audit_entries.exclude(actor_label="").values_list("actor_label", flat=True).distinct()
     return render(
-        request, "events/organize/audit.html", {"event": event, "page": page, "action": action, "actions": actions}
+        request,
+        "events/organize/audit.html",
+        {
+            "event": event,
+            "page": page,
+            "days": reading.by_day(page.object_list),
+            "action": action,
+            "actor": actor,
+            "actions": sorted(({"name": n, "says": reading.phrase(n)} for n in names), key=lambda a: a["says"]),
+            "actors": sorted(actors, key=str.lower),
+        },
     )
 
 

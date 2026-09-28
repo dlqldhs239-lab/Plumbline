@@ -200,7 +200,25 @@ which is what a PDF is.
 **Why.** Two teams each holding a genuine record of first place is the
 failure that makes all records worthless.
 
-## 16. What we would do differently
+## 16. A second event, ours, in which every window is open
+
+**Chosen.** Beside the organizer's fixture event the portal seeds *Open
+House*: eight projects, eight judges, reviews left open for the two seeded
+judges, a ballot with eighteen votes cast, four of them from one address.
+It is made through the same services as the pages, so its audit log reads
+as if people had done it.
+
+**Given up.** A fresh installation that holds the fixture set and nothing
+else. The fixture event is loaded exactly as before and is what the checker
+and the front page use.
+
+**Why.** The fixture event is finished. On it, a visitor finds a ballot
+that is closed, a judge console with nothing left to score and no
+certificates. Two of the four tiers could only be seen by someone willing
+to configure an event first. An organizer deciding whether to adopt a
+portal will not do that, and should not have to.
+
+## 17. What we would do differently
 
 - **Review before building on top.** The first independent review came
   after three tiers were written and found twenty-seven problems, three of
@@ -214,6 +232,10 @@ failure that makes all records worthless.
   did. Every test passed, because the tests read the markup. It was found
   while taking screenshots for the README. `tools/check_drawings.py` now checks
   that every drawing arrives.
+- **Open it as a stranger would.** The portal was checked against a
+  database that had been used for a day. A fresh one showed what a judge
+  would see first: most of T3 and T4 switched off. That was found forty
+  hours before the freeze, and should have been the first check.
 - **Four reviews found seventy-seven problems.** None of the later ones
   were in code the earlier reviews had covered. Review what is new, each
   time.

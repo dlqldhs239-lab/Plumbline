@@ -36,8 +36,10 @@
     {% if project.thumbnail_url %}<img class="thumb wide" src="{{ project.thumbnail_url }}" alt="">{% endif %}
     <section class="card flat">
       <h3 class="sr-only">Description</h3>
-      {% if project.description %}<div class="prose">{{ project.description|linebreaks }}</div>{% else %}<p class="muted">No description yet.</p>{% endif %}
+      {% if project.description %}<div class="prose">{{ project.description|linebreaks }}</div>{% else %}<p class="muted">The team has not written a description.</p>{% endif %}
     </section>
+    {% comment %}Without a description this column would stand empty, so the result is read here.{% endcomment %}
+    {% if not project.description %}{% include "events/_project_result.html" %}{% endif %}
     {% if project.image_urls %}
     <section class="card"><h3>Gallery</h3><div class="grid cols-3">{% for u in project.image_urls %}<a href="{{ u }}" target="_blank" rel="noopener"><img class="thumb" src="{{ u }}" alt="Image {{ forloop.counter }} of {{ project.title }}" style="margin:0" loading="lazy"></a>{% endfor %}</div></section>
     {% endif %}
@@ -75,31 +77,7 @@
 
   <div class="stack loose">
     {% if not project.thumbnail_url %}<div class="cover rail" style="{{ project.title|cover_style }}" aria-hidden="true"><b>{{ project.title }}</b>{% if project.track %}<i>{{ project.track.name }}</i>{% endif %}</div>{% endif %}
-    {% if result and result.place %}
-    <section class="card result" id="result">
-      <h3>Result{% if not event.results_published %} <span class="badge warn">Not published</span>{% endif %}</h3>
-      <div class="score">
-        <b class="tnum">{{ result.adjusted_mean|floatformat:3 }}</b>
-        <span class="label">adjusted / {{ rubric.scale_max }}.00 · {{ result.review_count }} judge{{ result.review_count|pluralize }}</span>
-      </div>
-      <table>
-        <tr><td>Place</td><td class="num"><strong>{{ result.place }}</strong> of {{ ranked }}</td></tr>
-        {% if in_track %}<tr><td>In {{ project.track.name }}</td><td class="num"><strong>{{ in_track.rank }}</strong> of {{ in_track.of }}</td></tr>{% endif %}
-        <tr><td>Raw mean</td><td class="num">{{ result.raw_mean|floatformat:3 }} <small>place {{ result.place_raw }}</small></td></tr>
-        <tr><td>Judges set true</td><td class="num">{{ result.normalized_mean|floatformat:3 }}</td></tr>
-      </table>
-      <p class="help"><a href="{% url 'results' event.slug %}#method">How the score is made</a></p>
-    </section>
-    {% endif %}
-    {% if breakdown %}
-    <section class="card" id="breakdown">
-      <h3>By criterion</h3>
-      <table>
-        <thead><tr><th>Criterion</th><th class="num">Weight</th><th class="num">Mean</th><th style="width:34%"><span class="sr-only">Mean on the scale</span></th></tr></thead>
-        <tbody>{% for c in breakdown %}<tr><td>{{ c.name }}</td><td class="num">{{ c.weight|floatformat:"-2" }}</td><td class="num">{% if c.mean is not None %}{{ c.mean|floatformat:2 }}{% else %}n/a{% endif %}</td><td><div class="bar"><span style="width:{{ c.pct }}%"></span></div></td></tr>{% endfor %}</tbody>
-      </table>
-    </section>
-    {% endif %}
+    {% if project.description %}{% include "events/_project_result.html" %}{% endif %}
     <section class="card">
       <h3>Links</h3>
       {% if project.repo_url or project.live_url or project.demo_video_url %}

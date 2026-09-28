@@ -274,6 +274,10 @@ class Command(BaseCommand):
 
             recompute_results(event, organizer)
             publish_results(event, organizer)
+            # A finished event has given out its certificates.
+            from records.services import issue_for_event
+
+            issue_for_event(event, organizer, places=3)
 
         record(
             "seed.fixtures",

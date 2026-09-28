@@ -21,8 +21,8 @@
       {% for row in rows %}{% with r=row.role %}
         <tr>
           <td>{{ r.user.get_full_name|default:r.user.username }}<br><small>{{ r.user.email }}{% if r.external_id %} · {{ r.external_id }}{% endif %}</small></td>
-          <td>{% for t in r.tracks.all %}<span class="badge neutral">{{ t.name }}</span> {% empty %}<small>All tracks</small>{% endfor %}</td>
-          <td>{% if row.never %}<span class="badge warn">Never signed in</span>{% else %}<span class="badge ok">Active</span>{% endif %}</td>
+          <td><div class="row" style="gap:var(--s1) var(--s4)">{% for t in r.tracks.all %}<span class="badge neutral">{{ t.name }}</span>{% empty %}<small>All tracks</small>{% endfor %}</div></td>
+          <td>{% if row.never %}<span class="badge neutral">Not signed in yet</span>{% else %}<span class="badge ok">Active</span>{% endif %}</td>
           <td style="white-space:nowrap;text-align:right">
             {% if row.invited %}<form method="post" class="inline">{% csrf_token %}<input type="hidden" name="link" value="{{ r.pk }}"><button class="btn small" type="submit">Create sign-in link</button></form>{% endif %}
             <form method="post" class="inline">{% csrf_token %}<input type="hidden" name="remove" value="{{ r.pk }}"><button class="btn small danger" type="submit" data-confirm="Remove for good" title="Refused if the judge has submitted reviews">Remove</button></form>

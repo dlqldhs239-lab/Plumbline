@@ -142,7 +142,14 @@ def organize_voting(request, slug):
         ),
         key=lambda pt: -pt[1]["votes"],
     )
-    return render(request, "events/organize/voting.html", {"event": event, "report": report, "projects": projects})
+    most = max((t["votes"] for _, t in projects), default=0) or 1
+    # What needs looking at comes first.
+    report["voters"] = sorted(report["voters"], key=lambda v: (not v.flags, bool(v.voided_at), -v.n_votes))
+    return render(
+        request,
+        "events/organize/voting.html",
+        {"event": event, "report": report, "projects": projects, "most": most},
+    )
 
 
 @login_required

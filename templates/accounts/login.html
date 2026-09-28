@@ -3,7 +3,7 @@
 {% block main_class %}narrow{% endblock %}
 {% block content %}
 <h1>Sign in</h1>
-  <form method="post">
+  <form method="post" id="sign-in">
     {% csrf_token %}
     {% if form.non_field_errors %}<div class="nonfield">{{ form.non_field_errors|join:" " }}</div>{% endif %}
     <div class="field"><label for="id_username">Email or username</label>{{ form.username }}</div>
@@ -13,4 +13,27 @@
     <a class="btn" href="{% url 'accounts:signup' %}{% if next %}?next={{ next|urlencode }}{% endif %}">Create account</a>
     <p class="help"><a href="{% url 'accounts:password_help' %}">Forgot your password</a> · Invited as a judge? Use the sign-in link your organizer sent.</p>
   </form>
+{% if SAMPLE_LOGINS %}
+<section class="sample-logins" aria-labelledby="sample-logins">
+  <h2 id="sample-logins"><span class="badge warn">Sample installation</span></h2>
+  <p class="muted">This portal runs on the accounts printed in the README. Every one of them has the password <code>plumbline</code>. Before a real event they are removed.</p>
+  <ul>
+    {% for a in SAMPLE_LOGINS %}
+    <li><button type="button" class="btn small" data-login="{{ a.email }}">{{ a.role }}</button><span><span class="mono">{{ a.email }}</span><small class="muted">{{ a.note }}</small></span></li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
 {% endblock %}
+{% block scripts %}{% if SAMPLE_LOGINS %}
+<script>
+// Fills the form in; the person still presses Sign in. Without scripts the addresses are there to type.
+document.querySelectorAll('[data-login]').forEach(function (b) {
+  b.addEventListener('click', function () {
+    document.getElementById('id_username').value = b.dataset.login;
+    document.getElementById('id_password').value = 'plumbline';
+    document.querySelector('#sign-in button[type=submit]').focus();
+  });
+});
+</script>
+{% endif %}{% endblock %}
