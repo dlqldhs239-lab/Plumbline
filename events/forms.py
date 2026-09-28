@@ -260,5 +260,11 @@ class CriterionForm(forms.Form):
     weight = forms.DecimalField(max_digits=6, decimal_places=2, min_value=0, initial=1)
     description = forms.CharField(required=False)
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # The rubric is edited in a table whose column heads are the only visible labels.
+        for name, field in self.fields.items():
+            field.widget.attrs.setdefault("aria-label", field.label or name.replace("_", " ").capitalize())
+
 
 CriterionFormSet = forms.formset_factory(CriterionForm, extra=1, can_delete=True)

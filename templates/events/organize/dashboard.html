@@ -35,7 +35,7 @@
 
 <div class="grid cols-2">
   <section class="card">
-    <div class="row spread"><h3>Judge progress</h3><a class="btn small" href="{% url 'organize_export' event.slug 'assignments' %}">CSV</a></div>
+    <div class="row spread"><h2 class="h3">Judge progress</h2><a class="btn small" href="{% url 'organize_export' event.slug 'assignments' %}">CSV</a></div>
     {% if progress %}
     <div class="table-wrap scroll">
     <table>
@@ -50,7 +50,7 @@
     {% else %}<div class="empty"><strong>No assignments yet</strong>Judges get their projects from the Assignments page.<br><a class="btn" href="{% url 'organize_assignments' event.slug %}">Assign judges</a></div>{% endif %}
   </section>
   <section class="card">
-    <h3>Reviews per project</h3>
+    <h2 class="h3">Reviews per project</h2>
     <p class="muted">The target is {{ event.reviews_per_project }}. The least reviewed are on top.</p>
     {% if per_project %}
     <div class="table-wrap scroll">

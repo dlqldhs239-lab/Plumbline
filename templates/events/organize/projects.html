@@ -5,7 +5,7 @@
 <div class="page-head"><h1>Projects</h1><div class="actions"><a class="btn" href="{% url 'organize_export' event.slug 'projects' %}">Export CSV</a></div></div>
 <div class="card table-wrap">
 <table>
-  <thead><tr><th>Project</th><th>Team</th><th>Track</th><th>Status</th><th>Submitted (UTC)</th><th></th></tr></thead>
+  <thead><tr><th>Project</th><th>Team</th><th>Track</th><th>Status</th><th>Submitted (UTC)</th><th><span class="sr-only">Actions</span></th></tr></thead>
   <tbody>
   {% for p in projects %}
   <tr class="{% if p.is_hidden or p.duplicate_of %}dim{% endif %}">

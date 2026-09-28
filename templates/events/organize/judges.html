@@ -6,7 +6,7 @@
 
 {% if fresh_link %}
 <div class="card box" id="fresh-link" style="margin-bottom:var(--s6)">
-  <h3>Sign-in link for {{ fresh_link.email }}</h3>
+  <h2 class="h3">Sign-in link for {{ fresh_link.email }}</h2>
   <p class="muted">Send this to the judge. It works once, for seven days, and is not shown again. Creating another link cancels this one.</p>
   <pre>{{ fresh_link.url }}</pre>
 </div>
@@ -16,7 +16,7 @@
   <div class="card">
     <div class="table-wrap">
     <table>
-      <thead><tr><th>Judge</th><th>Tracks</th><th>Account</th><th></th></tr></thead>
+      <thead><tr><th>Judge</th><th>Tracks</th><th>Account</th><th><span class="sr-only">Actions</span></th></tr></thead>
       <tbody>
       {% for row in rows %}{% with r=row.role %}
         <tr>
@@ -34,7 +34,7 @@
     </div>
   </div>
   <div class="card">
-    <h3>Add a judge</h3>
+    <h2 class="h3">Add a judge</h2>
     <form method="post">{% csrf_token %}{% include "includes/form_fields.html" %}<button class="btn primary" type="submit">Add judge</button></form>
     <p class="help">A judge restricted to tracks only ever sees projects in those tracks: in the console, in the API, and in exports of their own scores.</p>
   </div>

@@ -24,7 +24,7 @@
   {% for p in page.object_list %}
   <a class="project" href="{{ p.get_absolute_url }}">
     {% if p.thumbnail_url %}<img class="thumb" src="{{ p.thumbnail_url }}" alt="" loading="lazy">{% else %}<div class="cover" style="{{ p.title|cover_style }}" aria-hidden="true"><b>{{ p.title }}</b></div>{% endif %}
-    <h3{% if not p.thumbnail_url %} class="sr-only"{% endif %}>{{ p.title }}</h3>
+    <h2 class="h3{% if not p.thumbnail_url %} sr-only{% endif %}">{{ p.title }}</h2>
     <p class="by"><span>{{ p.team.name }}</span>{% if p.track %}<span class="label">{{ p.track.name }}</span>{% endif %}</p>
     {% if p.tagline %}<p>{{ p.tagline }}</p>{% endif %}
     {% if p.tech_tags %}<div class="tags row">{% for t in p.tech_tags|slice:":4" %}<span>{{ t }}</span>{% endfor %}</div>{% endif %}

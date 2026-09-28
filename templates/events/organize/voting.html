@@ -22,13 +22,13 @@
   <div class="stack loose">
     {% if event.voting_access == 'email' %}
     <div class="card">
-      <h3>Issue ballot links</h3>
+      <h2 class="h3">Issue ballot links</h2>
       <p class="muted">One link per email. The portal sends no mail: export the CSV and send the links with whatever you already use. A link binds that person's browser to their ballot.</p>
       <form method="post">{% csrf_token %}<input type="hidden" name="action" value="issue"><div class="field"><label for="emails">Email addresses</label><textarea name="emails" id="emails" rows="5" placeholder="one per line"></textarea></div><button class="btn primary" type="submit">Create links</button></form>
     </div>
     {% endif %}
     <div class="card">
-      <h3>The tally so far</h3>
+      <h2 class="h3">The tally so far</h2>
       <p class="muted">Yours to see. Everyone else sees it when the results are published. Voided ballots are left out.</p>
       <table class="tally"><thead><tr><th>Project</th><th class="num">Votes</th><th class="num">Voters</th><th aria-hidden="true"></th></tr></thead><tbody>
       {% for p, t in projects %}<tr{% if not t.votes %} class="dim"{% endif %}><td><a href="{{ p.get_absolute_url }}">{{ p.title }}</a></td><td class="num">{{ t.votes }}</td><td class="num">{{ t.voters }}</td><td class="len" aria-hidden="true"><i style="width:{% widthratio t.votes most 100 %}%"></i></td></tr>{% endfor %}
@@ -36,7 +36,7 @@
     </div>
   </div>
   <div class="card">
-    <h3>Ballots</h3>
+    <h2 class="h3">Ballots</h2>
     <p class="muted">Several ballots from one address are flagged, not refused: a whole office can share one. Look, then decide. Voiding a ballot takes its votes out of the tally and deletes nothing.</p>
     {% if report.shared_ips %}<p class="shared">{% for r in report.shared_ips %}<span class="badge warn">{{ r.ballots }} ballots from one address</span> {% endfor %}</p>{% endif %}
     <div class="table-wrap scroll">

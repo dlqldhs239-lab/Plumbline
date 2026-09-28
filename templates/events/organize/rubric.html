@@ -3,13 +3,14 @@
 {% block content %}
 {% include "events/organize/_nav.html" with on="rubric" %}
 <div class="page-head"><div><h1>Rubric</h1><small class="muted">Scale {{ rubric.scale_min }}–{{ rubric.scale_max }}. Weights are relative: a criterion with weight 2 counts twice as much as weight 1.</small></div></div>
-{% if locked %}<div class="messages"><li class="warning">Scores already exist, so the criteria are locked. Weights still shape the final score at recompute time via the values stored here.</li></div>{% endif %}
+{% if locked %}<ul class="messages"><li class="warning">Scores already exist, so the criteria are locked. Weights still shape the final score at recompute time via the values stored here.</li></ul>{% endif %}
 <div class="card">
   <form method="post">
     {% csrf_token %}
     {{ formset.management_form }}
+    <div class="table-wrap">
     <table>
-      <thead><tr><th>Key</th><th>Name</th><th style="width:7rem">Weight</th><th>Description</th><th></th></tr></thead>
+      <thead><tr><th>Key</th><th>Name</th><th style="width:7rem">Weight</th><th>Description</th><th><span class="sr-only">Actions</span></th></tr></thead>
       <tbody>
       {% for f in formset %}
       <tr>
@@ -19,13 +20,14 @@
       {% endfor %}
       </tbody>
     </table>
+    </div>
     {% if not locked %}<button class="btn primary" type="submit" style="margin-top:1rem">Save rubric</button>{% endif %}
   </form>
 </div>
 <p class="muted" style="margin-top:.75rem">Need another row? Save once and an empty row appears.</p>
 
 <div class="card" style="margin-top:var(--s7)" id="pairwise">
-  <h3>Pairwise comparisons</h3>
+  <h2 class="h3">Pairwise comparisons</h2>
   <p class="muted">Besides marking each project, a judge can be asked which of two of their projects is the better one. A harsh judge and a generous judge disagree on every mark and can still agree on every comparison, so this ranking needs no correction for how judges mark. It is computed with a Bradley-Terry model and shown beside the rubric ranking; it does not replace it. {% if rubric.pairwise %}<strong>On.</strong>{% else %}<strong>Off.</strong>{% endif %}</p>
   <form method="post" class="row">
     {% csrf_token %}
@@ -36,7 +38,7 @@
 </div>
 
 <div class="card" style="margin-top:var(--s7)" id="jury">
-  <h3>Jury-size adjustment</h3>
+  <h2 class="h3">Jury-size adjustment</h2>
   <p class="muted">Projects do not all get the same number of reviews. A mean of two reviews is a weaker claim than a mean of five, so each project is pulled toward the panel mean in proportion to how few reviews it has. The number below is how many reviews the panel mean counts for. Currently <strong>{{ rubric.effective_jury_k|floatformat:"-1" }}</strong>{% if rubric.jury_k is None %}, following this event's reviews per project{% endif %}.</p>
   <form method="post" class="row" style="align-items:flex-end">
     {% csrf_token %}

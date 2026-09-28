@@ -54,14 +54,14 @@
 
   <aside class="stack loose">
     <section class="card">
-      <h3>The columns</h3>
+      <h2 class="h3">The columns</h2>
       <p class="muted">The first line names them, in any order. {% if kind == 'projects' %}<strong>team</strong> and <strong>title</strong> are needed; the rest may be empty.{% else %}<strong>email</strong> is needed.{% endif %}</p>
       <div class="tags">{% for c in columns %}<span>{{ c }}</span>{% endfor %}</div>
       <p class="help">{% if kind == 'projects' %}Members and tags are separated by semicolons. Track is the track's name as it is written in this event.{% else %}Tracks are separated by semicolons. Leave empty for a judge who may see every track.{% endif %}</p>
       <a class="btn" href="?kind={{ kind }}&amp;template=1">Download a template</a>
     </section>
     <section class="card">
-      <h3>What happens</h3>
+      <h2 class="h3">What happens</h2>
       <p class="muted">{% if kind == 'projects' %}Teams that do not exist are created. People who have no account get one without a password; they get in with a sign-in link from an administrator. Projects arrive as submitted.{% else %}Judges who have no account get one without a password. Create their sign-in links on the Judges page and send them yourself.{% endif %} One problem anywhere stops the whole import, so the event is never left half filled.</p>
     </section>
   </aside>

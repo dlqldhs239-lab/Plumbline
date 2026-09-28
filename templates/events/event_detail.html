@@ -46,12 +46,12 @@
 <div class="grid split wide">
   <div class="stack loose">
     {% if event.description %}
-    <section class="card"><h3>About</h3><div class="prose">{{ event.description|linebreaks }}</div></section>
+    <section class="card"><h2 class="h3">About</h2><div class="prose">{{ event.description|linebreaks }}</div></section>
     {% endif %}
 
     {% if tracks %}
     <section class="card">
-      <h3>Tracks</h3>
+      <h2 class="h3">Tracks</h2>
       <div class="ledger tight">
         {% for t in tracks %}
         <a class="ledger-row two" href="{% url 'gallery' event.slug %}?track={{ t.track.id }}">
@@ -64,7 +64,7 @@
     {% endif %}
 
     <section class="card" id="rubric">
-      <h3>How projects are judged</h3>
+      <h2 class="h3">How projects are judged</h2>
       <p class="muted">Each judge marks every criterion from {{ rubric.scale_min }} to {{ rubric.scale_max }}. {% if event.reviews_per_project %}Every project is meant to get {{ event.reviews_per_project }} review{{ event.reviews_per_project|pluralize }}.{% endif %} Scores are corrected for how each judge marks before anyone is ranked.</p>
       <table class="rubric">
         <thead><tr><th>Criterion</th><th class="num">Share</th><th style="width:38%"><span class="sr-only">Share of the score</span></th></tr></thead>
@@ -78,7 +78,7 @@
 
     {% if event.prizes.all %}
     <section class="card">
-      <h3>Prizes</h3>
+      <h2 class="h3">Prizes</h2>
       <table>{% for p in event.prizes.all %}<tr><td><strong>{{ p.name }}</strong>{% if p.track %} <span class="badge neutral">{{ p.track.name }}</span>{% endif %}{% if p.description %}<br><small>{{ p.description }}</small>{% endif %}</td><td class="num">{% if p.amount %}{{ p.amount|floatformat:0 }} {{ p.currency }}{% endif %}</td></tr>{% endfor %}</table>
     </section>
     {% endif %}
@@ -86,7 +86,7 @@
 
   <div class="stack loose">
     <section class="card box">
-      <h3>Take part</h3>
+      <h2 class="h3">Take part</h2>
       {% if not user.is_authenticated %}
         <p>Sign in to form a team and submit a project.</p>
         <div class="row"><a class="btn primary" href="{% url 'accounts:signup' %}?next={{ request.path }}">Create account</a><a class="btn" href="{% url 'accounts:login' %}?next={{ request.path }}">Sign in</a></div>
@@ -109,7 +109,7 @@
     </section>
     {% if event.voting_access != 'closed' %}
     <section class="card">
-      <h3>Community vote</h3>
+      <h2 class="h3">Community vote</h2>
       <p class="muted">{{ event.get_voting_access_display }}{% if event.voting_credits %} · {{ event.voting_credits }} credits each, quadratic{% endif %}{% if event.voting_close_at %} · closes {{ event.voting_close_at|date:"Y-m-d H:i" }} UTC{% endif %}</p>
       {% if event.voting_open %}<a class="btn primary" href="{% url 'ballot' event.slug %}">Open your ballot</a>{% else %}<span class="badge neutral">Not open right now</span>{% endif %}
     </section>

@@ -12,6 +12,7 @@
   {% block head %}{% endblock %}
 </head>
 <body>
+<a class="skip" href="#main">Skip to the page</a>
 <a class="btn small" href="#main" style="position:absolute;left:-999px;top:8px" onfocus="this.style.left='8px'" onblur="this.style.left='-999px'">Skip to content</a>
 <header class="topbar">
   <div class="inner">
@@ -34,8 +35,8 @@
     {% endwith %}</nav>
   </div>
 </header>
-{% if SAMPLE_SECRETS %}<div class="sample-secrets" role="note"><span class="badge warn">Sample installation</span><span>This portal runs on the secret key, the accounts and the API tokens printed in the README. Anyone who has read it can sign in as you. Before a real event set <code>DJANGO_SECRET_KEY</code> and <code>PLUMBLINE_SEED=0</code>, and change or remove the seeded accounts.</span></div>{% endif %}
-<main id="main" class="{% block main_class %}{% endblock %}">
+{% if SAMPLE_SECRETS %}<aside class="sample-secrets" aria-label="About this installation"><span class="badge warn">Sample installation</span><span>This portal runs on the secret key, the accounts and the API tokens printed in the README. Anyone who has read it can sign in as you. Before a real event set <code>DJANGO_SECRET_KEY</code> and <code>PLUMBLINE_SEED=0</code>, and change or remove the seeded accounts.</span></aside>{% endif %}
+<main id="main" tabindex="-1" class="{% block main_class %}{% endblock %}">
   {% if messages %}
     <ul class="messages" role="status">{% for m in messages %}<li class="{{ m.tags }}">{{ m }}</li>{% endfor %}</ul>
   {% endif %}
@@ -50,6 +51,13 @@
   document.querySelectorAll('.subnav a.on').forEach(function (a) {
     var bar = a.parentElement;
     if (bar.scrollWidth > bar.clientWidth) bar.scrollLeft = Math.max(0, a.offsetLeft - bar.offsetLeft - 16);
+  });
+  // A box that scrolls must be reachable from the keyboard, or what is off its edge cannot be read without a mouse.
+  document.querySelectorAll('.table-wrap, pre').forEach(function (w) {
+    if (w.scrollWidth <= w.clientWidth && w.scrollHeight <= w.clientHeight) return;
+    if (w.querySelector('a[href], button, input, select, textarea')) return;
+    w.tabIndex = 0;
+    if (!w.matches('pre')) { w.setAttribute('role', 'region'); w.setAttribute('aria-label', 'Table, scrolls'); }
   });
   // Drawings are wiped in once, when they come into view. Without scripts they are simply there.
   var drawings = document.querySelectorAll('[data-reveal]');

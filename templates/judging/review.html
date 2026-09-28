@@ -30,7 +30,7 @@
 <div class="review-grid">
   <section class="dossier" aria-label="The project">
     <div class="card">
-      <h3>Open it</h3>
+      <h2 class="h3">Open it</h2>
       {% if project.repo_url or project.live_url or project.demo_video_url %}
       <dl class="links">
         {% if project.repo_url %}<dt class="label">Repository</dt><dd><a href="{{ project.repo_url }}" target="_blank" rel="noopener">{{ project.repo_url }}</a></dd>{% endif %}
@@ -42,10 +42,10 @@
     </div>
     {% if project.thumbnail_url %}<img class="thumb wide" src="{{ project.thumbnail_url }}" alt="">{% endif %}
     <div class="card">
-      <h3>What the team wrote</h3>
+      <h2 class="h3">What the team wrote</h2>
       {% if project.description %}<div class="prose">{{ project.description|linebreaks }}</div>{% else %}<p class="muted">No description.</p>{% endif %}
     </div>
-    {% if answers %}<div class="card"><h3>Organizer questions</h3><dl class="qa">{% for a in answers %}<dt>{{ a.question.prompt }}</dt><dd>{{ a.value|default:"No answer"|linebreaksbr }}</dd>{% endfor %}</dl></div>{% endif %}
+    {% if answers %}<div class="card"><h2 class="h3">Organizer questions</h2><dl class="qa">{% for a in answers %}<dt>{{ a.question.prompt }}</dt><dd>{{ a.value|default:"No answer"|linebreaksbr }}</dd>{% endfor %}</dl></div>{% endif %}
   </section>
 
   <form method="post" class="scoring" id="scoreform" data-save="{% if not locked %}/api/judges/me/assignments/{{ assignment.pk }}/scores{% endif %}" data-min="{{ rubric.scale_min }}" data-max="{{ rubric.scale_max }}">

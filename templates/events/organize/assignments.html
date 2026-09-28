@@ -5,15 +5,15 @@
 <div class="page-head"><h1>Judge assignments</h1><div class="actions"><a class="btn" href="{% url 'organize_export' event.slug 'assignments' %}">Export CSV</a></div></div>
 <div class="grid cols-2">
   <div class="card">
-    <h3>Assign automatically</h3>
+    <h2 class="h3">Assign automatically</h2>
     <p class="muted">Balanced: every eligible project gets the requested number of reviews, load is spread evenly across judges, track restrictions are honoured, and nobody reviews their own team. Existing assignments count toward the target, so you can run this again after adding judges.</p>
     <form method="post">{% csrf_token %}{% include "includes/form_fields.html" %}<button class="btn primary" type="submit">Assign</button></form>
   </div>
   <div class="card">
-    <h3>{{ assignments|length }} assignment{{ assignments|length|pluralize }}</h3>
+    <h2 class="h3">{{ assignments|length }} assignment{{ assignments|length|pluralize }}</h2>
     <div class="table-wrap" style="max-height:36rem;overflow:auto">
     <table>
-      <thead><tr><th>Batch</th><th>Judge</th><th>Project</th><th>Status</th><th></th></tr></thead>
+      <thead><tr><th>Batch</th><th>Judge</th><th>Project</th><th>Status</th><th><span class="sr-only">Actions</span></th></tr></thead>
       <tbody>
       {% for a in assignments %}
       <tr><td class="whole"><small>{{ a.batch }}</small></td><td>{{ a.judge.get_full_name|default:a.judge.username }}</td><td><a href="{{ a.project.get_absolute_url }}">{{ a.project.title }}</a><br><small class="muted">{{ a.project.track.name|default:"" }}</small></td>

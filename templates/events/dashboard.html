@@ -7,7 +7,7 @@
 <div class="grid cols-2">
   <div class="stack">
     <div class="card">
-      <h3>Your projects</h3>
+      <h2 class="h3">Your projects</h2>
       {% if projects %}
       <table><thead><tr><th>Project</th><th>Event</th><th>Status</th><th class="num">Result</th></tr></thead><tbody>
         {% for p in projects %}<tr><td><a href="{{ p.get_absolute_url }}">{{ p.title }}</a><br><small>{{ p.team.name }}</small></td><td><a href="{{ p.event.get_absolute_url }}">{{ p.event.name }}</a></td><td><span class="badge {% if p.status == 'submitted' %}ok{% elif p.status == 'draft' %}warn{% else %}bad{% endif %}">{{ p.get_status_display }}</span></td><td class="num">{% if p.standing %}<a href="{{ p.get_absolute_url }}#result">place {{ p.standing.rank }}</a><br><small>{{ p.standing.adjusted_mean|floatformat:3 }}</small>{% elif p.status == 'submitted' %}<small>not published</small>{% endif %}</td></tr>{% endfor %}
@@ -15,14 +15,14 @@
       {% else %}<div class="empty"><strong>No projects yet</strong>Open an event, form a team and submit.<br><a class="btn" href="{% url 'home' %}#events">See the events</a></div>{% endif %}
     </div>
     <div class="card">
-      <h3>Your teams</h3>
+      <h2 class="h3">Your teams</h2>
       {% if memberships %}<ul class="plain">{% for m in memberships %}<li><a href="{% url 'team_detail' m.team.event.slug m.team.pk %}">{{ m.team.name }}</a> <small class="muted">· {{ m.team.event.name }}</small></li>{% endfor %}</ul>{% else %}<p class="muted">You are not on a team.</p>{% endif %}
     </div>
   </div>
   <div class="stack">
     {% if judge_stats %}
     <div class="card">
-      <h3>Judging</h3>
+      <h2 class="h3">Judging</h2>
       {% for s in judge_stats %}
         <div class="row spread"><a href="{% url 'judging:queue' s.event.slug %}">{{ s.event.name }}</a><small class="mono tnum">{{ s.done }} of {{ s.total }} submitted</small></div>
         <div class="bar" style="margin:var(--s2) 0 var(--s4)"><span style="width:{% if s.total %}{% widthratio s.done s.total 100 %}{% else %}0{% endif %}%"></span></div>
@@ -31,18 +31,18 @@
     {% endif %}
     {% if organized %}
     <div class="card">
-      <h3>You organize</h3>
+      <h2 class="h3">You organize</h2>
       <ul class="plain">{% for e in organized %}<li><a href="{% url 'organize_dashboard' e.slug %}">{{ e.name }}</a> <span class="badge neutral">{{ e.phase }}</span></li>{% endfor %}</ul>
     </div>
     {% endif %}
     {% if records %}
     <div class="card">
-      <h3>Your records</h3>
+      <h2 class="h3">Your records</h2>
       <p class="muted">Signed by this portal. Each opens as a certificate you can print, and anyone can check it by its number.</p>
       <table><tbody>{% for r in records %}<tr><td><a href="{{ r.get_absolute_url }}">{{ r.event.name }}</a><br><small>{% if r.kind == 'placement' %}Place {{ r.payload.place }} of {{ r.payload.of }} · {{ r.payload.project }}{% elif r.kind == 'judge' %}Judge · {{ r.payload.reviews }} review{{ r.payload.reviews|pluralize }}{% else %}Took part · {{ r.payload.project }}{% endif %}</small></td><td class="num mono">{{ r.serial }}</td></tr>{% endfor %}</tbody></table>
     </div>
     {% endif %}
-    <div class="card"><h3>API</h3><p class="muted">Automate anything you can do here with a <a href="{% url 'accounts:tokens' %}">bearer token</a>. Schema at <a href="/api/docs">/api/docs</a>.</p></div>
+    <div class="card"><h2 class="h3">API</h2><p class="muted">Automate anything you can do here with a <a href="{% url 'accounts:tokens' %}">bearer token</a>. Schema at <a href="/api/docs">/api/docs</a>.</p></div>
   </div>
 </div>
 {% endblock %}

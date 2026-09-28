@@ -12,7 +12,7 @@
     {% if questions %}
     <div class="table-wrap">
     <table>
-      <thead><tr><th class="num">Order</th><th>Question</th><th>Kind</th><th class="num">Answered</th><th></th></tr></thead>
+      <thead><tr><th class="num">Order</th><th>Question</th><th>Kind</th><th class="num">Answered</th><th><span class="sr-only">Actions</span></th></tr></thead>
       <tbody>
       {% for q in questions %}
       <tr>
@@ -37,7 +37,7 @@
   <aside>
     <form method="post" class="card box" id="form">
       {% csrf_token %}
-      <h3>{% if editing %}Edit the question{% else %}Add a question{% endif %}</h3>
+      <h2 class="h3">{% if editing %}Edit the question{% else %}Add a question{% endif %}</h2>
       {% if editing %}<input type="hidden" name="question" value="{{ editing.pk }}">{% endif %}
       <div class="field"><label for="prompt">Question <span class="muted" aria-hidden="true">*</span></label><input type="text" id="prompt" name="prompt" maxlength="300" required value="{% if entered %}{{ entered.prompt }}{% else %}{{ editing.prompt|default:'' }}{% endif %}"></div>
       <div class="field"><label for="help_text">Hint under the field</label><input type="text" id="help_text" name="help_text" maxlength="300" value="{% if entered %}{{ entered.help_text }}{% else %}{{ editing.help_text|default:'' }}{% endif %}"></div>

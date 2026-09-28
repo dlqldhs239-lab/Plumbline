@@ -7,9 +7,9 @@
 </div>
 <div class="grid cols-2">
   <div class="card">
-    <h3>Members</h3>
+    <h2 class="h3">Members</h2>
     <ul>{% for m in members %}<li>{{ m.user.get_full_name|default:m.user.username }} <small class="muted">{{ m.user.email }}</small>{% if m.role == 'owner' %} <span class="badge neutral">owner</span>{% endif %}</li>{% endfor %}</ul>
-    <h3 style="margin-top:1rem">Invite link</h3>
+    <h2 class="h3" style="margin-top:1rem">Invite link</h2>
     {% if event.submissions_closed %}
       <p class="muted">Submissions have closed; teams are frozen.</p>
     {% else %}
@@ -21,7 +21,7 @@
     {% endif %}
   </div>
   <div class="card">
-    <h3>Projects</h3>
+    <h2 class="h3">Projects</h2>
     {% if projects %}<ul>{% for p in projects %}<li><a href="{{ p.get_absolute_url }}">{{ p.title }}</a> <span class="badge {% if p.status == 'submitted' %}ok{% elif p.status == 'draft' %}warn{% else %}bad{% endif %}">{{ p.get_status_display }}</span></li>{% endfor %}</ul>{% else %}<p class="muted">No project yet.</p>{% endif %}
   </div>
 </div>

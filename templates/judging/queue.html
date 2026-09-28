@@ -56,7 +56,7 @@
   <aside class="stack loose">
     {% if pairs and pairs.asked %}
     <section class="card box" aria-labelledby="pairs-h">
-      <h3 id="pairs-h">Compare in pairs</h3>
+      <h2 class="h3" id="pairs-h">Compare in pairs</h2>
       <p class="muted">This event also asks which of two projects is the better one. No scale: a choice. {{ pairs.done }} of {{ pairs.asked }} done.</p>
       <div class="bar" style="margin:var(--s4) 0"><span style="width:{% widthratio pairs.done pairs.asked 100 %}%"></span></div>
       {% if pairs.left %}<a class="btn{% if not todo %} primary{% endif %}" href="{% url 'judging:compare' event.slug %}">{% if pairs.done %}Continue comparing{% else %}Start comparing{% endif %}</a>{% else %}<span class="badge ok">All compared</span>{% endif %}
@@ -64,7 +64,7 @@
     {% endif %}
     {% if marks %}
     <section class="card" aria-labelledby="marks-h">
-      <h3 id="marks-h">Your marks so far</h3>
+      <h2 class="h3" id="marks-h">Your marks so far</h2>
       <p class="muted">Yours only. Over many projects it is easy to drift; this is how you have marked the {{ marks.n }} you submitted.</p>
       <div class="bins" role="img" aria-label="{% for b in marks.bins %}{{ b.n }} near {{ b.value }}{% if not forloop.last %}, {% endif %}{% endfor %}">
         {% for b in marks.bins %}<div><span class="col"><i style="height:{{ b.pct }}%"></i></span><b class="tnum">{{ b.n }}</b><span class="label">{{ b.value }}</span></div>{% endfor %}
@@ -76,12 +76,12 @@
     </section>
     {% endif %}
     <section class="card">
-      <h3>The rubric</h3>
+      <h2 class="h3">The rubric</h2>
       <p class="muted">{{ n_criteria }} criteria, each marked {{ rubric.scale_min }} to {{ rubric.scale_max }}. {% if rubric.instructions %}{{ rubric.instructions }}{% endif %}</p>
       <ul class="plain">{% for c in rubric.criteria.all %}<li><strong>{{ c.name }}</strong> <span class="label">weight {{ c.weight|floatformat:"-2" }}</span>{% if c.description %}<br><small class="muted">{{ c.description }}</small>{% endif %}</li>{% endfor %}</ul>
     </section>
     <section class="card">
-      <h3>What you can see</h3>
+      <h2 class="h3">What you can see</h2>
       <p class="muted">Your own assignments, and nothing of any other judge: not their marks, not their comments, not which projects they have. The same holds in the API.</p>
     </section>
   </aside>

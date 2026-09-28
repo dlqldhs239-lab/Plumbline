@@ -19,7 +19,7 @@
 </div>
 <div class="card table-wrap" style="margin-top:1rem">
   <table>
-    <thead><tr><th>Prefix</th><th>Label</th><th>Created</th><th>Last used</th><th></th></tr></thead>
+    <thead><tr><th>Prefix</th><th>Label</th><th>Created</th><th>Last used</th><th><span class="sr-only">Actions</span></th></tr></thead>
     <tbody>
     {% for t in tokens %}
       <tr class="{% if t.revoked_at %}dim{% endif %}">

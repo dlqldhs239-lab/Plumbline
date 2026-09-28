@@ -35,20 +35,20 @@
   <div class="stack loose">
     {% if project.thumbnail_url %}<img class="thumb wide" src="{{ project.thumbnail_url }}" alt="">{% endif %}
     <section class="card flat">
-      <h3 class="sr-only">Description</h3>
+      <h2 class="h3 sr-only">Description</h2>
       {% if project.description %}<div class="prose">{{ project.description|linebreaks }}</div>{% else %}<p class="muted">The team has not written a description.</p>{% endif %}
     </section>
     {% comment %}Without a description this column would stand empty, so the result is read here.{% endcomment %}
     {% if not project.description %}{% include "events/_project_result.html" %}{% endif %}
     {% if project.image_urls %}
-    <section class="card"><h3>Gallery</h3><div class="grid cols-3">{% for u in project.image_urls %}<a href="{{ u }}" target="_blank" rel="noopener"><img class="thumb" src="{{ u }}" alt="Image {{ forloop.counter }} of {{ project.title }}" style="margin:0" loading="lazy"></a>{% endfor %}</div></section>
+    <section class="card"><h2 class="h3">Gallery</h2><div class="grid cols-3">{% for u in project.image_urls %}<a href="{{ u }}" target="_blank" rel="noopener"><img class="thumb" src="{{ u }}" alt="Image {{ forloop.counter }} of {{ project.title }}" style="margin:0" loading="lazy"></a>{% endfor %}</div></section>
     {% endif %}
     {% if answers %}
-    <section class="card"><h3>Organizer questions</h3><dl class="qa">{% for a in answers %}<dt>{{ a.question.prompt }}</dt><dd>{{ a.value|default:"No answer"|linebreaksbr }}</dd>{% endfor %}</dl></section>
+    <section class="card"><h2 class="h3">Organizer questions</h2><dl class="qa">{% for a in answers %}<dt>{{ a.question.prompt }}</dt><dd>{{ a.value|default:"No answer"|linebreaksbr }}</dd>{% endfor %}</dl></section>
     {% endif %}
     {% if feedback %}
     <section class="card" id="feedback">
-      <h3>Feedback from the judges</h3>
+      <h2 class="h3">Feedback from the judges</h2>
       <p class="muted">{% if is_member %}Only your team and the organizers can read this.{% else %}Visible to the team once results are published.{% endif %} Judges are not named.</p>
       {% for f in feedback %}
       <div class="review">
@@ -60,7 +60,7 @@
     {% endif %}
     {% if event.comments_enabled and project.is_public %}
     <section class="card" id="comments">
-      <h3>Comments</h3>
+      <h2 class="h3">Comments</h2>
       {% for c in comments %}
         <div class="review{% if c.is_hidden %} dim{% endif %}">
           <div class="row spread"><strong>{{ c.author.get_full_name|default:c.author.username }}</strong><small class="muted mono tnum">{{ c.created_at|date:"Y-m-d H:i" }} UTC{% if c.is_hidden %} · hidden{% endif %}</small></div>
@@ -79,7 +79,7 @@
     {% if not project.thumbnail_url %}<div class="cover rail" style="{{ project.title|cover_style }}" aria-hidden="true"><b>{{ project.title }}</b>{% if project.track %}<i>{{ project.track.name }}</i>{% endif %}</div>{% endif %}
     {% if project.description %}{% include "events/_project_result.html" %}{% endif %}
     <section class="card">
-      <h3>Links</h3>
+      <h2 class="h3">Links</h2>
       {% if project.repo_url or project.live_url or project.demo_video_url %}
       <dl class="links">
         {% if project.repo_url %}<dt class="label">Repository</dt><dd><a href="{{ project.repo_url }}" rel="noopener" target="_blank">{{ project.repo_url }}</a></dd>{% endif %}
@@ -88,17 +88,17 @@
       </dl>
       {% else %}<p class="muted">No links yet.</p>{% endif %}
     </section>
-    {% if project.tech_tags %}<section class="card"><h3>Built with</h3><div class="tags">{% for t in project.tech_tags %}<span>{{ t }}</span>{% endfor %}</div></section>{% endif %}
+    {% if project.tech_tags %}<section class="card"><h2 class="h3">Built with</h2><div class="tags">{% for t in project.tech_tags %}<span>{{ t }}</span>{% endfor %}</div></section>{% endif %}
     <section class="card">
-      <h3>Team {{ project.team.name }}</h3>
+      <h2 class="h3">Team {{ project.team.name }}</h2>
       <ul class="plain">{% for m in members %}<li>{{ m.user.get_full_name|default:m.user.username }}{% if m.role == 'owner' %} <span class="badge neutral">owner</span>{% endif %}</li>{% endfor %}</ul>
     </section>
     {% if event.voting_open and project.is_public %}
-    <section class="card"><h3>Community vote</h3><p class="muted">Voting is open for this event.</p><a class="btn" href="{% url 'ballot' event.slug %}#p{{ project.pk }}">Go to your ballot</a></section>
+    <section class="card"><h2 class="h3">Community vote</h2><p class="muted">Voting is open for this event.</p><a class="btn" href="{% url 'ballot' event.slug %}#p{{ project.pk }}">Go to your ballot</a></section>
     {% endif %}
     {% if lookalikes %}
     <section class="card" id="lookalikes">
-      <h3>Shares a repository or live address</h3>
+      <h2 class="h3">Shares a repository or live address</h2>
       <p class="muted">Only organizers see this. Nothing is excluded automatically; hide a project if it is the same work entered twice.</p>
       <ul class="plain">{% for t in lookalikes %}<li><a href="{{ t.get_absolute_url }}">{{ t.title }}</a> <small class="muted">{{ t.team.name }}</small></li>{% endfor %}</ul>
     </section>

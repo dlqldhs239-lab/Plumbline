@@ -211,6 +211,24 @@ What each upper tier asks for, and where it is:
 | T4 embeddable gallery widget | `/events/<slug>/embed/gallery/`; snippet in *Integrations* |
 | T4 bulk import and export | console, *Settings*, *Import*; `POST /api/events/<slug>/import`; CSV exports |
 
+## Keyboard, screen reader, phone
+
+`tools/check_screens.py` opens every screen of a running portal signed out,
+as an organizer and as a judge. At desktop width it runs axe (WCAG 2 A and
+AA, and axe's best practices) on each; at 390 px it checks that no page
+scrolls sideways, that a table too wide for the screen has a box to scroll
+it in, and that no word in a table is broken in the middle. On a fresh
+install it reports no problems.
+
+```sh
+pip install playwright axe-playwright-python && playwright install chromium
+python tools/check_screens.py http://localhost:8080
+```
+
+Colour contrast is also held at the source: a theme whose text would be
+hard to read is refused when the organizer saves it, by the same
+arithmetic, so an event cannot be given colours that fail.
+
 ## What it does not do yet
 
 - File uploads: thumbnails and gallery images are URLs.

@@ -6,7 +6,7 @@
 
 <div class="grid cols-2">
   <div class="card">
-    <h3>Add a webhook</h3>
+    <h2 class="h3">Add a webhook</h2>
     <form method="post">
       {% csrf_token %}<input type="hidden" name="action" value="create">
       <div class="field"><label for="url">URL</label><input type="url" id="url" name="url" placeholder="https://example.org/hooks/plumbline" required></div>
@@ -17,7 +17,7 @@
     </form>
   </div>
   <div class="card">
-    <h3>How to verify a delivery</h3>
+    <h2 class="h3">How to verify a delivery</h2>
     <p class="muted">Each request is a JSON <code>POST</code> with three headers. Recompute the signature over the raw body with the webhook's secret and compare.</p>
 <pre>X-Plumbline-Event: project.submit
 X-Plumbline-Delivery: 42
@@ -29,7 +29,7 @@ expected = "sha256=" + hex(hmac_sha256(secret, raw_body))</pre>
 </div>
 
 <div class="card" style="margin-top:var(--s7)" id="embed">
-  <h3>On your own site</h3>
+  <h2 class="h3">On your own site</h2>
   <p class="muted">The gallery and, once published, the standings can sit in a frame on the event's site. They show public data only, wear this event's colours, and every link opens the portal in a new tab. Add <code>?limit=6</code> for fewer, <code>?track=</code> with a track's number for one track.</p>
   <div class="grid cols-2">
     <div><span class="label">Gallery</span><pre>&lt;iframe src="{{ embed_base }}gallery/" title="{{ event.name }} projects" loading="lazy" style="width:100%;height:720px;border:0"&gt;&lt;/iframe&gt;</pre></div>
@@ -38,10 +38,10 @@ expected = "sha256=" + hex(hmac_sha256(secret, raw_body))</pre>
 </div>
 
 <div class="card" style="margin-top:var(--s7)">
-  <h3>Webhooks</h3>
+  <h2 class="h3">Webhooks</h2>
   <div class="table-wrap">
   <table>
-    <thead><tr><th>URL</th><th>Actions</th><th>Secret</th><th>State</th><th></th></tr></thead>
+    <thead><tr><th>URL</th><th>Actions</th><th>Secret</th><th>State</th><th><span class="sr-only">Actions</span></th></tr></thead>
     <tbody>
     {% for h in hooks %}
     <tr class="{% if not h.active %}dim{% endif %}">
@@ -62,10 +62,10 @@ expected = "sha256=" + hex(hmac_sha256(secret, raw_body))</pre>
 </div>
 
 <div class="card" style="margin-top:1rem">
-  <h3>Recent deliveries</h3>
+  <h2 class="h3">Recent deliveries</h2>
   <div class="table-wrap">
   <table>
-    <thead><tr><th>When (UTC)</th><th>Action</th><th>To</th><th>Result</th><th class="num">Attempts</th><th></th></tr></thead>
+    <thead><tr><th>When (UTC)</th><th>Action</th><th>To</th><th>Result</th><th class="num">Attempts</th><th><span class="sr-only">Actions</span></th></tr></thead>
     <tbody>
     {% for d in deliveries %}
     <tr>

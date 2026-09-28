@@ -12,7 +12,7 @@
 <body class="embed">
 <main>
   <div class="embed-head">
-    <span class="label">{{ event.name }} · {% if what == 'results' %}results{% else %}projects{% endif %}</span>
+    <h1 class="label">{{ event.name }} · {% if what == 'results' %}results{% else %}projects{% endif %}</h1>
     <a class="label" href="{{ origin }}{% if what == 'results' %}{% url 'results' event.slug %}{% else %}{% url 'gallery' event.slug %}{% endif %}" rel="noopener">See all</a>
   </div>
   {% if what == 'results' %}
@@ -30,7 +30,7 @@
       {% for p in projects %}
       <a class="project" href="{{ origin }}{{ p.get_absolute_url }}" rel="noopener">
         {% if p.thumbnail_url %}<img class="thumb" src="{{ p.thumbnail_url }}" alt="" loading="lazy">{% else %}<div class="cover" style="{{ p.title|cover_style }}" aria-hidden="true"><b>{{ p.title }}</b></div>{% endif %}
-        <h3{% if not p.thumbnail_url %} class="sr-only"{% endif %}>{{ p.title }}</h3>
+        <h2 class="h3{% if not p.thumbnail_url %} sr-only{% endif %}">{{ p.title }}</h2>
         <p class="by"><span>{{ p.team.name }}</span>{% if p.track %}<span class="label">{{ p.track.name }}</span>{% endif %}</p>
         {% if p.tagline %}<p>{{ p.tagline }}</p>{% endif %}
       </a>

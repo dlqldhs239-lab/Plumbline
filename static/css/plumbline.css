@@ -87,7 +87,7 @@ hr { border: 0; border-top: 1px solid var(--line); margin: var(--s5) 0; }
 
 h1 { font: 700 clamp(30px, 2.6vw, 40px)/.95 var(--sans); font-stretch: 68%; letter-spacing: -.02em; text-transform: uppercase; }
 h2 { font: 700 26px/1 var(--sans); font-stretch: 72%; letter-spacing: -.01em; text-transform: uppercase; }
-h3 { font: 600 16px/1.2 var(--sans); letter-spacing: 0; }
+h3, h2.h3 { font: 600 16px/1.2 var(--sans); letter-spacing: 0; font-stretch: normal; text-transform: none; }
 .display { font: 700 clamp(56px, 9.2vw, 184px)/.84 var(--sans); font-stretch: 66%; letter-spacing: -.03em; text-transform: uppercase; }
 .display-2 { font: 700 clamp(40px, 5.4vw, 104px)/.88 var(--sans); font-stretch: 68%; letter-spacing: -.025em; text-transform: uppercase; }
 .lede { font-size: 17px; line-height: 1.5; color: var(--ink-2); max-width: 46ch; }
@@ -104,6 +104,9 @@ code { color: var(--ink-2); }
 .eyebrow a:hover { color: var(--ink); text-decoration: none; }
 .num, td.num, th.num { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
 .tnum { font-variant-numeric: tabular-nums; }
+.skip { position: absolute; left: var(--s4); top: -100px; z-index: 100; padding: var(--s3) var(--s4); background: var(--ink); color: var(--ground); text-decoration: none; }
+.skip:focus { top: var(--s3); }
+main:focus { outline: 0; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 /* -------------------------------------------------------------- layout */
@@ -200,9 +203,9 @@ input[type="color"]::-webkit-color-swatch { border: 0; }
 .card { border-top: 1px solid var(--edge); padding: var(--s4) 0 0; }
 .card.box { background: var(--surface); border: 1px solid var(--line); padding: var(--s5); }
 .card.flat { border-top: 0; padding-top: 0; }
-.card > h3:first-child, .card > .row:first-child { margin-bottom: var(--s4); }
-.card h3 a { color: var(--ink); text-decoration: none; }
-.card h3 a:hover { text-decoration: underline; text-decoration-color: var(--accent); }
+.card > :is(h3, .h3):first-child, .card > .row:first-child { margin-bottom: var(--s4); }
+.card :is(h3, .h3) a { color: var(--ink); text-decoration: none; }
+.card :is(h3, .h3) a:hover { text-decoration: underline; text-decoration-color: var(--accent); }
 .card .meta { color: var(--mute); font-size: 13px; }
 .card p + pre, .card pre + p, .card p + dl, .card dl + p { margin-top: var(--s4); }
 .card p + .btn, .card p + .row, .card table + .btn, .card p + .table-wrap, .card p + table, .card p + form { margin-top: var(--s4); }
@@ -222,7 +225,7 @@ a.card:hover { border-top-color: var(--accent); }
 /* A table that can scroll keeps its words whole; one that cannot may break them. */
 .table-wrap table { overflow-wrap: normal; }
 .table-wrap td.num, .table-wrap td.mono, .table-wrap .whole { white-space: nowrap; }
-form.card > h3 { margin-bottom: var(--s4); }
+form.card > :is(h3, .h3) { margin-bottom: var(--s4); }
 table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 th { text-align: left; color: var(--mute); font-size: 10.5px; padding: 0 var(--s3) var(--s3); border-bottom: 1px solid var(--edge); white-space: nowrap; vertical-align: bottom; }
 td { padding: var(--s3); border-bottom: 1px solid var(--line); vertical-align: top; }
@@ -282,13 +285,13 @@ kbd, .kbd { font: 500 10.5px/1 var(--mono); border: 1px solid var(--edge); paddi
 .cover b { position: relative; font: 700 clamp(26px, 2.6vw, 44px)/.88 var(--sans); font-stretch: var(--w, 68%); letter-spacing: -.02em; text-transform: uppercase; color: var(--ink); max-width: 9ch; overflow-wrap: anywhere; }
 .cover i { position: absolute; bottom: var(--s4); right: var(--s4); font: 500 10px/1 var(--mono); font-style: normal; letter-spacing: .1em; text-transform: uppercase; color: var(--mute); }
 .project { display: block; color: inherit; text-decoration: none; }
-.project h3 { font: 600 17px/1.15 var(--sans); color: var(--ink); }
+.project :is(h3, .h3) { font: 600 17px/1.15 var(--sans); color: var(--ink); }
 .project p { color: var(--mute); font-size: 13px; margin-top: var(--s1); }
 .project .by { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s3); color: var(--ink); font-size: 14px; font-weight: 600; margin: 0; }
 .project .by .label { flex: none; }
 .project:hover .cover::before { height: calc(var(--y, 56%) + 12%); background: var(--accent); }
 .project:hover .cover::after { top: calc(var(--y, 56%) + 12% - 3px); background: var(--accent); }
-.project:hover h3 { text-decoration: underline; text-decoration-thickness: 1px; text-decoration-color: var(--accent); text-underline-offset: 3px; }
+.project:hover :is(h3, .h3) { text-decoration: underline; text-decoration-thickness: 1px; text-decoration-color: var(--accent); text-underline-offset: 3px; }
 .project .row { margin-top: var(--s3); }
 
 /* ------------------------------------------------------------- filters */
@@ -455,7 +458,7 @@ td:has(> .bar) { vertical-align: middle; }
 .marks dd { font: 500 14px/1 var(--mono); text-align: right; }
 .score { display: flex; flex-direction: column; gap: var(--s2); align-items: flex-end; text-align: right; }
 .score b { font: 600 clamp(36px, 3.4vw, 56px)/1 var(--mono); letter-spacing: -.03em; }
-.score .was { color: color-mix(in srgb, var(--mute) 80%, var(--ground)); }
+.score .was { color: var(--mute); }
 .card.result .score { align-items: flex-start; text-align: left; margin: var(--s2) 0 var(--s5); }
 .card.result .score b { font-size: 56px; color: var(--accent); }
 .move { font-family: var(--mono); color: var(--mute); }
@@ -786,7 +789,7 @@ table.tally tr.dim td.len i { background: transparent; }
 .log .facts dd { margin: 0; color: var(--ink-2); font-family: var(--mono); overflow-wrap: anywhere; }
 .log .facts s { color: var(--mute); }
 .log .via { color: var(--mute); text-align: right; line-height: 1.5; }
-.log .via .code { color: var(--edge); }
+.log .via .code { color: var(--mute); }
 @media (max-width: 760px) {
   .log > li { grid-template-columns: 4.5rem minmax(0, 1fr); gap: var(--s3); }
   .log .via { grid-column: 2; text-align: left; }

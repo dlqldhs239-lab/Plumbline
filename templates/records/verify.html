@@ -22,7 +22,7 @@
   <div class="stack loose">
     {% if result %}
     <section class="card verdict-card {{ result.state }}" role="status">
-      <h3><span class="badge {% if result.state == 'genuine' %}ok{% elif result.state == 'revoked' or result.state == 'suspended' %}warn{% else %}bad{% endif %}">{% if result.state == 'genuine' %}Genuine{% elif result.state == 'revoked' %}Withdrawn{% elif result.state == 'suspended' %}Not standing at present{% elif result.state == 'altered' %}Altered{% else %}Not found{% endif %}</span></h3>
+      <h2 class="h3"><span class="badge {% if result.state == 'genuine' %}ok{% elif result.state == 'revoked' or result.state == 'suspended' %}warn{% else %}bad{% endif %}">{% if result.state == 'genuine' %}Genuine{% elif result.state == 'revoked' %}Withdrawn{% elif result.state == 'suspended' %}Not standing at present{% elif result.state == 'altered' %}Altered{% else %}Not found{% endif %}</span></h2>
       <p>{{ result.says }}</p>
       {% if result.record and result.state != 'altered' and result.state != 'suspended' %}
       <table>
@@ -37,11 +37,11 @@
     </section>
     {% endif %}
     <section class="card">
-      <h3>What the check can and cannot say</h3>
+      <h2 class="h3">What the check can and cannot say</h2>
       <p class="muted">It can say that this portal issued the record, that nothing in it changed, and whether it still stands. It cannot say that the person showing it is the person named in it.</p>
     </section>
     <section class="card" id="key">
-      <h3>Check it without us</h3>
+      <h2 class="h3">Check it without us</h2>
       <p class="muted">Records are signed with {{ key.algorithm }}. With the public key below and the record's JSON file, the signature can be checked on any machine, with no portal running.</p>
       <pre>python tools/verify_record.py record.json --key &lt;key&gt;</pre>
       <p class="muted">What only the portal can say is whether a record was withdrawn since.</p>

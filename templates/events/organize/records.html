@@ -23,7 +23,7 @@
     {% if records %}
     <div class="table-wrap scroll tall">
     <table>
-      <thead><tr><th>Record</th><th>To</th><th>For</th><th>Kind</th><th>State</th><th></th></tr></thead>
+      <thead><tr><th>Record</th><th>To</th><th>For</th><th>Kind</th><th>State</th><th><span class="sr-only">Actions</span></th></tr></thead>
       <tbody>
       {% for r in records %}
       <tr class="{% if r.is_revoked %}dim{% endif %}">
@@ -45,7 +45,7 @@
 
   <aside class="stack loose">
     <section class="card box">
-      <h3>Issue the records</h3>
+      <h2 class="h3">Issue the records</h2>
       <p class="muted">One for every member of every ranked team, one for every judge who submitted a review. Running it again issues only what is missing; a record whose place has changed since is withdrawn and replaced.</p>
       {% if event.results_published %}
       <form method="post">
@@ -58,7 +58,7 @@
       {% endif %}
     </section>
     <section class="card">
-      <h3>What a record says</h3>
+      <h2 class="h3">What a record says</h2>
       <p class="muted">A team member's record names the person, the team, the project and, for a placement, the place, the score and the number of judges. A judge's record says that they judged and how many reviews they submitted, and nothing about the marks they gave.</p>
     </section>
   </aside>

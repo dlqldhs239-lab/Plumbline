@@ -11,7 +11,7 @@
     {% if prizes %}
     <div class="table-wrap">
     <table>
-      <thead><tr><th class="num">Order</th><th>Prize</th><th>Track</th><th class="num">Amount</th><th></th></tr></thead>
+      <thead><tr><th class="num">Order</th><th>Prize</th><th>Track</th><th class="num">Amount</th><th><span class="sr-only">Actions</span></th></tr></thead>
       <tbody>
       {% for p in prizes %}
       <tr>
@@ -36,7 +36,7 @@
   <aside>
     <form method="post" class="card box" id="form">
       {% csrf_token %}
-      <h3>{% if editing %}Edit {{ editing.name }}{% else %}Add a prize{% endif %}</h3>
+      <h2 class="h3">{% if editing %}Edit {{ editing.name }}{% else %}Add a prize{% endif %}</h2>
       {% if editing %}<input type="hidden" name="prize" value="{{ editing.pk }}">{% endif %}
       <div class="field"><label for="name">Name <span class="muted" aria-hidden="true">*</span></label><input type="text" id="name" name="name" maxlength="120" required value="{% if entered %}{{ entered.name }}{% else %}{{ editing.name|default:'' }}{% endif %}"></div>
       <div class="field"><label for="description">What it is</label><textarea id="description" name="description" rows="3" maxlength="2000">{% if entered %}{{ entered.description }}{% else %}{{ editing.description|default:'' }}{% endif %}</textarea></div>

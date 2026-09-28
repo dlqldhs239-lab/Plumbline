@@ -65,7 +65,7 @@
 
 <div class="grid cols-2" style="margin-top:var(--s7)">
   <section class="card">
-    <h3>Judges</h3>
+    <h2 class="h3">Judges</h2>
     <p class="muted">The figures behind the drawing. Leniency is what is taken off each of a judge's scores: how far their marks stand from what other judges gave the same projects, believed in the proportion shown.</p>
     <div class="table-wrap scroll">
     <table><thead><tr><th>Judge</th><th class="num">Reviews</th><th class="num">Mean</th><th class="num">From panel</th><th class="num">Leniency</th><th class="num">Spread</th><th class="num">Believed</th></tr></thead><tbody>
@@ -75,7 +75,7 @@
     <p class="help"><a href="{% url 'organize_export' event.slug 'calibration' %}">Calibration CSV</a> · <a href="{% url 'organize_export' event.slug 'scores' %}">Every score, CSV</a></p>
   </section>
   <section class="card">
-    <h3>Largest moves</h3>
+    <h2 class="h3">Largest moves</h2>
     <p class="muted">Where the order changed most between the raw mean and the final place. A project marked by harsh judges moves up; one marked by generous judges, or resting on few reviews, moves down.</p>
     {% if movers %}
     <div class="table-wrap">
