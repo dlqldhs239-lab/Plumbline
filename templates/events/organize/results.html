@@ -78,9 +78,11 @@
     <h3>Largest moves</h3>
     <p class="muted">Where the order changed most between the raw mean and the final place. A project marked by harsh judges moves up; one marked by generous judges, or resting on few reviews, moves down.</p>
     {% if movers %}
+    <div class="table-wrap">
     <table><thead><tr><th>Project</th><th class="num">Judges</th><th class="num">Raw place</th><th class="num">Final place</th><th class="num">Moved</th></tr></thead><tbody>
     {% for r in movers %}<tr><td><a href="{{ r.project.get_absolute_url }}">{{ r.project.title }}</a></td><td class="num">{{ r.review_count }}</td><td class="num">{{ r.rank_raw }}</td><td class="num">{{ r.rank }}</td><td class="num">{% if r.delta > 0 %}<span class="move up">+{{ r.delta }}</span>{% else %}<span class="move down">−{{ r.delta_abs }}</span>{% endif %}</td></tr>{% endfor %}
     </tbody></table>
+    </div>
     {% else %}<p class="muted">Nothing changed place.</p>{% endif %}
   </section>
 </div>

@@ -16,7 +16,7 @@
       <thead><tr><th>Batch</th><th>Judge</th><th>Project</th><th>Status</th><th></th></tr></thead>
       <tbody>
       {% for a in assignments %}
-      <tr><td><small>{{ a.batch }}</small></td><td>{{ a.judge.get_full_name|default:a.judge.username }}</td><td><a href="{{ a.project.get_absolute_url }}">{{ a.project.title }}</a><br><small class="muted">{{ a.project.track.name|default:"" }}</small></td>
+      <tr><td class="whole"><small>{{ a.batch }}</small></td><td>{{ a.judge.get_full_name|default:a.judge.username }}</td><td><a href="{{ a.project.get_absolute_url }}">{{ a.project.title }}</a><br><small class="muted">{{ a.project.track.name|default:"" }}</small></td>
         <td><span class="badge {% if a.status == 'submitted' %}ok{% elif a.status == 'in_progress' %}warn{% else %}neutral{% endif %}">{{ a.get_status_display }}</span></td>
         <td>{% if a.status != 'submitted' %}<form method="post" action="{% url 'organize_assignment_remove' event.slug a.pk %}" class="inline">{% csrf_token %}<button class="btn small danger" type="submit" data-confirm="Remove for good">Remove</button></form>{% endif %}</td></tr>
       {% empty %}<tr><td colspan="5" class="muted">No assignments yet.</td></tr>{% endfor %}

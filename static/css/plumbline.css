@@ -204,6 +204,7 @@ input[type="color"]::-webkit-color-swatch { border: 0; }
 .card h3 a { color: var(--ink); text-decoration: none; }
 .card h3 a:hover { text-decoration: underline; text-decoration-color: var(--accent); }
 .card .meta { color: var(--mute); font-size: 13px; }
+.card p + pre, .card pre + p, .card p + dl, .card dl + p { margin-top: var(--s4); }
 .card p + .btn, .card p + .row, .card table + .btn, .card p + .table-wrap, .card p + table, .card p + form { margin-top: var(--s4); }
 a.card { display: block; color: inherit; text-decoration: none; transition: border-color var(--t-micro) var(--ease); }
 a.card:hover { border-top-color: var(--accent); }
@@ -218,6 +219,9 @@ a.card:hover { border-top-color: var(--accent); }
 /* -------------------------------------------------------------- tables */
 /* positioned, so that visually hidden labels inside a wide table scroll with it and do not widen the page */
 .table-wrap { overflow-x: auto; position: relative; }
+/* A table that can scroll keeps its words whole; one that cannot may break them. */
+.table-wrap table { overflow-wrap: normal; }
+.table-wrap td.num, .table-wrap td.mono, .table-wrap .whole { white-space: nowrap; }
 form.card > h3 { margin-bottom: var(--s4); }
 table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 th { text-align: left; color: var(--mute); font-size: 10.5px; padding: 0 var(--s3) var(--s3); border-bottom: 1px solid var(--edge); white-space: nowrap; vertical-align: bottom; }

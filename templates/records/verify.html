@@ -42,7 +42,9 @@
     </section>
     <section class="card" id="key">
       <h3>Check it without us</h3>
-      <p class="muted">Records are signed with {{ key.algorithm }}. With the public key below and the record's JSON file, the signature can be checked on any machine, with no portal running: <code>python tools/verify_record.py record.json --key &lt;key&gt;</code>. What only the portal can say is whether a record was withdrawn since.</p>
+      <p class="muted">Records are signed with {{ key.algorithm }}. With the public key below and the record's JSON file, the signature can be checked on any machine, with no portal running.</p>
+      <pre>python tools/verify_record.py record.json --key &lt;key&gt;</pre>
+      <p class="muted">What only the portal can say is whether a record was withdrawn since.</p>
       <dl class="links">
         <dt class="label">Public key</dt><dd class="mono sig">{{ key.public_key }}</dd>
         <dt class="label">Fingerprint</dt><dd class="mono">{{ key.fingerprint }}</dd>
