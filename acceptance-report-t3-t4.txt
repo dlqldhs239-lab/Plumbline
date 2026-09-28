@@ -42,6 +42,9 @@ T4  records: it says nothing of the marks given ... PASS
 T4  records: readable by anyone with the number ... PASS
 T4  records: a genuine record checks as genuine ... PASS
 T4  records: one changed value is caught .......... PASS
+T4  records: the public key is published .......... PASS
+T4  records: the signature checks offline ......... PASS
+T4  records: a changed record fails offline ....... PASS
 T4  records: only organizers withdraw ............. PASS
 T4  records: a withdrawn record says so ........... PASS
 T4  certificate page is served .................... PASS
@@ -58,4 +61,4 @@ T4  export: audit.csv, columns and rows ........... PASS
 T4  export: refused to a participant .............. PASS
 
 T3: 22 of 22 probes passed
-T4: 33 of 33 probes passed
+T4: 36 of 36 probes passed

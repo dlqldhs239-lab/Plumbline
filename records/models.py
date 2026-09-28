@@ -36,7 +36,7 @@ class Record(models.Model):
     recipient = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="records")
     project = models.ForeignKey(Project, null=True, blank=True, on_delete=models.SET_NULL, related_name="records")
     payload = models.JSONField()
-    signature = models.CharField(max_length=64)
+    signature = models.CharField(max_length=128)
     issued_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
     )

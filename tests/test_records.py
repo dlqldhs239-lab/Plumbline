@@ -79,7 +79,8 @@ class IssuedTests(Issued):
     def test_a_judges_record_says_nothing_about_marks(self):
         rec = Record.objects.filter(kind="judge").first()
         self.assertEqual(
-            set(rec.payload), {"serial", "kind", "event", "recipient", "issued_at", "issuer", "signed_with", "reviews"}
+            set(rec.payload),
+            {"serial", "kind", "event", "recipient", "issued_at", "issuer", "signed_with", "key", "reviews"},
         )
         page = self.client.get(rec.get_absolute_url()).content.decode()
         self.assertNotIn("Score", page)
@@ -109,7 +110,7 @@ class CheckTests(Issued):
         doc = copy.deepcopy(self.doc)
         doc["payload"]["extra"] = True
         self.assertEqual(services.check(doc["payload"], doc["signature"])["state"], "altered")
-        self.assertEqual(services.check(self.doc["payload"], "0" * 64)["state"], "altered")
+        self.assertEqual(services.check(self.doc["payload"], "0" * 128)["state"], "altered")
 
     def test_a_document_re_signed_with_another_key_is_caught(self):
         with override_settings(SECRET_KEY="someone-elses-secret"):

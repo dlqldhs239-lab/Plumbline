@@ -141,8 +141,15 @@ judges get in through a one-time sign-in link the organizer passes on.
 **Signed records (T4).** Once results are published the organizer issues a
 record to every member of every ranked team and to every judge who submitted
 a review. Each opens as a certificate that prints on one page, carries a
-number and an HMAC-SHA256 signature, and can be checked by anyone at
-`/verify/` or `POST /api/records/check`: genuine, withdrawn, altered or
+number and an Ed25519 signature. Anyone can check the signature on their
+own machine, with no portal running and nothing installed:
+
+```sh
+python tools/verify_record.py record.json --key <the public key from /verify/key.json>
+```
+
+Whether a record still stands is asked of the portal, at `/verify/` or
+`POST /api/records/check`: genuine, withdrawn, not standing, altered or
 unknown. A judge's record says that they judged and how much, never what
 they scored. A record whose place changed after a recompute is withdrawn and
 replaced, so there is never more than one to believe.
@@ -163,7 +170,7 @@ with their agreement. An organizer switches it on in the console, under
 | tier | verified by | report |
 |---|---|---|
 | T1, T2 | the official `checker/run.py`, 7 probes | `acceptance-report.txt` |
-| T3, T4 | `tools/verify_tiers.py`, 55 probes in the same manner | `acceptance-report-t3-t4.txt` |
+| T3, T4 | `tools/verify_tiers.py`, 58 probes in the same manner | `acceptance-report-t3-t4.txt` |
 
 The official checker has probes for T1 and T2 only, so it prints T3 and T4
 as *claimed but not verified*. That line is true of the checker, not of the
@@ -227,6 +234,7 @@ Copy `.env.example` to `.env` and set:
 | `CSRF_TRUSTED_ORIGINS` | `http://localhost:8080,…` | your origin, with scheme |
 | `DJANGO_DEBUG` | `0` | leave it |
 | `PLUMBLINE_SITE_NAME` | `Plumbline` | shown in the header |
+| `PLUMBLINE_RECORDS_KEY` | empty | what the key that signs records is made from; empty means the secret key. Set it once and keep it, and the secret key can be changed without the records issued so far failing their check |
 | `PLUMBLINE_SITE_URL` | empty | your public address, such as `https://judging.example.org`; printed on certificates and in the links you send |
 | `PLUMBLINE_ANON_WRITE_RATE` | `20` | anonymous writes per minute per address |
 | `PLUMBLINE_TRUST_PROXY` | `0` | set `1` only behind a proxy you run; see below |
@@ -247,7 +255,11 @@ password, so for a real event start with `PLUMBLINE_SEED=0`.
 Create the first organizer with `docker compose exec web python manage.py createsuperuser`,
 then create an event at `/events/new/`.
 
-Backups: `docker compose exec db pg_dump -U plumbline plumbline > backup.sql`.
+Backups: `docker compose exec -T db pg_dump -U plumbline plumbline > backup.sql`.
+Restoring into an empty database:
+`docker compose exec -T db psql -U plumbline plumbline < backup.sql`.
+Keep `DJANGO_SECRET_KEY` (or `PLUMBLINE_RECORDS_KEY`) with the backup: the
+records in it are signed with a key made from that value.
 Leaving: the CSV exports in the organizer console cover every table an
 organizer cares about; `pg_dump` covers the rest.
 
@@ -262,7 +274,7 @@ pip install -r requirements.txt
 python manage.py migrate && python manage.py createcachetable
 python manage.py seed_fixtures fixtures.json
 python manage.py runserver 8080
-python manage.py test tests            # 368 tests, 5 to 12 minutes
+python manage.py test tests            # 382 tests, 5 to 12 minutes
 python manage.py normalization_report sample-hack-2026 > docs/normalization-proof.md
 ```
 

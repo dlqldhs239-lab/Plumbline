@@ -52,7 +52,7 @@ the same function as the API.
 ## 4. We claim all four tiers, and wrote the probes the checker lacks
 
 **Chosen.** `.dogfood.toml` claims T1 to T4. The official checker verifies
-T1 and T2. `tools/verify_tiers.py` verifies T3 and T4 with 55 probes written
+T1 and T2. `tools/verify_tiers.py` verifies T3 and T4 with 58 probes written
 in the checker's manner, and its output is committed beside the official
 report.
 
@@ -200,7 +200,23 @@ which is what a PDF is.
 **Why.** Two teams each holding a genuine record of first place is the
 failure that makes all records worthless.
 
-## 16. A second event, ours, in which every window is open
+## 16. Records are signed with a key whose public half is published
+
+**Chosen.** Ed25519. The private key is made from the installation's
+secret; the public key is in every record and at `/verify/key.json`.
+`tools/verify_record.py` checks a signature with the Python standard
+library and no portal. Records signed the earlier way still verify here.
+
+**Given up.** HMAC-SHA256, which was the first version and needs no
+dependency. It is a signature only the issuer can check, and the brief asks
+for records that are publicly verifiable. One dependency was added for
+signing (`cryptography`); verifying needs none.
+
+**Why.** A certificate is shown to people who have no reason to trust, or
+to be able to reach, the portal that issued it. They should be able to
+check it anyway.
+
+## 17. A second event, ours, in which every window is open
 
 **Chosen.** Beside the organizer's fixture event the portal seeds *Open
 House*: eight projects, eight judges, reviews left open for the two seeded
@@ -218,7 +234,7 @@ certificates. Two of the four tiers could only be seen by someone willing
 to configure an event first. An organizer deciding whether to adopt a
 portal will not do that, and should not have to.
 
-## 17. What we would do differently
+## 18. What we would do differently
 
 - **Review before building on top.** The first independent review came
   after three tiers were written and found twenty-seven problems, three of

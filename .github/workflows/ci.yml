@@ -1,0 +1,67 @@
+# What a judge would do by hand, on every push: start the portal with one
+# command, run the organizer's checker against it, run ours, run the tests.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  portal:
+    name: docker compose up, then both checkers
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: docker compose up
+        run: docker compose up -d --build
+
+      - name: Wait for the portal
+        run: |
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/ || true)
+            if [ "$code" = "200" ]; then exit 0; fi
+            sleep 3
+          done
+          docker compose logs web
+          exit 1
+
+      - name: The organizer's checker (T1, T2)
+        run: |
+          python3 checker/run.py .dogfood.toml --fixtures fixtures.json | tee report.txt
+          grep -q "verified T1 T2" report.txt
+          ! grep -q "FAIL" report.txt
+
+      - name: Our checker (T3, T4)
+        run: |
+          python3 tools/verify_tiers.py .dogfood.toml | tee report-upper.txt
+          ! grep -q "FAIL" report-upper.txt
+
+      - name: The committed reports are the ones the checkers print
+        run: |
+          diff <(grep -E "^T[12] " acceptance-report.txt) <(grep -E "^T[12] " report.txt)
+
+      - name: Logs, if anything failed
+        if: failure()
+        run: docker compose logs --tail 200
+
+  tests:
+    name: tests and lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: pip install -r requirements.txt ruff
+      - run: ruff format --check .
+      - run: ruff check .
+      - run: python manage.py makemigrations --check --dry-run
+      - run: python manage.py test tests

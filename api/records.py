@@ -8,7 +8,7 @@ from django.shortcuts import get_object_or_404
 from ninja import Schema
 
 from plumbline.inputs import site_url
-from records import services
+from records import services, signing
 from records.models import Record
 
 from .auth import auth_optional, auth_required
@@ -98,6 +98,24 @@ def list_records(request, slug: str):
 def my_records(request):
     mine = Record.objects.filter(recipient=request.user).select_related("event", "project")
     return [record_out(request, r) for r in mine]
+
+
+class KeyOut(Schema):
+    algorithm: str
+    public_key: str
+    fingerprint: str
+    encoding: str
+    signed_bytes: str
+    signature_encoding: str
+    issuer: str
+    note: str
+
+
+@api.get("/records/key", response=KeyOut, auth=auth_optional, tags=["records"])
+def records_key(request):
+    """The public key records are signed with. With it and a record, anyone
+    can check the signature on their own machine: tools/verify_record.py."""
+    return signing.key_document()
 
 
 @api.post("/records/check", response=CheckOut, auth=auth_optional, tags=["records"])

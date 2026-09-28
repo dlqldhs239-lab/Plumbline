@@ -17,6 +17,7 @@ Exit status is 0 when every probe passed.
 from __future__ import annotations
 
 import json
+import os
 import sys
 import time
 import tomllib
@@ -317,6 +318,23 @@ def main(argv: list[str]) -> int:
             status == 200 and verdict["state"] == "altered",
             f"{status} {verdict}",
         )
+        # Without the portal: the published key, the record, and arithmetic.
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import verify_record
+
+        status, key, _ = portal.call("GET", "/verify/key.json")
+        published = status == 200 and isinstance(key, dict) and key.get("algorithm") == "Ed25519"
+        rep.check("T4", "records: the public key is published", published, str(status))
+        if published:
+            public = bytes.fromhex(key["public_key"])
+            fits = verify_record.ed25519_fits(
+                public, verify_record.canonical(doc["payload"]), bytes.fromhex(doc["signature"])
+            )
+            rep.check("T4", "records: the signature checks offline", fits)
+            fits = verify_record.ed25519_fits(
+                public, verify_record.canonical(forged["payload"]), bytes.fromhex(forged["signature"])
+            )
+            rep.check("T4", "records: a changed record fails offline", not fits)
         status, _, _ = portal.call("POST", f"{e}/records/{record['serial']}/revoke", "participant", {"reason": "x"})
         rep.check("T4", "records: only organizers withdraw", status == 403, str(status))
         portal.call("POST", f"{e}/records/{record['serial']}/revoke", "organizer", {"reason": "probe finished"})

@@ -2,10 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
-import hmac
-import json
-
 from django.conf import settings
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
@@ -20,9 +16,11 @@ from judging.models import JudgeAssignment
 from judging.services import ensure_rubric, placed
 from plumbline.inputs import as_int
 
+from . import signing
 from .models import Record, new_serial
+from .signing import canonical, sign  # noqa: F401 - part of this module's face
 
-METHOD = "HMAC-SHA256"
+METHOD = signing.ED25519
 # What two records must share to be the same statement. Serial and date are
 # left out: issuing the same statement twice gives one record, not two.
 IDENTITY = ("kind", "event", "recipient", "team", "project", "place", "of", "track", "score", "reviews")
@@ -30,20 +28,6 @@ IDENTITY = ("kind", "event", "recipient", "team", "project", "place", "of", "tra
 REPLACED = "replaced by a newer record"
 NOT_IN_RESULTS = "no longer in the published results"
 AUTOMATIC = (REPLACED, NOT_IN_RESULTS)
-
-
-def _key() -> bytes:
-    """A key for records only, derived from the installation's secret, so a
-    signature here can never be replayed as a session or a token."""
-    return hashlib.sha256(("plumbline.records|" + settings.SECRET_KEY).encode()).digest()
-
-
-def canonical(payload: dict) -> bytes:
-    return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
-
-
-def sign(payload: dict) -> str:
-    return hmac.new(_key(), canonical(payload), hashlib.sha256).hexdigest()
 
 
 def display_name(user) -> str:
@@ -88,11 +72,10 @@ def check(payload, signature, ground: Ground | None = None) -> dict:
     if not isinstance(payload, dict) or not isinstance(signature, str):
         return not_a_record
     try:
-        expected = sign(payload).encode("ascii")
-        given = signature.strip().lower().encode("utf-8", "replace")
+        canonical(payload)
     except (TypeError, ValueError, RecursionError, UnicodeError):
         return not_a_record
-    good = hmac.compare_digest(expected, given)
+    good = signing.fits(payload, signature)
     serial = payload.get("serial")
     found = Record.objects.filter(serial=serial.strip().upper()[:20]).first() if isinstance(serial, str) else None
     if found is None:
@@ -156,6 +139,7 @@ def _payload(kind: str, event: Event, user, issued_at, **facts) -> dict:
         "issued_at": issued_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "issuer": settings.PLUMBLINE_SITE_NAME,
         "signed_with": METHOD,
+        "key": signing.fingerprint(),
     }
     payload.update({k: v for k, v in facts.items() if v is not None})
     return payload
@@ -291,5 +275,10 @@ def revoke(rec: Record, actor, reason: str = "") -> Record:
 
 
 def document(rec: Record) -> dict:
-    """What a holder keeps and a verifier checks."""
-    return {"payload": rec.payload, "signature": rec.signature}
+    """What a holder keeps and a verifier checks. The public key is printed
+    for convenience; a careful verifier takes it from the issuer instead."""
+    out = {"payload": rec.payload, "signature": rec.signature}
+    if rec.payload.get("signed_with") == signing.ED25519:
+        out["public_key"] = signing.public_key()
+        out["how_to_check"] = "python tools/verify_record.py <this file> --key <the issuer's public key>"
+    return out

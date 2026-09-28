@@ -208,8 +208,11 @@ real event.
 
 *Attack:* edit a certificate to say first place, or make one up.
 
-*Answer:* every record is a JSON document with an HMAC-SHA256 signature made
-with a key derived from the installation's secret, and a number. The check
+*Answer:* every record is a JSON document with a number and an Ed25519
+signature. The private key is made from the installation's secret and never
+leaves it; the public key is printed in every record and published at
+`/verify/key.json`. Anyone can check the signature on their own machine with
+`tools/verify_record.py`, which needs nothing but Python. The portal's check
 (`/verify/`, `POST /api/records/check`) answers *genuine* only if the
 signature fits **and** the record exists here **and** the stored document
 is the same. One changed character, a key written twice, a well-signed
@@ -222,9 +225,12 @@ holds for a withdrawn record too. A statement an organizer withdrew by hand
 is not issued again by the next run.
 
 *Not stopped:* someone showing another person's genuine certificate as
-their own. The check says the record is real, not who is holding it. And
-the check has to be asked of the portal that issued the record: the key is
-symmetric, so nobody else can verify the signature.
+their own. The check says the record is real, not who is holding it.
+A signature checked offline says the record was issued and is unchanged; it
+cannot say the record was withdrawn afterwards. That answer is the
+portal's. And a verifier who takes the public key from the record itself,
+instead of from the issuer, has checked nothing: a forger prints their own
+key. The tool says so when it is used that way.
 
 ### A spreadsheet that runs what a team typed
 

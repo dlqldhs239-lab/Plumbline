@@ -11,7 +11,7 @@ from events.models import Event
 from events.permissions import is_organizer
 from plumbline.inputs import as_int, site_url
 
-from . import services
+from . import services, signing
 from .models import Record
 
 
@@ -49,6 +49,7 @@ def record_detail(request, serial):
             # results that are not public.
             "withheld": state["withheld"],
             "address": site_url(request, rec.get_absolute_url()),
+            "public": rec.payload.get("signed_with") == signing.ED25519,
         },
     )
 
@@ -59,6 +60,14 @@ def record_json(request, serial):
         raise PermissionDenied("This record does not stand at present.")
     response = JsonResponse(services.document(rec), json_dumps_params={"indent": 2, "ensure_ascii": False})
     response["Content-Disposition"] = f'attachment; filename="{rec.serial}.json"'
+    return response
+
+
+def key(request):
+    """The public key records are signed with, for whoever wants to check a
+    signature without asking this portal."""
+    response = JsonResponse(signing.key_document(), json_dumps_params={"indent": 2, "ensure_ascii": False})
+    response["Access-Control-Allow-Origin"] = "*"
     return response
 
 
@@ -80,7 +89,11 @@ def verify(request):
                 if rec
                 else {"state": "unknown", "says": "No record with that number was issued here."}
             )
-    return render(request, "records/verify.html", {"result": result, "entered": entered})
+    return render(
+        request,
+        "records/verify.html",
+        {"result": result, "entered": entered, "key": signing.key_document()},
+    )
 
 
 @login_required

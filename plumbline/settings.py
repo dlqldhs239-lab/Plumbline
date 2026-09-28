@@ -147,6 +147,10 @@ PLUMBLINE_SAMPLE_SECRETS = SECRET_KEY == DEFAULT_SECRET_KEY or (
     PLUMBLINE_SEEDED and PLUMBLINE_SEED_SECRET == DEFAULT_SEED_SECRET
 )
 PLUMBLINE_SITE_NAME = os.environ.get("PLUMBLINE_SITE_NAME", "Plumbline")
+# What the key that signs records is made from. Empty means the secret key.
+# Set it, and the secret key can be changed without every record issued so
+# far failing its check.
+PLUMBLINE_RECORDS_KEY = os.environ.get("PLUMBLINE_RECORDS_KEY", "").strip()
 # The public address, with scheme, no trailing slash. Links the portal prints
 # for other people (certificates, sign-in links, ballot links, embeds) are
 # built from it. Empty means "whatever address the request came to", which
